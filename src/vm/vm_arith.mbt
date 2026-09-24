@@ -2,85 +2,80 @@
 
 ///|
 /// Binary arithmetic, bitwise and power operators.
+///
+/// The two numeric cases are tried in the order the reference tries them -- both
+/// operands as integers, then both as floats -- and each reads its operands
+/// straight out of the value instead of going through a helper, because this
+/// runs once per arithmetic instruction.
 pub fn arith(
   st : @core.LuaState,
   op : Int,
   x : @core.Value,
   y : @core.Value,
 ) -> @core.Value raise @core.LuaRaised {
-  let both_int = match (x, y) {
-    (@core.VInt(_), @core.VInt(_)) => true
-    _ => false
+  if op >= @core.BINOP_BAND && op <= @core.BINOP_SHR {
+    let a = @core.value_to_int64(x)
+    let b = @core.value_to_int64(y)
+    match (a, b) {
+      (@core.ConvInt(a), @core.ConvInt(b)) =>
+        return @core.VInt(
+          match op {
+            @core.BINOP_BAND => a & b
+            @core.BINOP_BOR => a | b
+            @core.BINOP_BXOR => a ^ b
+            @core.BINOP_SHL => int_shl(a, b)
+            @core.BINOP_SHR => int_shr(a, b)
+            _ => a
+          },
+        )
+      _ =>
+        // Two numbers that are not both integers have no integer
+        // representation; anything else goes to the metamethod, which is where
+        // a numeric string is coerced.
+        if x.is_number() && y.is_number() {
+          match a {
+            @core.ConvNoInt => no_integer_representation(st, x, st.slot_x)
+            _ => no_integer_representation(st, y, st.slot_y)
+          }
+        }
+    }
+    return binary_metamethod(st, op, x, y, "perform bitwise operation on")
   }
-  let both_num = x.is_number() && y.is_number()
-  if op_is_bitwise(op) {
-    if both_int || both_num {
-      let a = match @core.value_to_int64(x) {
-        Some(v) => v
-        None => no_integer_representation(st, x, st.slot_x)
-      }
-      let b = match @core.value_to_int64(y) {
-        Some(v) => v
-        None => no_integer_representation(st, y, st.slot_y)
-      }
-      return @core.VInt(
+  // Integer arithmetic, when both operands are integers and the operator keeps
+  // them so: `/` and `^` always produce a float.
+  if op != @core.BINOP_DIV && op != @core.BINOP_POW {
+    match (x, y) {
+      (@core.VInt(a), @core.VInt(b)) =>
+        return @core.VInt(
+          match op {
+            @core.BINOP_ADD => a + b
+            @core.BINOP_SUB => a - b
+            @core.BINOP_MUL => a * b
+            @core.BINOP_IDIV => int_floor_div(st, a, b)
+            @core.BINOP_MOD => int_mod(st, a, b)
+            _ => a
+          },
+        )
+      _ => ()
+    }
+  }
+  // Float arithmetic, when both operands are numbers.
+  match (@core.value_to_double(x), @core.value_to_double(y)) {
+    (@core.ConvNum(a), @core.ConvNum(b)) =>
+      @core.VNum(
         match op {
-          @core.BINOP_BAND => a & b
-          @core.BINOP_BOR => a | b
-          @core.BINOP_BXOR => a ^ b
-          @core.BINOP_SHL => int_shl(a, b)
-          @core.BINOP_SHR => int_shr(a, b)
+          @core.BINOP_ADD => a + b
+          @core.BINOP_SUB => a - b
+          @core.BINOP_MUL => a * b
+          @core.BINOP_DIV => a / b
+          @core.BINOP_POW => pow_double(a, b)
+          @core.BINOP_IDIV => floor_double(a / b)
+          @core.BINOP_MOD => @core.float_mod(a, b)
           _ => a
         },
       )
-    }
-  } else if both_num {
-    if both_int && !op_is_float_only(op) {
-      let a = match x {
-        @core.VInt(v) => v
-        _ => 0L
-      }
-      let b = match y {
-        @core.VInt(v) => v
-        _ => 0L
-      }
-      let r = match op {
-        @core.BINOP_ADD => @core.VInt(a + b)
-        @core.BINOP_SUB => @core.VInt(a - b)
-        @core.BINOP_MUL => @core.VInt(a * b)
-        @core.BINOP_IDIV => @core.VInt(int_floor_div(st, a, b))
-        @core.BINOP_MOD => @core.VInt(int_mod(st, a, b))
-        _ => @core.VInt(a)
-      }
-      return r
-    }
-    let a = match @core.value_to_double(x) {
-      Some(v) => v
-      None => 0.0
-    }
-    let b = match @core.value_to_double(y) {
-      Some(v) => v
-      None => 0.0
-    }
-    return @core.VNum(
-      match op {
-        @core.BINOP_ADD => a + b
-        @core.BINOP_SUB => a - b
-        @core.BINOP_MUL => a * b
-        @core.BINOP_DIV => a / b
-        @core.BINOP_POW => pow_double(a, b)
-        @core.BINOP_IDIV => floor_double(a / b)
-        @core.BINOP_MOD => @core.float_mod(a, b)
-        _ => a
-      },
-    )
+    _ => binary_metamethod(st, op, x, y, "perform arithmetic on")
   }
-  let verb = if op_is_bitwise(op) {
-    "perform bitwise operation on"
-  } else {
-    "perform arithmetic on"
-  }
-  binary_metamethod(st, op, x, y, verb)
 }
 
 ///|
@@ -146,8 +141,8 @@ pub fn unop(
       }
     @core.UNOP_BNOT =>
       match @core.value_to_int64(v) {
-        Some(i) => @core.VInt(i.lnot())
-        None =>
+        @core.ConvInt(i) => @core.VInt(i.lnot())
+        _ =>
           if v.is_number() {
             no_integer_representation(st, v, st.slot_x)
           } else {
@@ -363,28 +358,6 @@ pub fn int_shr(a : Int64, n : Int64) -> Int64 {
   }
   let u = a.reinterpret_as_uint64() >> n.to_int()
   u.reinterpret_as_int64()
-}
-
-///|
-/// Whether an operation always produces a float.
-pub fn op_is_float_only(op : Int) -> Bool {
-  match op {
-    @core.BINOP_DIV | @core.BINOP_POW => true
-    _ => false
-  }
-}
-
-///|
-/// Whether an operation requires integers.
-pub fn op_is_bitwise(op : Int) -> Bool {
-  match op {
-    @core.BINOP_BAND
-    | @core.BINOP_BOR
-    | @core.BINOP_BXOR
-    | @core.BINOP_SHL
-    | @core.BINOP_SHR => true
-    _ => false
-  }
 }
 
 ///|

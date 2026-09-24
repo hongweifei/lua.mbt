@@ -44,7 +44,7 @@ pub fn execute(
             )
             fr.pending_closes = None
             st.err_room = fr.pending_room
-            match complete_frame(st, thread, ci, floor, [err], false) {
+            match complete_frame(st, thread, ci, floor, Listed([err]), false) {
               Some(vals) => return @core.RFinished(vals)
               None => ()
             }
@@ -123,7 +123,7 @@ pub fn execute(
           }
           hook_return_event(st, thread, 1, results.length())
         }
-        match complete_frame(st, thread, ci, floor, results, true) {
+        match complete_frame(st, thread, ci, floor, Listed(results), true) {
           Some(vals) => return @core.RFinished(vals)
           None => ()
         }
@@ -251,7 +251,10 @@ pub fn execute(
             st.slot_y = rk_slot(inst.c, base)
             thread.stack[base + inst.a] = arith(
               st,
-              opcode_to_binop(inst.op),
+              // `OP_ADD`..`OP_SHR` stand in the same order as
+              // `BINOP_ADD`..`BINOP_SHR`, so the opcode is already the operator
+              // code plus this offset.
+              inst.op - @core.OP_ADD,
               x,
               y,
             )
@@ -418,7 +421,7 @@ pub fn execute(
             match prot {
               Some(p) => {
                 if marker >= 0 {
-                  thread.frames[marker].prots.push(p)
+                  thread.frames[marker].push_prot(p)
                   thread.frames[marker].saved_errfunc = thread.errfunc
                   // A protection with no handler still hides the enclosing
                   // one, which is what `luaD_pcall` does by setting the field
@@ -546,7 +549,6 @@ pub fn execute(
             } else {
               inst.b - 1
             }
-            let vals = collect_results(thread, base + inst.a, n)
             fr.pc = pc
             // The frame's to-be-closed variables go before its return event,
             // so a handler that turns the hook on is still followed by the
@@ -557,7 +559,17 @@ pub fn execute(
               !thread.hook_running {
               hook_return_event(st, thread, inst.a + 1, n)
             }
-            match complete_frame(st, thread, ci, floor, vals, true) {
+            // The results stay where the frame left them; they are copied into
+            // the caller's registers by `complete_frame`.
+            match
+              complete_frame(
+                st,
+                thread,
+                ci,
+                floor,
+                OnStack(base + inst.a, n),
+                true,
+              ) {
               Some(results) => return @core.RFinished(results)
               None => ()
             }
@@ -617,12 +629,12 @@ pub fn execute(
               }
               @core.VNum(s) => {
                 let limit_n = match @core.value_to_double(thread.stack[a + 1]) {
-                  Some(l) => l
-                  None => for_error(st, "limit", thread.stack[a + 1])
+                  @core.ConvNum(l) => l
+                  _ => for_error(st, "limit", thread.stack[a + 1])
                 }
                 let idx = match @core.value_to_double(thread.stack[a]) {
-                  Some(v) => v
-                  None => for_error(st, "initial value", thread.stack[a])
+                  @core.ConvNum(v) => v
+                  _ => for_error(st, "initial value", thread.stack[a])
                 }
                 let next = idx + s
                 if s > 0.0 {
@@ -791,7 +803,7 @@ pub fn execute(
                   "variable '" + name + "' got a non-closable value",
                 )
               }
-              fr.tbc.push(reg)
+              fr.push_tbc(reg)
             }
           }
           _ => @core.vm_error(st, "invalid opcode " + inst.op.to_string())

@@ -75,25 +75,6 @@ pub fn rk_value(
 }
 
 ///|
-pub fn opcode_to_binop(op : Int) -> Int {
-  match op {
-    @core.OP_ADD => @core.BINOP_ADD
-    @core.OP_SUB => @core.BINOP_SUB
-    @core.OP_MUL => @core.BINOP_MUL
-    @core.OP_DIV => @core.BINOP_DIV
-    @core.OP_MOD => @core.BINOP_MOD
-    @core.OP_POW => @core.BINOP_POW
-    @core.OP_IDIV => @core.BINOP_IDIV
-    @core.OP_BAND => @core.BINOP_BAND
-    @core.OP_BOR => @core.BINOP_BOR
-    @core.OP_BXOR => @core.BINOP_BXOR
-    @core.OP_SHL => @core.BINOP_SHL
-    @core.OP_SHR => @core.BINOP_SHR
-    _ => @core.BINOP_ADD
-  }
-}
-
-///|
 pub fn opcode_to_unop(op : Int) -> Int {
   match op {
     @core.OP_UNM => @core.UNOP_MINUS

@@ -264,7 +264,14 @@ pub fn recover(
         )
         thread.frames[i].pending_closes = None
         st.err_room = thread.frames[i].pending_room
-        let fin = complete_frame(st, thread, i, floor, [final_err], false)
+        let fin = complete_frame(
+          st,
+          thread,
+          i,
+          floor,
+          Listed([final_err]),
+          false,
+        )
         return (
           true,
           match fin {
@@ -317,7 +324,7 @@ pub fn recover(
       )
       thread.frames[i].pending_closes = None
       st.err_room = thread.frames[i].pending_room
-      let fin = complete_frame(st, thread, i, floor, [final_err], false)
+      let fin = complete_frame(st, thread, i, floor, Listed([final_err]), false)
       return (
         true,
         match fin {

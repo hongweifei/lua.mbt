@@ -26,14 +26,10 @@ let str_intern_table : Map[Bytes, LStr] = Map([])
 /// The bytes every string created so far occupies.  It only ever grows: the
 /// collector reads it to tell how much a program has allocated since the last
 /// cycle, which is the part of `collectgarbage("count")` that garbage
-/// contributes while it is still around.
+/// contributes while it is still around.  The object clock in `objects.mbt`
+/// measures the same thing for everything else, and the collector reads both
+/// together.
 let str_allocated_bytes : Ref[Int] = Ref(0)
-
-///|
-/// How many bytes of strings the interpreter has created, in total.
-fn string_bytes_allocated() -> Int {
-  str_allocated_bytes.val
-}
 
 ///|
 pub fn LStr::of_bytes(b : Bytes) -> LStr {
@@ -208,10 +204,18 @@ pub fn key_hash(k : Key) -> Int {
   h.finalize()
 }
 
+///|
+/// The empty list of values that a frame with no varargs holds.  Nothing ever
+/// writes to it -- a frame's varargs are only touched for a vararg prototype,
+/// and `debug.setlocal` only reaches one that is longer than the index it is
+/// given -- so a single shared list saves an allocation on every call.
+pub let no_values : Array[Value] = []
+
 ///|----------------------------------------------------------------
 /// Lua values.
 
 ///|
+#valtype
 pub(all) enum Value {
   VNil
   VBool(Bool)
@@ -431,20 +435,53 @@ pub fn float_le_int(f : Double, i : Int64) -> Bool {
 
 ///|
 /// Converts a value to an Int64 if it denotes an integral number.
-pub fn value_to_int64(v : Value) -> Int64? {
+pub fn value_to_int64(v : Value) -> IntConv {
   match v {
-    VInt(i) => Some(i)
-    VNum(d) => if float_is_int64(d) { Some(float_to_int64(d)) } else { None }
-    _ => None
+    VInt(i) => ConvInt(i)
+    VNum(d) =>
+      if float_is_int64(d) {
+        ConvInt(float_to_int64(d))
+      } else {
+        ConvNoInt
+      }
+    _ => ConvNoInt
   }
 }
 
 ///|
 /// Converts a value to a Double if it is a number.
-pub fn value_to_double(v : Value) -> Double? {
+pub fn value_to_double(v : Value) -> NumConv {
   match v {
-    VInt(i) => Some(i.to_double())
-    VNum(d) => Some(d)
-    _ => None
+    VInt(i) => ConvNum(i.to_double())
+    VNum(d) => ConvNum(d)
+    _ => ConvNoNum
   }
+}
+
+///|----------------------------------------------------------------
+/// Coercion results
+///
+/// A number is asked for once per operand of every arithmetic and comparison
+/// instruction, so the answer must not cost an allocation.  `Option` boxes its
+/// payload on the native backend, which would put a heap object in the
+/// interpreter's inner loop; these are `#valtype`, so the answer stays in
+/// registers.
+
+///|
+/// A value coerced to an integer: an integer itself, or a float that holds one.
+#valtype
+pub(all) enum IntConv {
+  ConvInt(Int64)
+  /// A number that is not an integer, or no number at all.  A caller tells the
+  /// two apart by asking `is_number` again, which happens only on the path that
+  /// reports the failure.
+  ConvNoInt
+}
+
+///|
+/// A value coerced to a float.
+#valtype
+pub(all) enum NumConv {
+  ConvNum(Double)
+  ConvNoNum
 }

@@ -44,7 +44,7 @@ pub fn collect_and_retune(@core.LuaState) -> Unit raise @core.LuaRaised
 
 pub fn collect_results(@core.LThread, Int, Int) -> Array[@core.Value]
 
-pub fn complete_frame(@core.LuaState, @core.LThread, Int, Int, Array[@core.Value], Bool) -> Array[@core.Value]? raise @core.LuaRaised
+pub fn complete_frame(@core.LuaState, @core.LThread, Int, Int, Results, Bool) -> Array[@core.Value]? raise @core.LuaRaised
 
 pub fn concat_fold(@core.LuaState, @core.LThread, @core.Frame, Int, Int, Int, @core.Value) -> @core.Value raise @core.LuaRaised
 
@@ -120,17 +120,11 @@ pub fn object_address(@core.Value) -> String
 
 pub fn[T] op_error(@core.LuaState, String, @core.Value, Int) -> T raise @core.LuaRaised
 
-pub fn op_is_bitwise(Int) -> Bool
-
-pub fn op_is_float_only(Int) -> Bool
-
-pub fn opcode_to_binop(Int) -> Int
-
 pub fn opcode_to_unop(Int) -> Int
 
 pub fn order(@core.LuaState, @core.Value, @core.Value, Int) -> Bool raise @core.LuaRaised
 
-pub fn place_results(@core.LThread, Int, Int, Array[@core.Value]) -> Unit
+pub fn place_results(@core.LThread, Int, Int, Results) -> Unit
 
 pub fn pow_double(Double, Double) -> Double
 
@@ -173,6 +167,14 @@ pub fn yield_error(@core.LuaState, @core.LThread) -> String
 // Errors
 
 // Types and methods
+pub(all) enum Results {
+  OnStack(Int, Int)
+  Listed(Array[@core.Value])
+}
+pub fn Results::at(Self, @core.LThread, Int) -> @core.Value
+pub fn Results::first(Self, @core.LThread) -> @core.Value
+pub fn Results::length(Self) -> Int
+pub fn Results::to_list(Self, @core.LThread) -> Array[@core.Value]
 
 // Type aliases
 

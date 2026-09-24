@@ -406,7 +406,13 @@ pub fn metamethod_info(String) -> String
 
 pub fn next_object_id() -> Int
 
+pub let no_prots : Array[Cont]
+
 pub fn no_source() -> LStr
+
+pub let no_tbc : Array[Int]
+
+pub let no_values : Array[Value]
 
 pub fn num_int(Double) -> Value
 
@@ -470,11 +476,11 @@ pub fn upvalue_info(LuaState, Int) -> String
 
 pub fn upvalue_name(LProto, Int) -> String
 
-pub fn value_to_double(Value) -> Double?
+pub fn value_to_double(Value) -> NumConv
 
 pub fn value_to_double_or_string(Value) -> Double?
 
-pub fn value_to_int64(Value) -> Int64?
+pub fn value_to_int64(Value) -> IntConv
 
 pub fn var_info(LuaState, Int) -> String
 
@@ -535,6 +541,8 @@ pub(all) struct Frame {
   mut pending_result : (Int, Int)?
 }
 pub fn Frame::is_lua(Self) -> Bool
+pub fn Frame::push_prot(Self, Cont) -> Unit
+pub fn Frame::push_tbc(Self, Int) -> Unit
 
 pub(all) struct Instr {
   op : Int
@@ -543,6 +551,11 @@ pub(all) struct Instr {
   c : Int
 }
 pub fn Instr::to_text(Self) -> String
+
+pub(all) enum IntConv {
+  ConvInt(Int64)
+  ConvNoInt
+}
 
 pub(all) enum Key {
   KInt(Int64)
@@ -759,6 +772,11 @@ pub(all) enum NextResult {
   NextPair(Value, Value)
   NextEnd
   NextBadKey
+}
+
+pub(all) enum NumConv {
+  ConvNum(Double)
+  ConvNoNum
 }
 
 pub(all) enum NumValue {

@@ -109,6 +109,42 @@ pub fn Frame::is_lua(self : Frame) -> Bool {
   }
 }
 
+///|----------------------------------------------------------------
+/// The two lists a frame may grow
+///
+/// Almost every call installs no protection and declares nothing to close, so
+/// the lists start out as these shared empty ones and pushing a frame allocates
+/// neither.  Nothing ever writes into a shared list: the first entry gives the
+/// frame a private one.
+
+///|
+pub let no_prots : Array[Cont] = []
+
+///|
+pub let no_tbc : Array[Int] = []
+
+///|
+/// Adds a protection to the frame, giving it a private list if it still holds
+/// the shared empty one.
+pub fn Frame::push_prot(self : Frame, c : Cont) -> Unit {
+  if self.prots.length() == 0 {
+    self.prots = [c]
+  } else {
+    self.prots.push(c)
+  }
+}
+
+///|
+/// Registers a to-be-closed variable on the frame, giving it a private list if
+/// it still holds the shared empty one.
+pub fn Frame::push_tbc(self : Frame, reg : Int) -> Unit {
+  if self.tbc.length() == 0 {
+    self.tbc = [reg]
+  } else {
+    self.tbc.push(reg)
+  }
+}
+
 ///|
 /// A coroutine.
 pub(all) struct LThread {

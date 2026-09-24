@@ -44,14 +44,23 @@ pub fn find_upvalue(thread : @core.LThread, index : Int) -> @core.LUpval {
 
 ///|
 /// Copies the values of every open upvalue at or above `level` out of the stack.
+///
+/// The list only has to be rebuilt when something was actually closed: this
+/// runs at the return of every call, and most calls capture nothing.
 pub fn close_upvalues(thread : @core.LThread, level : Int) -> Unit {
-  for cell in thread.open_upvals {
+  let cells = thread.open_upvals
+  let mut closed = false
+  for cell in cells {
     if cell.open && cell.index >= level {
       cell.close()
+      closed = true
     }
   }
+  if !closed {
+    return
+  }
   let kept : Array[@core.LUpval] = []
-  for cell in thread.open_upvals {
+  for cell in cells {
     if cell.open {
       kept.push(cell)
     }
@@ -125,7 +134,7 @@ pub fn push_frame(
         let marker = push_protection_frame(
           st, thread, b, func_slot, nargs, want,
         )
-        thread.frames[marker].prots.push(
+        thread.frames[marker].push_prot(
           if b.kind == @core.BK_PCALL {
             @core.ContPCall
           } else {
@@ -176,8 +185,8 @@ pub fn push_frame(
         closure: None,
         builtin: Some(b),
         varargs: args,
-        prots: [],
-        tbc: [],
+        prots: @core.no_prots,
+        tbc: @core.no_tbc,
         tailcalls: 0,
         call_line,
         patched_builtin: 0,
@@ -212,13 +221,16 @@ pub fn push_frame(
         }
         i = i + 1
       }
-      let va : Array[@core.Value] = []
-      if cl.proto.is_vararg {
+      let va : Array[@core.Value] = if cl.proto.is_vararg {
+        let out : Array[@core.Value] = []
         let mut j = np
         while j < nargs {
-          va.push(thread.stack[base + j])
+          out.push(thread.stack[base + j])
           j = j + 1
         }
+        out
+      } else {
+        @core.no_values
       }
       let frame : @core.Frame = {
         pc: 0,
@@ -230,8 +242,8 @@ pub fn push_frame(
         closure: Some(cl),
         builtin: None,
         varargs: va,
-        prots: [],
-        tbc: [],
+        prots: @core.no_prots,
+        tbc: @core.no_tbc,
         tailcalls: 0,
         call_line,
         patched_builtin: 0,
@@ -332,8 +344,8 @@ pub fn push_protection_frame(
     closure: None,
     builtin: Some(b),
     varargs: args,
-    prots: [],
-    tbc: [],
+    prots: @core.no_prots,
+    tbc: @core.no_tbc,
     tailcalls: 0,
     call_line: current_line(st),
     patched_builtin: 0,
@@ -587,26 +599,95 @@ pub fn close_value(
 }
 
 ///|
+/// Where a finished call's values are.
+///
+/// A Lua frame leaves its results in its own registers, and the caller takes
+/// them from there: a list built for every call and thrown away again is a heap
+/// allocation in the path of every return.  A host function answers with a list
+/// instead, and so do the error paths.
+#valtype
+pub(all) enum Results {
+  /// `n` values standing at `start` in the thread's stack.
+  OnStack(Int, Int)
+  /// A list that stands on its own.
+  Listed(Array[@core.Value])
+}
+
+///|
+pub fn Results::length(self : Results) -> Int {
+  match self {
+    OnStack(_, n) => n
+    Listed(a) => a.length()
+  }
+}
+
+///|
+/// The value at `i`.  A stack result is read through the thread, since it is
+/// still where the returning frame left it.
+pub fn Results::at(
+  self : Results,
+  thread : @core.LThread,
+  i : Int,
+) -> @core.Value {
+  match self {
+    OnStack(start, _) => thread.stack[start + i]
+    Listed(a) => a[i]
+  }
+}
+
+///|
+/// The first result, or nil when there is none.
+pub fn Results::first(self : Results, thread : @core.LThread) -> @core.Value {
+  if self.length() > 0 {
+    self.at(thread, 0)
+  } else {
+    @core.VNil
+  }
+}
+
+///|
+/// The results as a list.  A stack result is copied out only when a list is
+/// actually wanted, which is the return that ends the run.
+pub fn Results::to_list(
+  self : Results,
+  thread : @core.LThread,
+) -> Array[@core.Value] {
+  match self {
+    Listed(a) => a
+    OnStack(start, n) => {
+      let out : Array[@core.Value] = []
+      let mut i = 0
+      while i < n {
+        out.push(thread.stack[start + i])
+        i = i + 1
+      }
+      out
+    }
+  }
+}
+
+///|
 /// Writes the results of a completed call into the caller's registers.
 pub fn place_results(
   thread : @core.LThread,
   slot : Int,
   want : Int,
-  vals : Array[@core.Value],
+  vals : Results,
 ) -> Unit {
+  let n = vals.length()
   if want < 0 {
-    thread.ensure_stack(slot + vals.length())
+    thread.ensure_stack(slot + n)
     let mut i = 0
-    while i < vals.length() {
-      thread.stack[slot + i] = vals[i]
+    while i < n {
+      thread.stack[slot + i] = vals.at(thread, i)
       i = i + 1
     }
   } else {
     thread.ensure_stack(slot + want)
     let mut i = 0
     while i < want {
-      thread.stack[slot + i] = if i < vals.length() {
-        vals[i]
+      thread.stack[slot + i] = if i < n {
+        vals.at(thread, i)
       } else {
         @core.VNil
       }
@@ -620,14 +701,14 @@ pub fn place_results(
   if want < 0 {
     let len = thread.frames.length()
     if len > 0 {
-      thread.frames[len - 1].top = slot + vals.length()
+      thread.frames[len - 1].top = slot + n
     }
     let mut k = len - 1
     while k >= 0 && thread.frames[k].protect_frame {
       k = k - 1
     }
     if k >= 0 {
-      thread.frames[k].top = slot + vals.length()
+      thread.frames[k].top = slot + n
     }
   }
 }
@@ -643,7 +724,7 @@ pub fn complete_frame(
   thread : @core.LThread,
   ci : Int,
   floor : Int,
-  payload : Array[@core.Value],
+  payload : Results,
   ok : Bool,
 ) -> Array[@core.Value]? raise @core.LuaRaised {
   let fr = thread.frames[ci]
@@ -654,24 +735,31 @@ pub fn complete_frame(
   if fr.protect_frame {
     thread.errfunc = fr.saved_errfunc
   }
-  let vals : Array[@core.Value] = []
+  // The values to hand on.  An ordinary return has nothing to add to them, so
+  // they stay where they are; a protection still standing prepends its `true`
+  // (or its `false, error` pair), which needs a list of its own.
   let mut nprot = fr.prots.length()
-  while nprot > 0 {
-    vals.push(@core.VBool(true))
-    thread.ccalls = thread.ccalls - 1
-    nprot = nprot - 1
-  }
-  if !ok {
-    vals.push(@core.VBool(false))
-    if payload.length() > 0 {
-      vals.push(payload[0])
-    } else {
-      vals.push(@core.VNil)
-    }
+  let vals : Results = if ok && nprot == 0 {
+    payload
   } else {
-    for v in payload {
-      vals.push(v)
+    let out : Array[@core.Value] = []
+    while nprot > 0 {
+      out.push(@core.VBool(true))
+      thread.ccalls = thread.ccalls - 1
+      nprot = nprot - 1
     }
+    if !ok {
+      out.push(@core.VBool(false))
+      out.push(payload.first(thread))
+    } else {
+      let mut i = 0
+      let n = payload.length()
+      while i < n {
+        out.push(payload.at(thread, i))
+        i = i + 1
+      }
+    }
+    Listed(out)
   }
   let ret_slot = fr.ret_slot
   let want = fr.nres_wanted
@@ -682,7 +770,7 @@ pub fn complete_frame(
     if ok {
       @core.VNil
     } else {
-      nth_or_nil(payload, 0)
+      payload.first(thread)
     },
     if ok {
       "close"
@@ -693,7 +781,7 @@ pub fn complete_frame(
   if ci <= floor {
     thread.frames.truncate(ci)
     ret_line_hook(thread, ci)
-    return Some(vals)
+    return Some(vals.to_list(thread))
   }
   thread.frames.truncate(ci)
   ret_line_hook(thread, ci)

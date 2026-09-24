@@ -64,43 +64,29 @@ pub fn order(
   y : @core.Value,
   op : Int,
 ) -> Bool raise @core.LuaRaised {
-  if x.is_number() && y.is_number() {
-    // An integer and a float compare exactly: converting the integer to a
-    // float would make neighbours collapse into the same value.
-    match (x, y) {
-      (@core.VInt(i), @core.VInt(j)) =>
-        if op == @core.BINOP_LT {
-          return i < j
-        } else {
-          return i <= j
-        }
-      (@core.VInt(i), @core.VNum(f)) =>
-        return if op == @core.BINOP_LT {
-          @core.int_lt_float(i, f)
-        } else {
-          @core.int_le_float(i, f)
-        }
-      (@core.VNum(f), @core.VInt(i)) =>
-        return if op == @core.BINOP_LT {
-          @core.float_lt_int(f, i)
-        } else {
-          @core.float_le_int(f, i)
-        }
-      _ => {
-        let a = match @core.value_to_double(x) {
-          Some(v) => v
-          None => 0.0
-        }
-        let b = match @core.value_to_double(y) {
-          Some(v) => v
-          None => 0.0
-        }
-        if op == @core.BINOP_LT {
-          return a < b
-        }
-        return a <= b
+  // Two numbers compare as numbers, and an integer against a float compares
+  // exactly: converting the integer to a float would make neighbours collapse
+  // into the same value.  The cases are written out rather than guarded by
+  // `is_number` and then coerced, because this runs once per comparison
+  // instruction.
+  match (x, y) {
+    (@core.VInt(i), @core.VInt(j)) =>
+      return if op == @core.BINOP_LT { i < j } else { i <= j }
+    (@core.VInt(i), @core.VNum(f)) =>
+      return if op == @core.BINOP_LT {
+        @core.int_lt_float(i, f)
+      } else {
+        @core.int_le_float(i, f)
       }
-    }
+    (@core.VNum(f), @core.VInt(i)) =>
+      return if op == @core.BINOP_LT {
+        @core.float_lt_int(f, i)
+      } else {
+        @core.float_le_int(f, i)
+      }
+    (@core.VNum(f), @core.VNum(g)) =>
+      return if op == @core.BINOP_LT { f < g } else { f <= g }
+    _ => ()
   }
   match (x, y) {
     (@core.VStr(a), @core.VStr(b)) => {

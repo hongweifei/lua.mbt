@@ -208,8 +208,8 @@ pub fn read_from_file(
     match v {
       @core.VInt(_) | @core.VNum(_) => {
         let k = match @core.value_to_int64(v) {
-          Some(k) => k
-          None =>
+          @core.ConvInt(k) => k
+          _ =>
             @core.arg_error(
               state,
               first + i,

@@ -237,12 +237,6 @@ pub fn Value::as_builtin(self : Value) -> LBuiltin? {
 let obj_allocated_bytes : Ref[Int] = Ref(0)
 
 ///|
-/// How many bytes of objects the interpreter has created, in total.
-fn object_bytes_allocated() -> Int {
-  obj_allocated_bytes.val
-}
-
-///|
 /// Charges one object to the clock, where the object is made.  A creator that
 /// can reach the state charges its own accounting instead (the interpreter's
 /// `OP_NEWTABLE` and `OP_CLOSURE`, and what a table grows by); this is for the

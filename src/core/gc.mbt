@@ -519,8 +519,8 @@ pub fn gc_collect(st : LuaState) -> Array[Value] {
   // string clock along with it: everything created from here on is what the
   // count has not accounted for.
   st.memory_units = measure_live(st)
-  st.gc_string_base = string_bytes_allocated()
-  st.gc_object_base = object_bytes_allocated()
+  st.gc_string_base = str_allocated_bytes.val
+  st.gc_object_base = obj_allocated_bytes.val
   pending
 }
 
@@ -548,8 +548,12 @@ fn measure_live(st : LuaState) -> Int {
 /// cycle measured, plus everything allocated since.  A collection here is
 /// atomic, so the second part is exactly the garbage that has not been looked
 /// at yet -- which is what makes the count fall when a cycle runs.
+///
+/// The two allocation clocks are read here rather than through an accessor
+/// each: this runs once per instruction, to decide whether a cycle is due, so
+/// the calls it makes are part of the dispatch cost.
 pub fn live_size(st : LuaState) -> Int {
   st.memory_units +
-  (string_bytes_allocated() - st.gc_string_base) +
-  (object_bytes_allocated() - st.gc_object_base)
+  (str_allocated_bytes.val - st.gc_string_base) +
+  (obj_allocated_bytes.val - st.gc_object_base)
 }
