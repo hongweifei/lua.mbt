@@ -1,0 +1,41 @@
+hongweifei/lua
+Copyright 2026 hongweifei
+
+本产品是用 MoonBit 编写的 Lua 5.4 解释器。它是独立实现，但编写时遵循了参考实现，
+并复现了它的可观察行为——包括错误消息、标准库语义，以及若干算法的结构（模式匹配器、
+xoshiro256** 随机数发生器、字符串转数字、排序）。Lua 以 MIT 许可分发，其许可原文
+见下；本作品中派生自它的部分按该许可使用。
+
+命令行界面、代码生成器和虚拟机遵循 Lua 5.4 自身 `lua.c`、`lparser.c`/`lcode.c` 和
+`lvm.c` 的设计。
+
+---
+
+Lua 5.4.9（参考实现）及其测试套件：
+
+Copyright (C) 1994-2024 Lua.org, PUC-Rio.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+（以上许可原文保持英文，不作翻译。）
+
+---
+
+本仓库不重新分发 Lua 发行版的任何部分：其 C 源码与官方测试套件需另行获取，不属于本
+仓库内容。Lua 参考手册只被少量引用，用于指称所实现的行为。

@@ -1,0 +1,40 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "hongweifei/lua/src/lib/table"
+
+import {
+  "hongweifei/lua/src/core",
+}
+
+// Values
+pub fn aux_sort(SortState, Int64, Int64) -> Unit raise @core.LuaRaised
+
+pub fn open_table_library(@core.LuaState) -> Unit
+
+pub fn sort_less(SortState, @core.Value, @core.Value) -> Bool raise @core.LuaRaised
+
+pub fn tbl_concat(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn tbl_insert(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn tbl_move(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn tbl_pack(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn tbl_remove(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn tbl_sort(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn tbl_unpack(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+// Errors
+
+// Types and methods
+pub(all) struct SortState {
+  state : @core.LuaState
+  cmp : @core.Value
+  table : @core.Value
+}
+
+// Type aliases
+
+// Traits

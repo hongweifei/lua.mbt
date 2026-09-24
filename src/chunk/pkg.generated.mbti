@@ -1,0 +1,66 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "hongweifei/lua/src/chunk"
+
+import {
+  "hongweifei/lua/src/core",
+  "moonbitlang/core/buffer",
+}
+
+// Values
+pub const CHUNK_FORMAT : Int = 0
+
+pub const CHUNK_VERSION : Int = 0x54
+
+pub const LUAC_INT : Int64 = 0x5678
+
+pub const LUAC_NUM : Double = 370.5
+
+pub const SIZEOF_INSTRUCTION : Int = 4
+
+pub const SIZEOF_INTEGER : Int = 8
+
+pub const SIZEOF_NUMBER : Int = 8
+
+pub let chunk_data : Bytes
+
+pub let chunk_signature : Bytes
+
+pub fn is_binary_chunk(Bytes) -> Bool
+
+pub fn str_dump(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn undump(@core.LuaState, Bytes, @core.Value, String) -> @core.LoadOutcome
+
+// Errors
+
+// Types and methods
+pub(all) struct BinReader {
+  data : Bytes
+  mut pos : Int
+  mut failed : Bool
+}
+pub fn BinReader::bytes(Self) -> Bytes
+pub fn BinReader::f64(Self) -> Double
+pub fn BinReader::i64(Self) -> Int64
+pub fn BinReader::new(Bytes) -> Self
+pub fn BinReader::proto(Self, @core.LStr) -> @core.LProto
+pub fn BinReader::string(Self) -> @core.LStr
+pub fn BinReader::u32(Self) -> Int
+pub fn BinReader::u8(Self) -> Int
+
+pub(all) struct BinWriter {
+  buf : @buffer.Buffer
+}
+pub fn BinWriter::bytes(Self, Bytes) -> Unit
+pub fn BinWriter::f64(Self, Double) -> Unit
+pub fn BinWriter::header(Self) -> Unit
+pub fn BinWriter::i64(Self, Int64) -> Unit
+pub fn BinWriter::new() -> Self
+pub fn BinWriter::proto(Self, @core.LProto, Bool, Bool) -> Unit
+pub fn BinWriter::string(Self, @core.LStr) -> Unit
+pub fn BinWriter::u32(Self, Int) -> Unit
+pub fn BinWriter::u8(Self, Int) -> Unit
+
+// Type aliases
+
+// Traits

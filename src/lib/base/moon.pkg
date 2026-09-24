@@ -1,0 +1,5 @@
+import {
+  "hongweifei/lua/src/core",
+  "hongweifei/lua/src/load",
+  "hongweifei/lua/src/vm",
+}

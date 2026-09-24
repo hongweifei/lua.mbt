@@ -1,0 +1,5 @@
+import {
+  "hongweifei/lua/src/core",
+}
+
+warnings = "-24"

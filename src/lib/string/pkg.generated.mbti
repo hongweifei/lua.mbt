@@ -1,0 +1,152 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "hongweifei/lua/src/lib/string"
+
+import {
+  "hongweifei/lua/src/core",
+  "moonbitlang/core/buffer",
+}
+
+// Values
+pub const PK_CHAR : Int = 3
+
+pub const PK_FLOAT : Int = 2
+
+pub const PK_INT : Int = 0
+
+pub const PK_MAXSIZE : Int = 0x7fff_ffff
+
+pub const PK_MAX_ALIGN : Int = 8
+
+pub const PK_NOP : Int = 8
+
+pub const PK_PAD : Int = 6
+
+pub const PK_PADDING : Int = 7
+
+pub const PK_STRING : Int = 4
+
+pub const PK_UINT : Int = 1
+
+pub const PK_ZSTR : Int = 5
+
+pub fn append_quoted(@core.LuaState, @buffer.Buffer, @core.Value, Int) -> Unit raise @core.LuaRaised
+
+pub fn c_string_length(Bytes) -> Int
+
+pub fn get_packed_float(@core.LuaState, Bytes, Int, Int, Bool) -> Double raise @core.LuaRaised
+
+pub fn get_packed_int(@core.LuaState, Bytes, Int, Int, Bool, Bool) -> Int64 raise @core.LuaRaised
+
+pub fn gmatch_iterator(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn host_format_double(Double, Bytes, Int) -> Bytes
+
+pub fn host_format_int(Int, Bytes, Int) -> Bytes
+
+pub fn host_format_int64(Int64, Bytes, Int) -> Bytes
+
+pub fn host_format_str(Bytes, Bytes, Int) -> Bytes
+
+pub fn host_format_uint64(UInt64, Bytes, Int) -> Bytes
+
+pub fn open_string_library(@core.LuaState) -> Unit
+
+pub fn pack_align(@core.LuaState, String, PackHeader, Int, Int) -> Int raise @core.LuaRaised
+
+pub fn pack_getnum(Bytes, Int, Int) -> (Int, Int)
+
+pub fn pack_getnumlimit(@core.LuaState, Bytes, Int, Int, Int) -> (Int, Int) raise @core.LuaRaised
+
+pub fn pack_getoption(@core.LuaState, PackHeader, Bytes, Int) -> (PackOption, Int) raise @core.LuaRaised
+
+pub fn pack_header() -> PackHeader
+
+pub fn pad3(Int) -> String
+
+pub fn put_packed_float(@buffer.Buffer, Double, Int, Bool) -> Unit
+
+pub fn put_packed_int(@buffer.Buffer, UInt64, Int, Bool, Bool) -> Unit
+
+pub fn quote_float(Double) -> Bytes
+
+pub fn str_arith_add(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_arith_bin(@core.LuaState, Array[@core.Value], Int, String) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_arith_div(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_arith_idiv(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_arith_mod(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_arith_mul(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_arith_pow(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_arith_sub(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_arith_unm(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_byte(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_char(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_find(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_format(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_gmatch(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_gsub(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_len(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_lower(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_match(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_pack(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_packsize(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_rep(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_reverse(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_sub(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_unpack(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn str_upper(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn string_to_number(@core.LuaState, @core.Value, String) -> @core.Value raise @core.LuaRaised
+
+pub fn substitute_escapes(@core.LuaState, Bytes, Array[@core.Value], Bytes) -> @core.Value raise @core.LuaRaised
+
+pub fn unsafe_char_text(Int) -> String
+
+pub fn upgrade_upval(@core.LuaState, Array[@core.Value], Int, @core.Value) -> Unit
+
+pub fn with_length_modifier(Bytes, Bytes) -> Bytes
+
+// Errors
+
+// Types and methods
+pub(all) struct FormatSpec {
+  text : @buffer.Buffer
+  conv : Int
+}
+
+pub(all) struct PackHeader {
+  mut little : Bool
+  mut max_align : Int
+}
+
+pub(all) struct PackOption {
+  kind : Int
+  size : Int
+}
+
+// Type aliases
+
+// Traits

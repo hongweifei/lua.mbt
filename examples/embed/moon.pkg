@@ -1,0 +1,7 @@
+import {
+  "hongweifei/lua/src/core",
+  "hongweifei/lua/src/lua",
+  "hongweifei/lua/src/vm",
+}
+
+pkgtype(kind: "executable")

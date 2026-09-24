@@ -1,0 +1,512 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "hongweifei/lua/src/compiler"
+
+import {
+  "hongweifei/lua/src/core",
+  "moonbitlang/core/buffer",
+}
+
+// Values
+pub const ATTRIB_CLOSE : Int = 2
+
+pub const ATTRIB_CONST : Int = 1
+
+pub const ATTRIB_NONE : Int = 0
+
+pub const MAX_SYNTAX_DEPTH : Int = 400
+
+pub const NO_JUMP : Int = -1
+
+pub const NO_REG : Int = -1
+
+pub const TK_AMP : Int = 48
+
+pub const TK_AND : Int = 10
+
+pub const TK_ASSIGN : Int = 59
+
+pub const TK_BREAK : Int = 11
+
+pub const TK_CARET : Int = 46
+
+pub const TK_COLON : Int = 68
+
+pub const TK_COMMA : Int = 69
+
+pub const TK_CONCAT : Int = 71
+
+pub const TK_DCOLON : Int = 66
+
+pub const TK_DO : Int = 12
+
+pub const TK_DOT : Int = 70
+
+pub const TK_DSLASH : Int = 44
+
+pub const TK_ELLIPSIS : Int = 72
+
+pub const TK_ELSE : Int = 13
+
+pub const TK_ELSEIF : Int = 14
+
+pub const TK_END : Int = 15
+
+pub const TK_EOF : Int = 0
+
+pub const TK_EQ : Int = 53
+
+pub const TK_FALSE : Int = 16
+
+pub const TK_FLOAT : Int = 3
+
+pub const TK_FOR : Int = 17
+
+pub const TK_FUNCTION : Int = 18
+
+pub const TK_GE : Int = 56
+
+pub const TK_GOTO : Int = 19
+
+pub const TK_GT : Int = 58
+
+pub const TK_HASH : Int = 47
+
+pub const TK_IF : Int = 20
+
+pub const TK_IN : Int = 21
+
+pub const TK_INT : Int = 2
+
+pub const TK_LBRACE : Int = 62
+
+pub const TK_LBRACKET : Int = 64
+
+pub const TK_LE : Int = 55
+
+pub const TK_LOCAL : Int = 22
+
+pub const TK_LPAREN : Int = 60
+
+pub const TK_LT : Int = 57
+
+pub const TK_MINUS : Int = 41
+
+pub const TK_NAME : Int = 1
+
+pub const TK_NE : Int = 54
+
+pub const TK_NIL : Int = 23
+
+pub const TK_NOT : Int = 24
+
+pub const TK_OR : Int = 25
+
+pub const TK_PERCENT : Int = 45
+
+pub const TK_PIPE : Int = 50
+
+pub const TK_PLUS : Int = 40
+
+pub const TK_RBRACE : Int = 63
+
+pub const TK_RBRACKET : Int = 65
+
+pub const TK_REPEAT : Int = 26
+
+pub const TK_RETURN : Int = 27
+
+pub const TK_RPAREN : Int = 61
+
+pub const TK_SEMI : Int = 67
+
+pub const TK_SHL : Int = 51
+
+pub const TK_SHR : Int = 52
+
+pub const TK_SLASH : Int = 43
+
+pub const TK_STAR : Int = 42
+
+pub const TK_STRING : Int = 4
+
+pub const TK_THEN : Int = 28
+
+pub const TK_TILDE : Int = 49
+
+pub const TK_TRUE : Int = 29
+
+pub const TK_UNTIL : Int = 30
+
+pub const TK_WHILE : Int = 31
+
+pub const UNARY_PRIORITY : Int = 12
+
+pub const VLOCAL : Int = 1
+
+pub const VUPVAL : Int = 2
+
+pub const VVOID : Int = 0
+
+pub fn arith_opcode(Int) -> Int
+
+pub fn binop_of_token(Int) -> Int
+
+pub fn binop_priority(Int) -> (Int, Int)
+
+pub fn compile_args(FuncState, Expr, Int) -> Int raise @core.LuaRaised
+
+pub fn compile_assignment(FuncState, Array[Expr], Array[Expr], Int) -> Unit raise @core.LuaRaised
+
+pub fn compile_base_reg(FuncState, Expr) -> Int raise @core.LuaRaised
+
+pub fn compile_binary_into(FuncState, Int, Expr, Expr, Int, Int) -> Unit raise @core.LuaRaised
+
+pub fn compile_block(FuncState, Block, Bool) -> Unit raise @core.LuaRaised
+
+pub fn compile_call(FuncState, Expr, Int) -> Int raise @core.LuaRaised
+
+pub fn compile_chunk(FuncBody, @core.LStr) -> @core.LProto raise @core.LuaRaised
+
+pub fn compile_closure(FuncState, FuncBody, Int) -> Unit raise @core.LuaRaised
+
+pub fn compile_expr(FuncState, Expr) -> Int raise @core.LuaRaised
+
+pub fn compile_expr_into(FuncState, Expr, Int) -> Unit raise @core.LuaRaised
+
+pub fn compile_function_body(FuncState, FuncBody) -> Unit raise @core.LuaRaised
+
+pub fn compile_generic_for(FuncState, Array[@core.LStr], Array[Expr], Block, Int, Int, Int) -> Unit raise @core.LuaRaised
+
+pub fn compile_if(FuncState, Array[(Expr, Block, Int)], Block?, Int) -> Unit raise @core.LuaRaised
+
+pub fn compile_index_into(FuncState, Expr, Expr, Int) -> Unit raise @core.LuaRaised
+
+pub fn compile_multi(FuncState, Expr, Int) -> Int raise @core.LuaRaised
+
+pub fn compile_name_into(FuncState, @core.LStr, Int) -> Unit raise @core.LuaRaised
+
+pub fn compile_numeric_for(FuncState, @core.LStr, Expr, Expr, Expr?, Block, Int, Int) -> Unit raise @core.LuaRaised
+
+pub fn compile_repeat(FuncState, Block, Expr, Int) -> Unit raise @core.LuaRaised
+
+pub fn compile_rk(FuncState, Expr) -> Int raise @core.LuaRaised
+
+pub fn compile_stat(FuncState, Stat) -> Unit raise @core.LuaRaised
+
+pub fn compile_stat_list(FuncState, Block, Bool) -> Unit raise @core.LuaRaised
+
+pub fn compile_table_into(FuncState, Array[Field], Int) -> Unit raise @core.LuaRaised
+
+pub fn compile_unary_into(FuncState, Int, Expr, Int, Int) -> Unit raise @core.LuaRaised
+
+pub fn compile_value_list(FuncState, Array[Expr], Int, Int) -> Int raise @core.LuaRaised
+
+pub fn compile_while(FuncState, Expr, Block, Int) -> Unit raise @core.LuaRaised
+
+pub fn constant_of(Expr) -> @core.Value
+
+pub fn emit_env_get(FuncState, @core.LStr, Int) -> Unit raise @core.LuaRaised
+
+pub fn emit_env_set(FuncState, @core.LStr, Int) -> Unit raise @core.LuaRaised
+
+pub fn end_line_of(Expr) -> Int
+
+pub fn gather_concat(Expr, Array[Expr]) -> Unit
+
+pub fn is_arith(Int) -> Bool
+
+pub fn is_call(Expr) -> Bool
+
+pub fn is_constant_expr(Expr) -> Bool
+
+pub fn is_multi(Expr) -> Bool
+
+pub fn keyword_kind(Bytes) -> Int
+
+pub let keywords : Array[(String, Int)]
+
+pub fn line_of(Expr) -> Int
+
+pub fn parse_chunk(Bytes, String) -> FuncBody raise @core.LuaRaised
+
+pub fn plan_targets(FuncState, Array[Expr]) -> Array[TargetPlan] raise @core.LuaRaised
+
+pub fn render_token_text(Bytes) -> String
+
+pub fn resolve_env(FuncState) -> (Int, Int) raise @core.LuaRaised
+
+pub fn store_single(FuncState, Expr, Int, Int) -> Unit raise @core.LuaRaised
+
+pub fn token2str(Int) -> String
+
+pub fn token_name(Int) -> String
+
+pub fn unop_of_token(Int) -> Int
+
+pub fn utf8_encode_extended(Int, @buffer.Buffer) -> Unit
+
+// Errors
+
+// Types and methods
+pub(all) struct Block {
+  stats : Array[Stat]
+  exit_line : Int
+}
+
+pub(all) struct BlockState {
+  first_label : Int
+  first_goto : Int
+  nactive : Int
+  mut upval : Bool
+  is_loop : Bool
+  previous : Int
+  mut inside_tbc : Bool
+  mut break_list : Int
+}
+
+pub(all) enum Expr {
+  ENil(Int)
+  ETrue(Int)
+  EFalse(Int)
+  EInt(Int64, Int)
+  EFloat(Double, Int)
+  EString(@core.LStr, Int)
+  EVararg(Int)
+  EFunction(FuncBody)
+  EName(@core.LStr, Int)
+  EIndex(Expr, Expr, Int)
+  ECall(Expr, Array[Expr], Int)
+  EMethod(Expr, @core.LStr, Array[Expr], Int)
+  EBinary(Int, Expr, Expr, Int)
+  EUnary(Int, Expr, Int)
+  ETable(Array[Field], Int)
+  EParen(Expr, Int)
+}
+
+pub(all) enum Field {
+  FPositional(Expr)
+  FKeyed(Expr, Expr)
+}
+
+pub(all) struct FuncBody {
+  params : Array[@core.LStr]
+  is_vararg : Bool
+  body : Block
+  line_defined : Int
+  last_line : Int
+  name : String
+}
+
+pub(all) struct FuncState {
+  prev : FuncState?
+  code : Array[@core.Instr]
+  lines : Array[Int]
+  constants : Array[@core.Value]
+  kcache : Map[@core.Key, Int]
+  protos : Array[@core.LProto]
+  upvals : Array[@core.UpvalDesc]
+  locvars : Array[@core.LocVar]
+  acts : Array[Int]
+  labels : Array[LabelDesc]
+  gotos : Array[GotoDesc]
+  blocks : Array[BlockState]
+  mut bl : Int
+  mut nactive : Int
+  mut freereg : Int
+  mut maxstack : Int
+  mut nups : Int
+  mut line : Int
+  source : @core.LStr
+  name : String
+  line_defined : Int
+  mut last_line_defined : Int
+  is_vararg : Bool
+  numparams : Int
+  depth : Int
+}
+pub fn FuncState::add_break(Self) -> Unit raise @core.LuaRaised
+pub fn FuncState::add_constant(Self, @core.Value) -> Int
+pub fn FuncState::add_string(Self, @core.LStr) -> Int
+pub fn FuncState::check_regs(Self, Int) -> Unit raise @core.LuaRaised
+pub fn FuncState::close_goto(Self, Int, Int) -> Unit raise @core.LuaRaised
+pub fn FuncState::code_at(Self, Int) -> @core.Instr
+pub fn FuncState::concat_jump_list(Self, Int, Int) -> Int
+pub fn FuncState::create_goto(Self, @core.LStr, Int, Int) -> Unit
+pub fn FuncState::create_label(Self, @core.LStr, Int, Bool) -> Unit raise @core.LuaRaised
+pub fn FuncState::emit(Self, @core.Instr) -> Int
+pub fn FuncState::emit_a(Self, Int, Int) -> Int
+pub fn FuncState::emit_ab(Self, Int, Int, Int) -> Int
+pub fn FuncState::emit_abc(Self, Int, Int, Int, Int) -> Int
+pub fn FuncState::emit_jump(Self) -> Int
+pub fn FuncState::enter_block(Self, Bool) -> Unit
+pub fn FuncState::errorlimit(Self, Int, String) -> Unit raise @core.LuaRaised
+pub fn FuncState::finalize(Self) -> @core.LProto
+pub fn FuncState::find_label(Self, @core.LStr) -> Int
+pub fn FuncState::fix_jump(Self, Int, Int) -> Unit
+pub fn FuncState::fixline(Self, Int) -> Unit
+pub fn FuncState::free_all(Self) -> Unit
+pub fn FuncState::free_from(Self, Int) -> Unit
+pub fn FuncState::here(Self) -> Int
+pub fn FuncState::jump_target(Self, Int) -> Int
+pub fn FuncState::leave_block(Self) -> Unit raise @core.LuaRaised
+pub fn FuncState::load_const(Self, Int, @core.Value) -> Unit
+pub fn FuncState::load_nil(Self, Int, Int) -> Unit
+pub fn FuncState::local_attrib(Self, Int) -> Int
+pub fn FuncState::mark_upvalue(Self, Int) -> Unit
+pub fn FuncState::move_gotos_out(Self, BlockState) -> Unit raise @core.LuaRaised
+pub fn FuncState::new(Self?, @core.LStr, String, Int, Int, Bool) -> Self
+pub fn FuncState::new_upvalue(Self, @core.LStr, Bool, Int) -> Int raise @core.LuaRaised
+pub fn FuncState::patch_here(Self, Int) -> Unit
+pub fn FuncState::patch_list(Self, Int, Int) -> Unit
+pub fn FuncState::register_local(Self, @core.LStr) -> Unit raise @core.LuaRaised
+pub fn FuncState::register_local_attrib(Self, @core.LStr, Int) -> Unit raise @core.LuaRaised
+pub fn FuncState::register_of_local(Self, Int) -> Int
+pub fn FuncState::remove_locals(Self, Int) -> Unit
+pub fn FuncState::replace(Self, Int, @core.Instr) -> Unit
+pub fn FuncState::reserve(Self, Int) -> Unit raise @core.LuaRaised
+pub fn FuncState::resolve_name(Self, @core.LStr, Bool) -> (Int, Int) raise @core.LuaRaised
+pub fn FuncState::search_local(Self, @core.LStr) -> Int
+pub fn[T] FuncState::semantic_error(Self, String) -> T raise @core.LuaRaised
+pub fn FuncState::set_freereg(Self, Int) -> Unit
+pub fn FuncState::set_jump_close(Self, Int, Int) -> Unit
+pub fn FuncState::set_offset(Self, Int, Int) -> Unit
+pub fn FuncState::too_many_registers(Self) -> Unit raise @core.LuaRaised
+pub fn[T] FuncState::undefined_goto(Self, GotoDesc) -> T raise @core.LuaRaised
+pub fn FuncState::upval_attrib(Self, Int) -> Int
+
+pub(all) struct GotoDesc {
+  name : @core.LStr
+  jump : Int
+  line : Int
+  nactive : Int
+}
+
+pub(all) struct LabelDesc {
+  name : @core.LStr
+  pc : Int
+  nactive : Int
+  line : Int
+}
+
+pub(all) struct Lexer {
+  src : Bytes
+  mut pos : Int
+  mut line : Int
+  mut current : Int
+  chunk : String
+  interned : Map[Bytes, @core.LStr]
+}
+pub fn Lexer::byte_at(Self, Int) -> Int
+pub fn Lexer::chunk_name(Self) -> String
+pub fn[T] Lexer::error(Self, String) -> T raise @core.LuaRaised
+pub fn[T] Lexer::error_near(Self, String, Bytes) -> T raise @core.LuaRaised
+pub fn[T] Lexer::error_raw(Self, String, Int, Bool) -> T raise @core.LuaRaised
+pub fn Lexer::finish_numeral(Self, Bytes, Int) -> Token raise @core.LuaRaised
+pub fn Lexer::intern(Self, Bytes) -> @core.LStr
+pub fn Lexer::is_newline(Self) -> Bool
+pub fn Lexer::make_symbol(Self, Int, Int, Int) -> Token
+pub fn Lexer::new(Bytes, String) -> Self
+pub fn Lexer::next(Self) -> Unit
+pub fn Lexer::next_token(Self) -> Token raise @core.LuaRaised
+pub fn Lexer::read_comment(Self) -> Unit raise @core.LuaRaised
+pub fn Lexer::read_hex_escape(Self, Int) -> Int raise @core.LuaRaised
+pub fn Lexer::read_long_bracket(Self, Int, Bool) -> Bytes raise @core.LuaRaised
+pub fn Lexer::read_name(Self) -> Bytes
+pub fn Lexer::read_numeral(Self) -> Bytes raise @core.LuaRaised
+pub fn Lexer::read_quoted_string(Self, Int) -> Bytes raise @core.LuaRaised
+pub fn Lexer::read_utf8_escape(Self, Int, @buffer.Buffer) -> Unit raise @core.LuaRaised
+pub fn Lexer::save_and_next(Self, @buffer.Buffer) -> Unit
+pub fn Lexer::single_char_token(Self, Int) -> Token raise @core.LuaRaised
+pub fn Lexer::skip_sep(Self) -> Int
+pub fn Lexer::symbol_of(Self, Int) -> Int
+pub fn Lexer::try_long_bracket(Self) -> Int
+
+pub(all) struct LocalDecl {
+  name : @core.LStr
+  attrib : Int
+  line : Int
+}
+
+pub(all) struct Parser {
+  lex : Lexer
+  mut token : Token
+  mut last_line : Int
+  mut depth : Int
+  mut loop_depth : Int
+  mut func_line : Int
+  mut is_vararg : Bool
+}
+pub fn Parser::advance(Self) -> Unit raise @core.LuaRaised
+pub fn Parser::block(Self) -> Block raise @core.LuaRaised
+pub fn Parser::block_follow(Self, Bool) -> Bool
+pub fn Parser::check_match(Self, Int, Int, Int) -> Unit raise @core.LuaRaised
+pub fn Parser::check_name(Self) -> @core.LStr raise @core.LuaRaised
+pub fn Parser::continue_binary(Self, Expr, Int) -> Expr raise @core.LuaRaised
+pub fn Parser::continue_suffixed(Self, Expr) -> Expr raise @core.LuaRaised
+pub fn Parser::enter_depth(Self) -> Unit raise @core.LuaRaised
+pub fn[T] Parser::error_expected(Self, Int) -> T raise @core.LuaRaised
+pub fn Parser::expect(Self, Int) -> Unit raise @core.LuaRaised
+pub fn Parser::expr(Self) -> Expr raise @core.LuaRaised
+pub fn Parser::expr_list(Self) -> Array[Expr] raise @core.LuaRaised
+pub fn Parser::expr_stat(Self, Int) -> Stat raise @core.LuaRaised
+pub fn Parser::for_stat(Self, Int) -> Stat raise @core.LuaRaised
+pub fn Parser::func_args(Self) -> Array[Expr] raise @core.LuaRaised
+pub fn Parser::func_body(Self, Bool, String) -> FuncBody raise @core.LuaRaised
+pub fn Parser::function_stat(Self, Int) -> Stat raise @core.LuaRaised
+pub fn Parser::if_stat(Self, Int) -> Stat raise @core.LuaRaised
+pub fn Parser::leave_depth(Self) -> Unit
+pub fn Parser::limit_error(Self, String, Int) -> Unit raise @core.LuaRaised
+pub fn Parser::line(Self) -> Int
+pub fn Parser::local_stat(Self, Int) -> Stat raise @core.LuaRaised
+pub fn Parser::new(Bytes, String) -> Self raise @core.LuaRaised
+pub fn Parser::primary_expr(Self) -> Expr raise @core.LuaRaised
+pub fn Parser::repeat_stat(Self, Int) -> Stat raise @core.LuaRaised
+pub fn Parser::return_stat(Self) -> Stat raise @core.LuaRaised
+pub fn Parser::simple_expr(Self) -> Expr raise @core.LuaRaised
+pub fn Parser::statement(Self) -> Stat? raise @core.LuaRaised
+pub fn Parser::sub_expr(Self, Int) -> Expr raise @core.LuaRaised
+pub fn Parser::suffixed_expr(Self) -> Expr raise @core.LuaRaised
+pub fn[T] Parser::syntax_error(Self, String) -> T raise @core.LuaRaised
+pub fn[T] Parser::syntax_error_near(Self, String) -> T raise @core.LuaRaised
+pub fn Parser::table_constructor(Self) -> Expr raise @core.LuaRaised
+pub fn Parser::test_next(Self, Int) -> Bool raise @core.LuaRaised
+pub fn Parser::token_text(Self) -> String
+pub fn Parser::while_stat(Self, Int) -> Stat raise @core.LuaRaised
+
+pub(all) enum Stat {
+  SLocal(Array[LocalDecl], Array[Expr], Int)
+  SAssign(Array[Expr], Array[Expr], Int)
+  SCall(Expr)
+  SDo(Block)
+  SWhile(Expr, Block, Int)
+  SRepeat(Block, Expr, Int)
+  SIf(Array[(Expr, Block, Int)], Block?, Int)
+  SNumericFor(@core.LStr, Expr, Expr, Expr?, Block, Int, Int)
+  SGenericFor(Array[@core.LStr], Array[Expr], Block, Int, Int, Int)
+  SFunction(Expr, FuncBody, Int)
+  SLocalFunction(@core.LStr, FuncBody, Int)
+  SReturn(Array[Expr], Int)
+  SBreak(Int)
+  SGoto(@core.LStr, Int)
+  SLabel(@core.LStr, Int)
+}
+
+pub(all) struct TargetPlan {
+  kind : Int
+  slot : Int
+  key_rk : Int
+  name : @core.LStr
+}
+
+pub(all) struct Token {
+  kind : Int
+  text : @core.LStr
+  raw : Bytes
+  int_value : Int64
+  float_value : Double
+  line : Int
+}
+
+// Type aliases
+
+// Traits

@@ -1,0 +1,38 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "hongweifei/lua/src/lib/utf8"
+
+import {
+  "hongweifei/lua/src/core",
+  "moonbitlang/core/buffer",
+}
+
+// Values
+pub fn open_utf8_library(@core.LuaState) -> Unit
+
+pub fn utf8_char(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub let utf8_charpattern : Bytes
+
+pub fn utf8_codepoint(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn utf8_codes(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn utf8_codes_iterator(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn utf8_decode(Bytes, Int, Bool) -> (Int, Int)?
+
+pub fn utf8_encode(Int, @buffer.Buffer) -> Unit
+
+pub fn utf8_is_cont(Bytes, Int) -> Bool
+
+pub fn utf8_len(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn utf8_offset(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits

@@ -1,0 +1,100 @@
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/shell",
+  "moonbitlang/core/env",
+  "moonbitlang/core/string",
+}
+
+// Runs the pure-Lua test files of the official Lua 5.4 suite through the
+// built interpreter and reports pass/fail per file.
+// Usage: moon run --target native tools/run_official_tests.mbtx [filter...]
+//
+// Two of them need a word: `api.lua` guards its whole body with `if T==nil
+// then ... return end`, and `T` is the C test library only a test build of the
+// reference provides, so both binaries skip it and report success.  `cstack`
+// runs its real work (the `if T then` block at the end is the part that needs
+// `T`), which is why it is here.
+
+let suite_dir : String = "lua-5.4.9-tests"
+let lua_exe : String = "_build/native/release/build/cmd/main/main.exe"
+
+let tests : Array[String] = [
+  "literals", "bitwise", "bwcoercion", "calls", "closure", "code",
+  "constructs", "coroutine", "errors", "events", "goto", "heavy", "locals",
+  "math", "nextvar", "pm", "sort", "strings", "tpack", "utf8", "vararg",
+  "verybig", "attrib", "db", "gc", "gengc", "tracegc", "files", "api",
+  "cstack",
+]
+
+fn last_lines(s : String, n : Int) -> String {
+  let lines = [for l in s.split("\n") => l.trim_end()]
+  let k = lines.length()
+  let start = if k > n { k - n } else { 0 }
+  lines[start:].join("\n")
+}
+
+/// The error message comes first on stderr and the traceback after it, so a
+/// failure is reported from the top rather than from the end.
+fn first_lines(s : String, n : Int) -> String {
+  let lines = [for l in s.split("\n") => l.trim_end()]
+  let k = if lines.length() > n { n } else { lines.length() }
+  lines[:k].join("\n")
+}
+
+async fn run_one(name : String) -> (String, Bool, String) {
+  let cmd = @shell.Cmd(
+    lua_exe,
+    [name + ".lua"],
+    cwd=suite_dir,
+    stderr=@shell.Capture,
+  )
+  try {
+    let out = cmd.output(timeout_ms=120000)
+    let code = out.exit_code()
+    let ok = code == 0
+    let detail = if ok {
+      ""
+    } else {
+      let stderr = out.stderr()
+      if stderr.trim() != "" {
+        first_lines(stderr, 6)
+      } else {
+        last_lines(out.stdout(), 6)
+      }
+    }
+    (name, ok, "exit=\{code}\n\{detail}")
+  } catch {
+    err => (name, false, "spawn error: \{err}")
+  }
+}
+
+async fn main {
+  let filter = @env.args()[1:]
+  let selected : Array[String] = []
+  for t in tests {
+    if filter.length() == 0 || filter.exists(f => t == f) {
+      selected.push(t)
+    }
+  }
+  let results : Array[(String, Bool, String)] = []
+  for name in selected {
+    println("running \{name} ...")
+    results.push(run_one(name))
+  }
+  println("")
+  println("=== official Lua 5.4 suite results ===")
+  let mut passed = 0
+  for r in results {
+    let (name, ok, detail) = r
+    if ok {
+      passed += 1
+      println("PASS  \{name}")
+    } else {
+      println("FAIL  \{name}")
+      for line in detail.split("\n") {
+        println("      | \{line}")
+      }
+    }
+  }
+  println("\{passed}/\{results.length()} passed")
+}

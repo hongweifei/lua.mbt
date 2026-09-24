@@ -1,0 +1,20 @@
+.DS_Store
+_build/
+target/
+target
+.mooncakes/
+.moonagent/
+.workbuddy/
+lua-5.4.9-tests/
+lua-5.5.1-tests/
+
+# local working list for ongoing development, not part of the published docs
+TODO.md
+
+# scratch artifacts from local test runs
+_*.log
+_*.out
+_*.err
+_*.txt
+_*.lua
+official_baseline*.log

@@ -1,0 +1,175 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "hongweifei/lua/src/vm"
+
+import {
+  "hongweifei/lua/src/core",
+}
+
+// Values
+pub const GC_FLOOR : Int = 4096
+
+pub const GC_MAX_THRESHOLD : Int = 0x7fff_ffff
+
+pub fn arith(@core.LuaState, Int, @core.Value, @core.Value) -> @core.Value raise @core.LuaRaised
+
+pub fn[T] bad_metamethod_call(@core.LuaState, @core.Value, String) -> T raise @core.LuaRaised
+
+pub fn binary_metamethod(@core.LuaState, Int, @core.Value, @core.Value, String) -> @core.Value raise @core.LuaRaised
+
+pub fn call_discarding(@core.LuaState, @core.Value, Array[@core.Value]) -> Unit raise @core.LuaRaised
+
+pub fn call_hook(@core.LuaState, @core.LThread, String, Int, Int, Int) -> Unit raise @core.LuaRaised
+
+pub fn call_metamethod(@core.LuaState, @core.Value, Array[@core.Value], Int, String) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn call_value(@core.LuaState, @core.Value, Array[@core.Value], Int) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn can_finish_after_yield(Int) -> Bool
+
+pub fn close_detached(@core.LuaState, @core.LThread, @core.Frame?, Array[@core.Frame], @core.Value) -> @core.Value raise @core.LuaRaised
+
+pub fn close_frame(@core.LuaState, @core.LThread, Int, @core.Value, String) -> Unit raise @core.LuaRaised
+
+pub fn close_to_level(@core.LuaState, @core.LThread, @core.Frame, Int, String) -> Unit raise @core.LuaRaised
+
+pub fn close_upvalues(@core.LThread, Int) -> Unit
+
+pub fn close_value(@core.LuaState, @core.Value, @core.Value, String) -> Unit raise @core.LuaRaised
+
+pub fn coerce_concat(@core.Value) -> Bytes?
+
+pub fn collect_all(@core.LuaState) -> Unit raise @core.LuaRaised
+
+pub fn collect_and_retune(@core.LuaState) -> Unit raise @core.LuaRaised
+
+pub fn collect_results(@core.LThread, Int, Int) -> Array[@core.Value]
+
+pub fn complete_frame(@core.LuaState, @core.LThread, Int, Int, Array[@core.Value], Bool) -> Array[@core.Value]? raise @core.LuaRaised
+
+pub fn concat_fold(@core.LuaState, @core.LThread, @core.Frame, Int, Int, Int, @core.Value) -> @core.Value raise @core.LuaRaised
+
+pub fn concat_two(@core.LuaState, @core.Value, @core.Value) -> @core.Value raise @core.LuaRaised
+
+pub fn concat_values(@core.LuaState, Array[@core.Value], Int) -> @core.Value raise @core.LuaRaised
+
+pub fn current_line(@core.LuaState) -> Int
+
+pub fn enter_protection(@core.LuaState, @core.LThread) -> Unit raise @core.LuaRaised
+
+pub fn equals(@core.LuaState, @core.Value, @core.Value) -> Bool raise @core.LuaRaised
+
+pub fn execute(@core.LuaState, @core.LThread, Int) -> @core.RunStatus raise @core.LuaRaised
+
+pub fn find_upvalue(@core.LThread, Int) -> @core.LUpval
+
+pub fn finish_pending(@core.LuaState, @core.LThread, @core.Frame) -> Int raise @core.LuaRaised
+
+pub fn floor_double(Double) -> Double
+
+pub fn[T] for_error(@core.LuaState, String, @core.Value) -> T raise @core.LuaRaised
+
+pub fn gettable(@core.LuaState, @core.Value, @core.Value, Int) -> @core.Value raise @core.LuaRaised
+
+pub fn handle_at_raise_point(@core.LuaState, @core.LThread, @core.Value) -> @core.Value
+
+pub fn hook_call_event(@core.LuaState, @core.LThread, Int, Bool) -> Unit raise @core.LuaRaised
+
+pub fn hook_new_frame(@core.LThread) -> Unit
+
+pub fn hook_return_event(@core.LuaState, @core.LThread, Int, Int) -> Unit raise @core.LuaRaised
+
+pub fn hook_tick(@core.LuaState, @core.LThread, @core.Frame, Int) -> Unit raise @core.LuaRaised
+
+pub fn int_floor_div(@core.LuaState, Int64, Int64) -> Int64 raise @core.LuaRaised
+
+pub fn int_mod(@core.LuaState, Int64, Int64) -> Int64 raise @core.LuaRaised
+
+pub fn int_shl(Int64, Int64) -> Int64
+
+pub fn int_shr(Int64, Int64) -> Int64
+
+pub fn[T] invalid_key_error(@core.LuaState, @core.Value) -> T raise @core.LuaRaised
+
+pub fn is_callable(@core.Value) -> Bool
+
+pub fn is_zero_step(@core.Value) -> Bool
+
+pub fn len(@core.LuaState, @core.Value) -> @core.Value raise @core.LuaRaised
+
+pub fn less_equal(@core.LuaState, @core.Value, @core.Value) -> Bool raise @core.LuaRaised
+
+pub fn less_than(@core.LuaState, @core.Value, @core.Value) -> Bool raise @core.LuaRaised
+
+pub fn may_raise(Int) -> Bool
+
+pub fn metafield(@core.LuaState, @core.Value, String) -> @core.Value
+
+pub fn metamethod_report(String) -> String
+
+pub fn metatable_of(@core.LuaState, @core.Value) -> @core.LTable?
+
+pub fn[T] no_integer_representation(@core.LuaState, @core.Value, Int) -> T raise @core.LuaRaised
+
+pub fn nth_or_nil(Array[@core.Value], Int) -> @core.Value
+
+pub fn object_address(@core.Value) -> String
+
+pub fn[T] op_error(@core.LuaState, String, @core.Value, Int) -> T raise @core.LuaRaised
+
+pub fn op_is_bitwise(Int) -> Bool
+
+pub fn op_is_float_only(Int) -> Bool
+
+pub fn opcode_to_binop(Int) -> Int
+
+pub fn opcode_to_unop(Int) -> Int
+
+pub fn order(@core.LuaState, @core.Value, @core.Value, Int) -> Bool raise @core.LuaRaised
+
+pub fn place_results(@core.LThread, Int, Int, Array[@core.Value]) -> Unit
+
+pub fn pow_double(Double, Double) -> Double
+
+pub fn prepare_for(@core.LuaState, @core.LThread, Int) -> Bool raise @core.LuaRaised
+
+pub fn push_frame(@core.LuaState, @core.LThread, Int, Int, Int, Int, Int, Int) -> Unit raise @core.LuaRaised
+
+pub fn push_protection_for(@core.LuaState, @core.LThread, @core.Value, Int, Int, Int) -> Int raise @core.LuaRaised
+
+pub fn push_protection_frame(@core.LuaState, @core.LThread, @core.LBuiltin, Int, Int, Int) -> Int raise @core.LuaRaised
+
+pub fn[T] raise_yield_error(@core.LuaState, @core.LThread) -> T raise @core.LuaRaised
+
+pub fn recover(@core.LuaState, @core.LThread, @core.Value, Int) -> (Bool, @core.RunStatus?) raise @core.LuaRaised
+
+pub fn ret_line_hook(@core.LThread, Int) -> Unit
+
+pub fn rk_slot(Int, Int) -> Int
+
+pub fn rk_value(@core.LProto, @core.LThread, Int, Int) -> @core.Value
+
+pub fn run_gc_finalizer(@core.LuaState, @core.Value) -> Unit raise @core.LuaRaised
+
+pub fn run_protected(@core.LuaState, @core.LThread, Int) -> @core.RunStatus raise @core.LuaRaised
+
+pub fn set_metatable_of(@core.LuaState, @core.Value, @core.LTable?) -> Unit
+
+pub fn set_traps(@core.LThread) -> Unit
+
+pub fn settable(@core.LuaState, @core.Value, @core.Value, @core.Value, Int) -> Unit raise @core.LuaRaised
+
+pub fn to_string(@core.LuaState, @core.Value) -> Bytes raise @core.LuaRaised
+
+pub fn[T] type_error(@core.LuaState, String, @core.Value, String) -> T raise @core.LuaRaised
+
+pub fn unop(@core.LuaState, Int, @core.Value) -> @core.Value raise @core.LuaRaised
+
+pub fn yield_error(@core.LuaState, @core.LThread) -> String
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits

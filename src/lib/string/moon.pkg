@@ -1,0 +1,8 @@
+import {
+  "hongweifei/lua/src/chunk",
+  "hongweifei/lua/src/core",
+  "hongweifei/lua/src/pattern",
+  "hongweifei/lua/src/vm",
+}
+
+warnings = "-24"

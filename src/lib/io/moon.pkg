@@ -1,0 +1,7 @@
+import {
+  "hongweifei/lua/src/core",
+  "hongweifei/lua/src/host",
+  "hongweifei/lua/src/vm",
+}
+
+warnings = "-24"

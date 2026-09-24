@@ -1,0 +1,15 @@
+import {
+  "hongweifei/lua/src/lib/base",
+  "hongweifei/lua/src/lib/coroutine" @colib,
+  "hongweifei/lua/src/lib/debug" @debuglib,
+  "hongweifei/lua/src/core",
+  "hongweifei/lua/src/host",
+  "hongweifei/lua/src/lib/io" @iolib,
+  "hongweifei/lua/src/load",
+  "hongweifei/lua/src/lib/math" @mathlib,
+  "hongweifei/lua/src/lib/os" @oslib,
+  "hongweifei/lua/src/lib/string" @strlib,
+  "hongweifei/lua/src/lib/table" @tablib,
+  "hongweifei/lua/src/lib/utf8" @utf8lib,
+  "hongweifei/lua/src/vm",
+}

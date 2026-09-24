@@ -1,0 +1,87 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "hongweifei/lua/src/lua"
+
+import {
+  "hongweifei/lua/src/core",
+}
+
+// Values
+pub fn bytes_ends_with(Bytes, Bytes) -> Bool
+
+pub fn call_printed(@core.LuaState, @core.Value) -> Bytes?
+
+pub fn call_with_handler(@core.LuaState, @core.Value, Array[@core.Value]) -> (Array[@core.Value]?, Bytes)
+
+pub fn create() -> @core.LuaState
+
+pub fn create_ignoring_env(Bool) -> @core.LuaState
+
+pub fn dirsep() -> String
+
+pub fn error_text(@core.LuaState, @core.Value) -> Bytes
+
+pub fn file_exists(String) -> Bool
+
+pub fn global_field(@core.LuaState, String) -> @core.Value
+
+pub fn last_load_error(@core.LuaState) -> Bytes?
+
+pub fn open_libraries(@core.LuaState) -> Unit
+
+pub fn open_package_library(@core.LuaState) -> Unit
+
+pub fn pcall_value(@core.LuaState, @core.Value, Array[@core.Value]) -> (Bool, Array[@core.Value])
+
+pub fn pkg_loadlib(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn pkg_searchpath(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn run_bytes(@core.LuaState, Bytes, String) -> (Bool, Array[@core.Value])
+
+pub fn run_file(@core.LuaState, String) -> (Bool, Array[@core.Value])
+
+pub fn run_protected_reporting(@core.LuaState, Bytes, String) -> (Int, Bytes)
+
+pub fn run_string(@core.LuaState, String, String) -> (Bool, Array[@core.Value])
+
+pub fn search_path(String, String, String, String) -> (String?, String)
+
+pub fn searcher_c(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn searcher_lua(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn searcher_preload(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn set_global(@core.LuaState, String, @core.Value) -> Unit
+
+pub fn set_global_arg(@core.LuaState, @core.LTable) -> Unit
+
+pub fn set_warnings_enabled(@core.LuaState, Bool) -> Unit
+
+pub fn stdin_is_tty() -> Bool
+
+pub fn stdin_stream() -> @core.LFile
+
+pub fn try_load(@core.LuaState, Bytes, String) -> @core.Value?
+
+pub fn value_bool(Bool) -> @core.Value
+
+pub fn value_bytes(Bytes) -> @core.Value
+
+pub fn value_int(Int64) -> @core.Value
+
+pub fn value_is_nil(@core.Value) -> Bool
+
+pub fn value_nil() -> @core.Value
+
+pub fn value_number(Double) -> @core.Value
+
+pub fn value_string(String) -> @core.Value
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits

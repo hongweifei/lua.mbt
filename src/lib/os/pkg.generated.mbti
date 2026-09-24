@@ -1,0 +1,45 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "hongweifei/lua/src/lib/os"
+
+import {
+  "hongweifei/lua/src/core",
+}
+
+// Values
+pub fn date_table(@core.LuaState, Int64, Bool) -> @core.Value raise @core.LuaRaised
+
+pub fn field_int(@core.LuaState, @core.LTable, String, Int64) -> Int64 raise @core.LuaRaised
+
+pub fn open_os_library(@core.LuaState) -> Unit
+
+pub fn os_clock(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn os_date(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn os_difftime(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn os_env(String) -> Bytes?
+
+pub fn os_execute(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn os_exit(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn os_getenv(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn os_remove(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn os_rename(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn os_setlocale(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn os_time(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn os_tmpname(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits

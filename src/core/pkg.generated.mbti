@@ -1,0 +1,800 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "hongweifei/lua/src/core"
+
+import {
+  "moonbitlang/core/ref",
+}
+
+// Values
+pub const BINOP_ADD : Int = 0
+
+pub const BINOP_AND : Int = 19
+
+pub const BINOP_BAND : Int = 7
+
+pub const BINOP_BOR : Int = 8
+
+pub const BINOP_BXOR : Int = 9
+
+pub const BINOP_CONCAT : Int = 12
+
+pub const BINOP_DIV : Int = 3
+
+pub const BINOP_EQ : Int = 13
+
+pub const BINOP_GE : Int = 18
+
+pub const BINOP_GT : Int = 17
+
+pub const BINOP_IDIV : Int = 6
+
+pub const BINOP_LE : Int = 15
+
+pub const BINOP_LT : Int = 14
+
+pub const BINOP_MOD : Int = 4
+
+pub const BINOP_MUL : Int = 2
+
+pub const BINOP_NE : Int = 16
+
+pub const BINOP_OR : Int = 20
+
+pub const BINOP_POW : Int = 5
+
+pub const BINOP_SHL : Int = 10
+
+pub const BINOP_SHR : Int = 11
+
+pub const BINOP_SUB : Int = 1
+
+pub const BK_NORMAL : Int = 0
+
+pub const BK_PAIRS : Int = 4
+
+pub const BK_PCALL : Int = 2
+
+pub const BK_XPCALL : Int = 3
+
+pub const BK_YIELD : Int = 1
+
+pub const CCALLS_LIMIT_LATE : Int = 220
+
+pub const GC_STEP : Int = 204800
+
+pub const HOOK_CALL : Int = 1
+
+pub const HOOK_COUNT : Int = 8
+
+pub const HOOK_COUNT_MAX : Int = 16777215
+
+pub const HOOK_LINE : Int = 4
+
+pub const HOOK_RETURN : Int = 2
+
+pub const MAX_BX : Int = 65535
+
+pub const MAX_CALL_DEPTH : Int = 200
+
+pub const MAX_CCALLS : Int = 200
+
+pub const MAX_INDEX_RK : Int = 255
+
+pub const MAX_LUA_FRAMES : Int = 200000
+
+pub const MAX_NATIVE_DEPTH : Int = 190
+
+pub const MAX_PARAMS : Int = 200
+
+pub const MAX_REGS : Int = 255
+
+pub const MAX_UPVALS : Int = 255
+
+pub const MAX_VARS : Int = 200
+
+pub const MEMORY_LIMIT : Int = 1073741824
+
+pub const OP_ADD : Int = 12
+
+pub const OP_BAND : Int = 19
+
+pub const OP_BNOT : Int = 25
+
+pub const OP_BOR : Int = 20
+
+pub const OP_BXOR : Int = 21
+
+pub const OP_CALL : Int = 35
+
+pub const OP_CLOSE : Int = 45
+
+pub const OP_CLOSURE : Int = 43
+
+pub const OP_CONCAT : Int = 28
+
+pub const OP_COUNT : Int = 47
+
+pub const OP_DIV : Int = 15
+
+pub const OP_EQ : Int = 30
+
+pub const OP_FORLOOP : Int = 39
+
+pub const OP_FORPREP : Int = 38
+
+pub const OP_GETTABLE : Int = 6
+
+pub const OP_GETTABUP : Int = 8
+
+pub const OP_GETUPVAL : Int = 4
+
+pub const OP_IDIV : Int = 18
+
+pub const OP_JMP : Int = 29
+
+pub const OP_LE : Int = 32
+
+pub const OP_LEN : Int = 27
+
+pub const OP_LOADBOOL : Int = 3
+
+pub const OP_LOADK : Int = 1
+
+pub const OP_LOADNIL : Int = 2
+
+pub const OP_LT : Int = 31
+
+pub const OP_MOD : Int = 16
+
+pub const OP_MOVE : Int = 0
+
+pub const OP_MUL : Int = 14
+
+pub const OP_NEWTABLE : Int = 10
+
+pub const OP_NOT : Int = 26
+
+pub const OP_POW : Int = 17
+
+pub const OP_RETURN : Int = 37
+
+pub const OP_SELF : Int = 11
+
+pub const OP_SETLIST : Int = 42
+
+pub const OP_SETTABLE : Int = 7
+
+pub const OP_SETTABUP : Int = 9
+
+pub const OP_SETUPVAL : Int = 5
+
+pub const OP_SHL : Int = 22
+
+pub const OP_SHR : Int = 23
+
+pub const OP_SUB : Int = 13
+
+pub const OP_TAILCALL : Int = 36
+
+pub const OP_TBC : Int = 46
+
+pub const OP_TEST : Int = 33
+
+pub const OP_TESTSET : Int = 34
+
+pub const OP_TFORCALL : Int = 40
+
+pub const OP_TFORLOOP : Int = 41
+
+pub const OP_UNM : Int = 24
+
+pub const OP_VARARG : Int = 44
+
+pub const RK_OFFSET : Int = 256
+
+pub const THREAD_DEAD : Int = 4
+
+pub const THREAD_NORMAL : Int = 3
+
+pub const THREAD_OK : Int = 0
+
+pub const THREAD_RUNNING : Int = 2
+
+pub const THREAD_SUSPENDED : Int = 1
+
+pub const UNOP_BNOT : Int = 3
+
+pub const UNOP_LEN : Int = 2
+
+pub const UNOP_MINUS : Int = 0
+
+pub const UNOP_NOT : Int = 1
+
+pub fn[T] arg_error(LuaState, Int, String, String) -> T raise LuaRaised
+
+pub fn arg_message(LuaState, Int, String, String) -> String
+
+pub fn binop_metamethod(Int) -> String
+
+pub fn binop_text(Int) -> String
+
+pub fn bump_locale_generation() -> Unit
+
+pub fn byte_of(Int) -> Byte
+
+pub fn bytes_add(Bytes, String) -> Bytes
+
+pub fn bytes_concat(Array[Bytes]) -> Bytes
+
+pub fn bytes_of(String) -> Bytes
+
+pub fn bytes_one(Int) -> Bytes
+
+pub fn bytes_repeat(Bytes, Int) -> Bytes
+
+pub fn bytes_slice(Bytes, Int, Int) -> Bytes
+
+pub fn callee_name(LuaState) -> ObjName?
+
+pub fn check_any(LuaState, Array[Value], Int, String) -> Value raise LuaRaised
+
+pub fn check_decimal_float(Bytes) -> Bool
+
+pub fn check_function(LuaState, Array[Value], Int, String) -> Value raise LuaRaised
+
+pub fn check_hex_float(Bytes) -> Bool
+
+pub fn check_int(LuaState, Array[Value], Int, String) -> Int64 raise LuaRaised
+
+pub fn check_number(LuaState, Array[Value], Int, String) -> Double raise LuaRaised
+
+pub fn check_option(LuaState, Array[Value], Int, String, Array[String], String) -> String raise LuaRaised
+
+pub fn check_present(LuaState, Array[Value], Int, String, String) -> Value raise LuaRaised
+
+pub fn check_str(LuaState, Array[Value], Int, String) -> LStr raise LuaRaised
+
+pub fn check_table(LuaState, Array[Value], Int, String) -> LTable raise LuaRaised
+
+pub fn check_thread(LuaState, Array[Value], Int, String) -> LThread raise LuaRaised
+
+pub fn chunk_id_of(Bytes) -> String
+
+pub fn const_key(Value) -> Key
+
+pub fn current_position(LuaState) -> String
+
+pub fn describe(LProto) -> String
+
+pub fn disassemble(LProto) -> String
+
+pub fn double_to_g14(Double) -> Bytes
+
+pub fn dump_proto(LProto) -> Unit
+
+pub fn errno_message() -> Bytes
+
+pub fn find_set_reg(LProto, Int, Int) -> Int
+
+pub fn float_ceil_to_int64(Double) -> Int64?
+
+pub fn float_floor_to_int64(Double) -> Int64?
+
+pub fn float_is_int64(Double) -> Bool
+
+pub fn float_le_int(Double, Int64) -> Bool
+
+pub fn float_lt_int(Double, Int64) -> Bool
+
+pub fn float_mod(Double, Double) -> Double
+
+pub fn float_to_int64(Double) -> Int64
+
+pub fn flush_stdout() -> Unit
+
+pub fn format_obj(ObjName?) -> String
+
+pub fn format_with_cstr(Bytes, Bytes) -> Bytes
+
+pub fn format_with_double(Double, Bytes) -> Bytes
+
+pub fn format_with_int(Int, Bytes) -> Bytes
+
+pub fn format_with_int64(Int64, Bytes) -> Bytes
+
+pub fn format_with_uint64(UInt64, Bytes) -> Bytes
+
+pub fn gc_collect(LuaState) -> Array[Value]
+
+pub fn gc_collectable(Value) -> Bool
+
+pub fn gc_register(LuaState, Value) -> Unit
+
+pub fn global_func_name(LuaState, Value) -> String?
+
+pub fn has_source(LStr) -> Bool
+
+pub fn hash_slot(Key, Int) -> Int
+
+pub fn hex_address(Int64) -> String
+
+pub fn hex_digit_value(Int) -> Int
+
+pub fn hex_float_value(Bytes) -> Double
+
+pub fn host_ctype(Int, Int) -> Int
+
+pub fn host_exit(Int) -> Unit
+
+pub fn instr(Int, Int, Int, Int) -> Instr
+
+pub fn instr_a(Int, Int) -> Instr
+
+pub fn instr_ab(Int, Int, Int) -> Instr
+
+pub fn int64_to_bytes(Int64) -> Bytes
+
+pub fn int_equals_float(Int64, Double) -> Bool
+
+pub fn int_fits_double(Int64) -> Bool
+
+pub fn int_le_float(Int64, Double) -> Bool
+
+pub fn int_lt_float(Int64, Double) -> Bool
+
+pub fn is_alnum_byte(Int) -> Bool
+
+pub fn is_alpha_byte(Int) -> Bool
+
+pub fn is_digit_byte(Int) -> Bool
+
+pub fn is_hex_digit_byte(Int) -> Bool
+
+pub fn is_no_source(Bytes) -> Bool
+
+pub fn is_space_byte(Int) -> Bool
+
+pub fn is_truthy_arg(LuaState, Array[Value], Int) -> Bool
+
+pub fn key_hash(Key) -> Int
+
+pub fn key_of_value(Value) -> Key?
+
+pub fn key_to_value(Key) -> Value
+
+pub fn line_at(LProto, Int) -> Int
+
+pub fn live_size(LuaState) -> Int
+
+pub fn local_name(LProto, Int, Int) -> String?
+
+pub fn locale_decpoint() -> Int
+
+pub let locale_generation : @ref.Ref[Int]
+
+pub fn looks_like_integer_text(Bytes) -> Bool
+
+pub fn lstrcmp(Bytes, Bytes) -> Int
+
+pub fn lua_state_new() -> LuaState
+
+pub fn[T] lua_state_raise_value(LuaState, Value) -> T raise LuaRaised
+
+pub fn lua_str2num(Bytes) -> NumValue?
+
+pub fn make_builtin(String, Int, Int, (LuaState, Array[Value], Array[Value]) -> Array[Value] raise LuaRaised, Array[Value]) -> LBuiltin
+
+pub let max_before_mul10 : UInt64
+
+pub let max_last_digit : UInt64
+
+pub fn metamethod_info(String) -> String
+
+pub fn next_object_id() -> Int
+
+pub fn no_source() -> LStr
+
+pub fn num_int(Double) -> Value
+
+pub fn number_to_bytes(Value) -> Bytes
+
+pub let obj_counter : @ref.Ref[Int]
+
+pub fn obj_name(LProto, Int, Int) -> ObjName?
+
+pub fn op_name(Int) -> String
+
+pub fn operand_info(LuaState, Int) -> String
+
+pub fn opt_int(LuaState, Array[Value], Int, String, Int64) -> Int64 raise LuaRaised
+
+pub fn opt_number(LuaState, Array[Value], Int, String, Double) -> Double raise LuaRaised
+
+pub fn position_at_level(LuaState, Int) -> Bytes
+
+pub fn[T] raise_fresh(LuaState, Value) -> T raise LuaRaised
+
+pub fn read_whole_file(Bytes) -> Result[Bytes, Bytes]
+
+pub fn rk_index(Int) -> Int
+
+pub fn rk_is_const(Int) -> Bool
+
+pub fn[T] runtime_error(LuaState, String) -> T raise LuaRaised
+
+pub fn[T] runtime_error_bytes(LuaState, Bytes) -> T raise LuaRaised
+
+pub fn scan_float(Bytes) -> Double?
+
+pub fn scan_integer(Bytes) -> Int64?
+
+pub fn source_for_message(Bytes) -> String
+
+pub let src_iterator : Int
+
+pub let src_none : Int
+
+pub fn table_bytes(LTable) -> Int
+
+pub fn text_of(Bytes) -> String
+
+pub fn tolower_byte(Int) -> Byte
+
+pub fn toupper_byte(Int) -> Byte
+
+pub let two_pow_63 : Double
+
+pub let two_pow_63_neg : Double
+
+pub fn type_error_name(LuaState, Value) -> String
+
+pub fn ubyte_at(Bytes, Int) -> Int
+
+pub fn up_src(Int) -> Int
+
+pub fn upvalue_info(LuaState, Int) -> String
+
+pub fn upvalue_name(LProto, Int) -> String
+
+pub fn value_to_double(Value) -> Double?
+
+pub fn value_to_double_or_string(Value) -> Double?
+
+pub fn value_to_int64(Value) -> Int64?
+
+pub fn var_info(LuaState, Int) -> String
+
+pub fn[T] vm_error(LuaState, String) -> T raise LuaRaised
+
+pub fn vm_position(LuaState) -> String
+
+pub fn with_position(LuaState, Value, Int) -> Value
+
+pub fn write_stderr(Bytes) -> Unit
+
+pub fn write_stdout(Bytes) -> Unit
+
+pub fn write_whole_file(Bytes, Bytes) -> Result[Unit, Bytes]
+
+pub fn writes_a(Int) -> Bool
+
+// Errors
+pub(all) suberror LuaRaised {
+  LuaRaised(Value)
+  LuaYield(Array[Value])
+}
+
+// Types and methods
+pub(all) enum Cont {
+  ContPCall
+  ContXPCall(Value)
+}
+
+pub(all) struct Frame {
+  mut pc : Int
+  func_slot : Int
+  base : Int
+  ret_slot : Int
+  nres_wanted : Int
+  mut top : Int
+  closure : LClosure?
+  builtin : LBuiltin?
+  varargs : Array[Value]
+  mut prots : Array[Cont]
+  mut tbc : Array[Int]
+  mut tailcalls : Int
+  mut call_line : Int
+  patched_builtin : Int
+  mut hook_frame : Bool
+  mut trap : Bool
+  mut mm_name : String
+  mut ftransfer : Int
+  mut ntransfer : Int
+  protect_frame : Bool
+  mut saved_errfunc : Value
+  mut pending_finish : Int
+  mut pending_slot : Int
+  mut pending_top : Int
+  mut pending_closes : Array[Frame]?
+  mut pending_err : Value
+  mut pending_room : Int
+  mut pending_result : (Int, Int)?
+}
+pub fn Frame::is_lua(Self) -> Bool
+
+pub(all) struct Instr {
+  op : Int
+  a : Int
+  b : Int
+  c : Int
+}
+pub fn Instr::to_text(Self) -> String
+
+pub(all) enum Key {
+  KInt(Int64)
+  KNum(UInt64)
+  KStr(LStr)
+  KBool(Bool)
+  KObj(Value)
+  KNil
+  KEmpty
+}
+pub impl Eq for Key
+pub impl Hash for Key
+
+pub(all) struct LBuiltin {
+  name : String
+  kind : Int
+  arity : Int
+  body : (LuaState, Array[Value], Array[Value]) -> Array[Value] raise LuaRaised
+  upvals : Array[Value]
+  id : Int
+  mut mark_epoch : Int
+}
+pub fn LBuiltin::make(String, Int, (LuaState, Array[Value], Array[Value]) -> Array[Value] raise LuaRaised) -> Self
+pub fn LBuiltin::make_kind(String, Int, Int, (LuaState, Array[Value], Array[Value]) -> Array[Value] raise LuaRaised) -> Self
+
+pub(all) struct LClosure {
+  proto : LProto
+  upvals : Array[LUpval]
+  id : Int
+  mut mark_epoch : Int
+}
+
+pub(all) struct LFile {
+  mut handle : Int64
+  mut closed : Bool
+  standard : Bool
+  popened : Bool
+  name : String
+}
+
+pub(all) struct LProto {
+  code : Array[Instr]
+  lines : Array[Int]
+  constants : Array[Value]
+  protos : Array[LProto]
+  upvals : Array[UpvalDesc]
+  numparams : Int
+  is_vararg : Bool
+  maxstack : Int
+  source : LStr
+  line_defined : Int
+  last_line_defined : Int
+  locvars : Array[LocVar]
+  name : String
+}
+
+pub(all) struct LStr {
+  bytes : Bytes
+  hash : Int
+  id : Int
+}
+pub fn LStr::byte_at(Self, Int) -> Int
+pub fn LStr::concat(Self, Self) -> Self
+pub fn LStr::data(Self) -> Bytes
+pub fn LStr::empty() -> Self
+pub fn LStr::equal(Self, Self) -> Bool
+pub fn LStr::is_empty(Self) -> Bool
+pub fn LStr::length(Self) -> Int
+pub fn LStr::of_bytes(Bytes) -> Self
+pub fn LStr::of_string(String) -> Self
+pub fn LStr::sub(Self, Int, Int) -> Self
+pub impl Compare for LStr
+pub impl Eq for LStr
+pub impl Hash for LStr
+pub impl Show for LStr
+
+pub(all) struct LTable {
+  arr : Array[Value]
+  mut hkeys : Array[Key]
+  mut hvals : Array[Value]
+  mut hlive : Int
+  mut hdead : Int
+  mut meta : LTable?
+  id : Int
+  mut mark_epoch : Int
+}
+pub fn LTable::array_size(Self) -> Int
+pub fn LTable::as_value(Self) -> Value
+pub fn LTable::count_entries(Self) -> Int
+pub fn LTable::get(Self, Value) -> Value
+pub fn LTable::get_int(Self, Int64) -> Value
+pub fn LTable::get_int_key(Self, Int64) -> Value
+pub fn LTable::get_str(Self, String) -> Value
+pub fn LTable::hash_delete(Self, Key) -> Unit
+pub fn LTable::hash_find(Self, Key) -> Int
+pub fn LTable::hash_find_key(Self, Key) -> Int
+pub fn LTable::hash_get(Self, Key) -> Value
+pub fn LTable::hash_next_from(Self, Int) -> NextResult
+pub fn LTable::hash_put(Self, Key, Value) -> Unit
+pub fn LTable::hash_rehash(Self, Int) -> Unit
+pub fn LTable::hash_set(Self, Key, Value) -> Unit
+pub fn LTable::metatable(Self) -> Self?
+pub fn LTable::migrate_following(Self) -> Unit
+pub fn LTable::new() -> Self
+pub fn LTable::next(Self, Value) -> NextResult
+pub fn LTable::raw_len(Self) -> Int64
+pub fn LTable::set(Self, Value, Value) -> Bool
+pub fn LTable::set_int(Self, Int64, Value) -> Unit
+pub fn LTable::set_key_keyed(Self, Key, Value) -> Unit
+pub fn LTable::set_lstr(Self, LStr, Value) -> Unit
+pub fn LTable::set_metatable(Self, Self?) -> Unit
+pub fn LTable::set_str(Self, String, Value) -> Unit
+
+pub(all) struct LThread {
+  stack : Array[Value]
+  frames : Array[Frame]
+  mut open_upvals : Array[LUpval]
+  meta : LTable?
+  mut status : Int
+  mut ny : Int
+  mut ccalls : Int
+  mut func : Value
+  mut started : Bool
+  mut dead_error : Value
+  mut resume_vals : Array[Value]?
+  mut hook_fn : Value
+  mut hook_mask : Int
+  mut hook_count : Int
+  mut hook_base_count : Int
+  mut hook_running : Bool
+  mut hook_old_pc : Int
+  mut mm_pending : String
+  mut errfunc : Value
+  mut in_errfunc : Bool
+  mut fresh_error : Bool
+  id : Int
+  mut mark_epoch : Int
+}
+pub fn LThread::current_frame(Self) -> Frame?
+pub fn LThread::ensure_stack(Self, Int) -> Unit
+pub fn LThread::new() -> Self
+
+pub(all) struct LUpval {
+  mut open : Bool
+  mut value : Value
+  index : Int
+  mut owner : LThread?
+  id : Int
+  mut id_tag : Value
+}
+pub fn LUpval::close(Self) -> Unit
+pub fn LUpval::get(Self) -> Value
+pub fn LUpval::new_closed(Value) -> Self
+pub fn LUpval::set(Self, Value) -> Unit
+
+pub(all) struct LUserData {
+  mut meta : LTable?
+  kind : UserDataKind
+  uservalues : Array[Value]
+  id : Int
+  light : Bool
+  mut mark_epoch : Int
+}
+pub fn LUserData::new_file(LFile) -> Self
+pub fn LUserData::new_light(UserDataKind) -> Self
+
+pub(all) enum LoadOutcome {
+  LoadOk(Value)
+  LoadError(Bytes)
+}
+
+pub(all) struct LocVar {
+  name : LStr
+  start_pc : Int
+  mut end_pc : Int
+  attrib : Int
+}
+
+pub(all) struct LuaState {
+  globals : LTable
+  registry : LTable
+  main_thread : LThread
+  mut current_thread : LThread
+  mut native_depth : Int
+  error_handler : Value
+  mut memory_units : Int
+  mut memory_limit : Int
+  in_error_handling : Bool
+  mut gc_running : Bool
+  mut gc_finalizing : Bool
+  mut gc_mode : String
+  mut gc_pause : Int
+  mut gc_stepmul : Int
+  mut warn_enabled : Bool
+  mut last_error : Bytes
+  mut mm_name : String
+  mut slot_x : Int
+  mut slot_y : Int
+  mut err_room : Int
+  mut gc_epoch : Int
+  weak_tables : Array[LTable]
+  mut finalizers : Array[Value]
+  mut gc_threshold : Int
+  mut gc_debt : Int
+  mut gc_marked : Int
+  mut gc_marked_size : Int
+  mut gc_counted_strings : Map[Int, Unit]
+  mut gc_string_base : Int
+}
+
+pub(all) enum NextResult {
+  NextPair(Value, Value)
+  NextEnd
+  NextBadKey
+}
+
+pub(all) enum NumValue {
+  NInt(Int64)
+  NFloat(Double)
+}
+
+pub struct ObjName {
+  kind : String
+  name : String
+}
+
+pub(all) enum RunStatus {
+  RFinished(Array[Value])
+  RYield(Array[Value])
+}
+
+pub(all) struct UpvalDesc {
+  name : LStr
+  in_stack : Bool
+  index : Int
+  attrib : Int
+}
+
+pub(all) enum UserDataKind {
+  UDFile(LFile)
+  UDUpvalTag(Int)
+  UDCUpvalTag(Int, Int)
+}
+
+pub(all) enum Value {
+  VNil
+  VBool(Bool)
+  VInt(Int64)
+  VNum(Double)
+  VStr(LStr)
+  VTable(LTable)
+  VFunc(LClosure)
+  VBuiltin(LBuiltin)
+  VThread(LThread)
+  VUserData(LUserData)
+}
+pub fn Value::as_builtin(Self) -> LBuiltin?
+pub fn Value::as_file(Self) -> LFile?
+pub fn Value::is_nil(Self) -> Bool
+pub fn Value::is_number(Self) -> Bool
+pub fn Value::is_truthy(Self) -> Bool
+pub fn Value::obj_id(Self) -> Int
+pub fn Value::object_id(Self) -> Int
+pub fn Value::raw_equal(Self, Self) -> Bool
+pub fn Value::type_name(Self) -> String
+
+// Type aliases
+
+// Traits

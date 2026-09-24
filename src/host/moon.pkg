@@ -1,0 +1,6 @@
+import {
+}
+
+options(
+  "native-stub": [ "stub.c" ],
+)

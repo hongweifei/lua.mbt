@@ -1,0 +1,135 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "hongweifei/lua/src/host"
+
+// Values
+pub fn lua_mbt_clearerr(Int64) -> Unit
+
+pub fn lua_mbt_clock() -> Double
+
+pub fn lua_mbt_ctype(Int, Int) -> Int
+
+pub fn lua_mbt_diff_seconds(Int64, Int64) -> Double
+
+pub fn lua_mbt_errno() -> Int
+
+pub fn lua_mbt_exec_dir(Bytes, Int) -> Int
+
+pub fn lua_mbt_exit(Int) -> Unit
+
+pub fn lua_mbt_fclose(Int64) -> Int
+
+pub fn lua_mbt_feof(Int64) -> Int
+
+pub fn lua_mbt_ferror(Int64) -> Int
+
+pub fn lua_mbt_fflush(Int64) -> Int
+
+pub fn lua_mbt_fgetc(Int64) -> Int
+
+pub fn lua_mbt_fgets(Int64, Bytes, Int) -> Int
+
+pub fn lua_mbt_fileno(Int64) -> Int
+
+pub fn lua_mbt_fmt_cstr(Bytes, Int, Bytes, Bytes) -> Int
+
+pub fn lua_mbt_fmt_double(Bytes, Int, Bytes, Double) -> Int
+
+pub fn lua_mbt_fmt_int(Bytes, Int, Bytes, Int) -> Int
+
+pub fn lua_mbt_fmt_int64(Bytes, Int, Bytes, Int64) -> Int
+
+pub fn lua_mbt_fmt_uint64(Bytes, Int, Bytes, UInt64) -> Int
+
+pub fn lua_mbt_fopen(Bytes, Bytes) -> Int64
+
+pub fn lua_mbt_fread(Int64, Bytes, Int) -> Int
+
+pub fn lua_mbt_fseek(Int64, Int64, Int) -> Double
+
+pub fn lua_mbt_ftell(Int64) -> Int64
+
+pub fn lua_mbt_fwrite(Int64, Bytes, Int) -> Int
+
+pub fn lua_mbt_getenv(Bytes, Bytes, Int) -> Int
+
+pub fn lua_mbt_getlocale(Bytes, Int) -> Int
+
+pub fn lua_mbt_is_windows() -> Int
+
+pub fn lua_mbt_isdst(Int64) -> Int
+
+pub fn lua_mbt_locale_decpoint() -> Int
+
+pub fn lua_mbt_lstrcmp(Bytes, Int, Bytes, Int) -> Int
+
+pub fn lua_mbt_pclose(Int64) -> Int
+
+pub fn lua_mbt_popen(Bytes, Bytes) -> Int64
+
+pub fn lua_mbt_remove(Bytes) -> Int
+
+pub fn lua_mbt_rename(Bytes, Bytes) -> Int
+
+pub fn lua_mbt_rng_addr_seed() -> UInt64
+
+pub fn lua_mbt_rng_next() -> UInt64
+
+pub fn lua_mbt_rng_seed(UInt64, UInt64) -> Unit
+
+pub fn lua_mbt_rng_time_seed() -> UInt64
+
+pub fn lua_mbt_set_errno(Int) -> Unit
+
+pub fn lua_mbt_setenv(Bytes, Bytes, Int) -> Int
+
+pub fn lua_mbt_setlocale(Bytes, Int) -> Int
+
+pub fn lua_mbt_setvbuf(Int64, Int, Int) -> Int
+
+pub fn lua_mbt_stderr() -> Int64
+
+pub fn lua_mbt_stdin() -> Int64
+
+pub fn lua_mbt_stdin_is_tty() -> Int
+
+pub fn lua_mbt_stdout() -> Int64
+
+pub fn lua_mbt_strcmp(Bytes, Bytes) -> Int
+
+pub fn lua_mbt_strerror(Int, Bytes, Int) -> Int
+
+pub fn lua_mbt_strftime_time(Bytes, Int, Bytes, Int64, Int) -> Int
+
+pub fn lua_mbt_strtod(Bytes, Int) -> Double
+
+pub fn lua_mbt_system(Bytes) -> Int
+
+pub fn lua_mbt_system_available() -> Int
+
+pub fn lua_mbt_time() -> Int64
+
+pub fn lua_mbt_time_make(Int, Int, Int, Int, Int, Int, Int, Int) -> Int64
+
+pub fn lua_mbt_tm_breakdown(Int64, Int, Bytes) -> Int
+
+pub fn lua_mbt_tmpfile() -> Int64
+
+pub fn lua_mbt_tmpnam(Bytes, Int) -> Int64
+
+pub fn lua_mbt_tolower32(Int) -> Int
+
+pub fn lua_mbt_toupper32(Int) -> Int
+
+pub fn lua_mbt_tz_offset(Int64) -> Int
+
+pub fn lua_mbt_ungetc(Int, Int64) -> Int
+
+pub fn lua_mbt_unsetenv(Bytes) -> Int
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits

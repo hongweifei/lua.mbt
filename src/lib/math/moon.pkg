@@ -1,0 +1,6 @@
+import {
+  "hongweifei/lua/src/core",
+  "hongweifei/lua/src/host",
+  "hongweifei/lua/src/vm",
+  "moonbitlang/core/math" @cmath,
+}

@@ -1,0 +1,101 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "hongweifei/lua/src/pattern"
+
+import {
+  "hongweifei/lua/src/core",
+}
+
+// Values
+pub const CAP_POSITION : Int = -2
+
+pub const CAP_UNFINISHED : Int = -1
+
+pub const L_ESC : Int = 37
+
+pub const MAX_CAPTURES : Int = 32
+
+pub const MAX_PATTERN_DEPTH : Int = 200
+
+pub fn capture_to_close(MatchState) -> Int raise @core.LuaRaised
+
+pub fn check_capture(MatchState, Int) -> Int raise @core.LuaRaised
+
+pub fn class_end(MatchState, Int) -> Int raise @core.LuaRaised
+
+pub fn do_match(MatchState, Int, Int) -> Int? raise @core.LuaRaised
+
+pub fn end_capture(MatchState, Int, Int) -> Int? raise @core.LuaRaised
+
+pub fn end_relat(Int64, Int) -> Int
+
+pub fn is_alnum_c(Int) -> Bool
+
+pub fn is_alpha_c(Int) -> Bool
+
+pub fn is_cntrl_c(Int) -> Bool
+
+pub fn is_digit_c(Int) -> Bool
+
+pub fn is_graph_c(Int) -> Bool
+
+pub fn is_lower_c(Int) -> Bool
+
+pub fn is_punct_c(Int) -> Bool
+
+pub fn is_space_c(Int) -> Bool
+
+pub fn is_upper_c(Int) -> Bool
+
+pub fn is_xdigit_c(Int) -> Bool
+
+pub fn match_balance(MatchState, Int, Int) -> Int? raise @core.LuaRaised
+
+pub fn match_bracket_class(Int, Bytes, Int, Int) -> Bool
+
+pub fn match_capture(MatchState, Int, Int) -> Int? raise @core.LuaRaised
+
+pub fn match_class(Int, Int) -> Bool
+
+pub fn match_loop(MatchState, Int, Int) -> Int? raise @core.LuaRaised
+
+pub fn max_expand(MatchState, Int, Int, Int) -> Int? raise @core.LuaRaised
+
+pub fn min_expand(MatchState, Int, Int, Int) -> Int? raise @core.LuaRaised
+
+pub fn one_capture(MatchState, Int, Int, Int) -> @core.Value raise @core.LuaRaised
+
+pub fn pattern_is_plain(Bytes) -> Bool
+
+pub fn plain_find(Bytes, Int, Bytes) -> Int
+
+pub fn pos_relat(Int64, Int) -> Int
+
+pub fn pos_relat_init(Int64, Int) -> Int
+
+pub fn push_captures(MatchState, Int, Int) -> Array[@core.Value] raise @core.LuaRaised
+
+pub fn single_match(MatchState, Int, Int, Int) -> Bool
+
+pub fn start_capture(MatchState, Int, Int, Int) -> Int? raise @core.LuaRaised
+
+pub fn str_find_aux(@core.LuaState, Array[@core.Value], Bool) -> Array[@core.Value] raise @core.LuaRaised
+
+// Errors
+
+// Types and methods
+pub(all) struct MatchState {
+  src : Bytes
+  pat : Bytes
+  capture_start : Array[Int]
+  capture_len : Array[Int]
+  mut level : Int
+  mut depth : Int
+  error : Bytes
+}
+pub fn[T] MatchState::fail(Self, String) -> T raise @core.LuaRaised
+pub fn MatchState::new(Bytes, Bytes) -> Self
+pub fn MatchState::reset_captures(Self) -> Unit
+
+// Type aliases
+
+// Traits
