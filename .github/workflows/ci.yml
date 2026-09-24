@@ -1,0 +1,41 @@
+# Type check and test on every push and pull request.
+#
+# Linux is deliberate.  The host layer (src/host/stub.c) has a POSIX branch that
+# a Windows development machine never compiles, so this is the only place that
+# branch is built and exercised at all.  It is also the cheapest runner.
+#
+# The official Lua 5.4 test suite is *not* run here: it is not redistributed with
+# this repository, so it would have to be fetched from lua.org on every run, and
+# its `heavy.lua` uses a 120 s budget that was measured on a developer machine --
+# a slower runner would make the job flaky.  Run tools/run_official_tests.mbtx
+# locally with a copy in lua-5.4.9-tests/ instead (see README, "Tests").
+
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> $GITHUB_PATH
+
+      - name: Update MoonBit dependencies
+        run: |
+          moon version --all
+          moon update
+
+      - name: Type check
+        run: moon check
+
+      - name: Test
+        run: moon test
