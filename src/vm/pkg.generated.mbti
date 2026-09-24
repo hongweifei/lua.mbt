@@ -68,6 +68,8 @@ pub fn floor_double(Double) -> Double
 
 pub fn[T] for_error(@core.LuaState, String, @core.Value) -> T raise @core.LuaRaised
 
+pub fn gc_step(@core.LuaState, Int) -> Bool raise @core.LuaRaised
+
 pub fn gettable(@core.LuaState, @core.Value, @core.Value, Int) -> @core.Value raise @core.LuaRaised
 
 pub fn handle_at_raise_point(@core.LuaState, @core.LThread, @core.Value) -> @core.Value
@@ -93,6 +95,8 @@ pub fn[T] invalid_key_error(@core.LuaState, @core.Value) -> T raise @core.LuaRai
 pub fn is_callable(@core.Value) -> Bool
 
 pub fn is_zero_step(@core.Value) -> Bool
+
+pub fn ledger_finish_cycle(@core.LuaState) -> Unit
 
 pub fn len(@core.LuaState, @core.Value) -> @core.Value raise @core.LuaRaised
 

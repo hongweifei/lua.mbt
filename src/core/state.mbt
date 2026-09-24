@@ -52,11 +52,16 @@ pub(all) struct LuaState {
   /// never inside one, so nothing the running instruction has half-built is
   /// looked at.
   mut gc_threshold : Int
-  /// What a `collectgarbage("step", n)` has asked for so far, in the same
-  /// units.  A collection here is atomic, so a step is finished when this
-  /// reaches the work one cycle is charged: a larger step finishes the cycle
-  /// in fewer calls, which is what the reference's debt does.
+  /// The reference's `GCdebt`, in bytes as its own is: a sized step adds
+  /// kilobytes to it, a basic step clears it, and it is what `setpause` leaves
+  /// *negative* -- a credit -- when a cycle ends.  While it is not positive
+  /// `luaC_checkGC` does not step at all, which is what makes the calls after a
+  /// collection do nothing until the credit is paid off.
   mut gc_debt : Int
+  /// How much of the running cycle's work the steps have paid for.  A collection
+  /// here is atomic, so the work of the phases is accounted rather than
+  /// interleaved, and the cycle is finished when this covers what one owes.
+  mut gc_units_done : Int
   /// How many objects the last cycle reached, and how many table slots they
   /// hold.  There is no live-size figure to be had otherwise, so the two stand
   /// for it: the next automatic collection is due a `gc_pause` per cent past
@@ -100,6 +105,22 @@ pub const GC_STEP : Int = 200 * 1024
 pub const GCPARAM_ADJ : Int = 4
 
 ///|
+/// `WORK2MEM`: the reference counts a step's debt in units of one slot
+/// (`TValue`), so a byte figure reaches the same units by dividing by this.
+pub const WORK2MEM : Int = 16
+
+///|
+/// `LUAI_GCSTEPSIZE`: the granularity one step is worth is 2^13 bytes, which in
+/// the units above is 512.
+pub const GC_STEP_SHIFT : Int = 13
+
+///|
+/// A bound on the debt a step can be given, so that an extreme step size a
+/// program passes cannot wrap the arithmetic.  The reference has no such bound
+/// because its `l_mem` is wider than the figures a program passes.
+pub const GC_MAX_DEBT : Int64 = 1L << 40
+
+///|
 /// How much the live set may hold before the interpreter refuses to grow
 /// further, in bytes.  The reference has no such figure: its allocator fails
 /// (`luaM_realloc_` raising "not enough memory") when the host cannot give it
@@ -141,6 +162,7 @@ pub fn lua_state_new() -> LuaState {
     finalizers: [],
     gc_threshold: GC_STEP,
     gc_debt: 0,
+    gc_units_done: 0,
     gc_marked: 0,
     gc_marked_size: 0,
     gc_counted_strings: Map([]),

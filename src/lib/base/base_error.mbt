@@ -143,6 +143,7 @@ pub fn base_collectgarbage(
   match opt {
     "collect" => {
       @vm.collect_and_retune(state)
+      @vm.ledger_finish_cycle(state)
       [@core.VInt(0L)]
     }
     "stop" => {
@@ -158,31 +159,12 @@ pub fn base_collectgarbage(
     // once that much has been asked for -- the reference's debt.  A step with
     // no size does a basic step, which always finishes one here, because a
     // collection is atomic.
+    // The reference's `lua_gc(LUA_GCSTEP)` and the `incstep` it leads to: the
+    // debt, the credit and the effect `setstepmul` has on both are the
+    // collector's accounting, so they live there (`@vm.gc_step`).
     "step" => {
       let size = @core.opt_int(state, args, 2, "collectgarbage", 0L).to_int()
-      // A step is charged `size` kilobytes of work, and a cycle is finished once
-      // one cycle's worth has been asked for.  The size comes from the program,
-      // so the charge is capped rather than allowed to overflow: a wrapped one
-      // would be negative and the cycle would never finish.
-      //
-      // `setstepmul` scales the charge, which is what it does in the reference
-      // (`incstep` multiplies the debt by it): a larger multiplier finishes a
-      // cycle in fewer calls, a smaller one in more.  The cap stays last, so a
-      // multiplier cannot ask for more than one cycle -- `dosteps(20000)` still
-      // finishes in a single call -- and the default (100) leaves the arithmetic
-      // exactly as it was.
-      let mul = if state.gc_stepmul < 0 { 0 } else { state.gc_stepmul }
-      let mut kb = size.to_int64() * 1024L * mul.to_int64() / 100L
-      if kb > @core.GC_STEP.to_int64() {
-        kb = @core.GC_STEP.to_int64()
-      }
-      state.gc_debt = state.gc_debt + kb.to_int()
-      if size <= 0 || state.gc_debt >= @core.GC_STEP {
-        @vm.collect_and_retune(state)
-        [@core.VBool(true)]
-      } else {
-        [@core.VBool(false)]
-      }
+      [@core.VBool(@vm.gc_step(state, size))]
     }
     "isrunning" => [@core.VBool(state.gc_running)]
     "incremental" => {

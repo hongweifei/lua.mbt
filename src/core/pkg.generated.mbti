@@ -62,7 +62,11 @@ pub const CCALLS_LIMIT_LATE : Int = 220
 
 pub const GCPARAM_ADJ : Int = 4
 
+pub const GC_MAX_DEBT : Int64 = 1099511627776
+
 pub const GC_STEP : Int = 204800
+
+pub const GC_STEP_SHIFT : Int = 13
 
 pub const HOOK_CALL : Int = 1
 
@@ -211,6 +215,8 @@ pub const UNOP_LEN : Int = 2
 pub const UNOP_MINUS : Int = 0
 
 pub const UNOP_NOT : Int = 1
+
+pub const WORK2MEM : Int = 16
 
 pub fn[T] arg_error(LuaState, Int, String, String) -> T raise LuaRaised
 
@@ -737,6 +743,7 @@ pub(all) struct LuaState {
   mut finalizers : Array[Value]
   mut gc_threshold : Int
   mut gc_debt : Int
+  mut gc_units_done : Int
   mut gc_marked : Int
   mut gc_marked_size : Int
   mut gc_counted_strings : Map[Int, Unit]
