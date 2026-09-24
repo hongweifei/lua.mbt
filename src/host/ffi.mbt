@@ -50,6 +50,30 @@ pub extern "c" fn lua_mbt_fmt_cstr(
 pub extern "c" fn lua_mbt_strtod(s : Bytes, len : Int) -> Double = "lua_mbt_strtod"
 
 ///|
+/// The index of the first `byte` at or after `from`, searching `len` bytes, or
+/// -1 when there is none.  This is the C library's `memchr`, which is what the
+/// reference implementation searches a plain pattern with.
+#borrow(s)
+pub extern "c" fn lua_mbt_memchr(
+  s : Bytes,
+  from : Int64,
+  len : Int64,
+  byte : Int,
+) -> Int64 = "lua_mbt_memchr"
+
+///|
+/// Whether `a[ai .. ai+len)` and `b[bi .. bi+len)` hold the same bytes, which
+/// is the C library's `memcmp` answering 1 for equal.
+#borrow(a, b)
+pub extern "c" fn lua_mbt_memeq(
+  a : Bytes,
+  ai : Int64,
+  b : Bytes,
+  bi : Int64,
+  len : Int64,
+) -> Int = "lua_mbt_memeq"
+
+///|
 pub extern "c" fn lua_mbt_stdin() -> Int64 = "lua_mbt_stdin"
 
 ///|

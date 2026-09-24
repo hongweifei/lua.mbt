@@ -33,6 +33,42 @@ eq(string.find("hello", "l+"), 3, "pattern with a quantifier")
 eq(select("#", string.find("hello", "l+")), 2, "find returns start and end")
 eq(string.find("hello", "xyz"), nil, "find fails")
 eq(string.find("a.b", ".", 1, true), 2, "plain find")
+-- A plain search is the reference's `lmemfind`, so its edges are the subject
+-- bounds, the empty pattern and the byte values.  The expectations below were
+-- read off a reference build, one input at a time (`find` answers start and
+-- end, and for an empty pattern the end is one before the start).
+local subject = "hello world, hello there"
+eq(#subject, 24, "the subject of the cases below")
+eq(string.find(subject, "wor", 1, true), 7, "a plain hit")
+eq(string.find(subject, "zzz", 1, true), nil, "a plain miss")
+eq(string.find(subject, "hello", 2, true), 14, "init skips the first hit")
+eq(string.find(subject, "hello", -13, true), 14, "a negative init counts back")
+eq(string.find(subject, "hello", 0, true), 1, "init 0 is the first byte")
+eq(string.find(subject, "hello", #subject + 2, true), nil, "an init past the end fails")
+eq(string.find(subject, "world"), 7, "no specials takes the plain path too")
+eq(string.find("abc", "", 1, true), 1, "the empty pattern is at init")
+eq(string.find(subject, "", 5, true), 5, "and end is one before it")
+eq(string.find(subject, "", #subject + 1, true), #subject + 1, "even at the end")
+eq(string.find("ab", "abcdef", 1, true), nil, "a pattern longer than the subject")
+eq(string.find("abab", "abab", 1, true), 1, "a subject that is the pattern")
+eq(string.find("aaaa", "aa", 1, true), 1, "an overlapping match")
+eq(string.find("a\0b\0c", "\0b", 1, true), 2, "a NUL in the pattern")
+eq(string.find("\0\0ab", "ab", 1, true), 3, "and in the subject")
+eq(string.find("\0\0\0", "\0", 2, true), 2, "a NUL found from an init")
+eq(string.find("\255\254\253", "\254", 1, true), 2, "a byte above 127")
+eq(string.find("\255\254\253", "\252", 1, true), nil, "and one that is absent")
+-- A back reference compares the captured bytes with the subject in place; it
+-- used to allocate a slice of each side to compare them.
+eq(string.match("abcabc", "(abc)%1"), "abc", "a back reference matches")
+eq(string.match("abcabd", "(abc)%1"), nil, "and fails when the bytes differ")
+eq(string.match("aabb", "(a+)%1"), "a", "a greedy capture backtracks to fit")
+eq(string.match("abc", "()a%1"), nil, "a back reference to a position never matches")
+eq(string.gsub("abcabc", "(abc)%1", "X"), "X", "gsub through a back reference")
+eq(string.find("hello hello", "(%a+) %1"), 1, "find through one")
+eq(string.find("hello hello", "(%a+) %1", 3), nil, "which is a failed search here")
+eq(string.match("a\0\0a\0\0", "(a\0\0)%1"), "a\0\0", "over NUL bytes")
+eq(select(2, pcall(string.match, "abc", "%1")), "invalid capture index %1",
+  "an index with no capture is refused")
 eq(string.match("key=value", "(%w+)=(%w+)"), "key", "match first capture")
 eq(select(2, string.match("key=value", "(%w+)=(%w+)")), "value", "match second capture")
 eq(string.match("2024-01-15", "(%d+)-(%d+)-(%d+)"), "2024", "date pattern")

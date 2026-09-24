@@ -116,7 +116,13 @@ pub fn match_capture(
   }
   let start = ms.capture_start[idx]
   if ms.src.length() - s >= len &&
-    @core.bytes_slice(ms.src, start, len) == @core.bytes_slice(ms.src, s, len) {
+    @host.lua_mbt_memeq(
+      ms.src,
+      start.to_int64(),
+      ms.src,
+      s.to_int64(),
+      len.to_int64(),
+    ) != 0 {
     Some(s + len)
   } else {
     None

@@ -127,6 +127,39 @@ MBT_EXPORT double lua_mbt_strtod(moonbit_bytes_t s, int32_t len) {
 }
 
 /* ------------------------------------------------------------------ */
+/* byte search                                                         */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The reference implementation searches for a plain pattern with the C
+ * library's `memchr` and `memcmp` (`lmemfind` in lstrlib.c).  Those two
+ * primitives are what the host hands over here, so the interpreter does not
+ * have to walk its subject one byte at a time from MoonBit.
+ */
+MBT_EXPORT int64_t lua_mbt_memchr(moonbit_bytes_t s, int64_t from, int64_t len,
+                                  int32_t byte) {
+  const char *found;
+  if (from < 0 || len <= 0) {
+    return -1;
+  }
+  found = (const char *)memchr((const char *)s + from, byte, (size_t)len);
+  if (found == NULL) {
+    return -1;
+  }
+  return (int64_t)(found - (const char *)s);
+}
+
+MBT_EXPORT int32_t lua_mbt_memeq(moonbit_bytes_t a, int64_t ai,
+                                 moonbit_bytes_t b, int64_t bi, int64_t len) {
+  if (len <= 0) {
+    return 1; /* nothing to compare counts as equal */
+  }
+  return memcmp((const char *)a + ai, (const char *)b + bi, (size_t)len) == 0
+             ? 1
+             : 0;
+}
+
+/* ------------------------------------------------------------------ */
 /* standard streams and files                                          */
 /* ------------------------------------------------------------------ */
 

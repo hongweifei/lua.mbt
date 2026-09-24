@@ -65,17 +65,50 @@ pub fn pattern_is_plain(p : Bytes) -> Bool {
 }
 
 ///|
-/// A plain substring search.
+/// A plain substring search, shaped like the reference's `lmemfind`: the first
+/// byte is located with the host's `memchr` and only those positions are
+/// compared with `memcmp`, instead of walking the subject a byte at a time.
+/// `init` is a zero based offset into `src`; the answer is a zero based offset,
+/// or -1 when the pattern is not there.
 pub fn plain_find(src : Bytes, init : Int, p : Bytes) -> Int {
-  if p.length() == 0 {
+  let l2 = p.length()
+  if l2 == 0 {
     return init
   }
-  let mut i = init
-  while i + p.length() <= src.length() {
-    if @core.bytes_slice(src, i, p.length()) == p {
-      return i
+  // `lmemfind` is handed the subject from `init` on, so both bounds below are
+  // relative to what is left of it.
+  let l1 = src.length() - init
+  if l2 > l1 {
+    return -1
+  }
+  let rest = l2 - 1
+  // The last position a match may start at, plus one: a match needs `rest`
+  // bytes after its first one.
+  let limit = init + (l1 - rest)
+  let first = @core.ubyte_at(p, 0)
+  let mut s1 = init
+  while s1 < limit {
+    let at = @host.lua_mbt_memchr(
+      src,
+      s1.to_int64(),
+      (limit - s1).to_int64(),
+      first,
+    )
+    if at < 0 {
+      return -1
     }
-    i = i + 1
+    let found = at.to_int()
+    if rest == 0 ||
+      @host.lua_mbt_memeq(
+        src,
+        (found + 1).to_int64(),
+        p,
+        1L,
+        rest.to_int64(),
+      ) != 0 {
+      return found
+    }
+    s1 = found + 1
   }
   -1
 }
