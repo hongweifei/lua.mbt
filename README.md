@@ -133,7 +133,7 @@ test "embedding" {
 * **无法取名的参数错误说 `?`**，与参考实现一致：名字来自调用点或对 `package.loaded` 的查找，绝不来自函数注册时用的名字。所以以值的形式拿到的文件方法 `pcall(f.read, f, "x")` 报 `bad argument #2 to '?' (invalid format)`。
 * **版本横幅是本实现自己的。** `lua -v` 打印 `Lua 5.4  (MoonBit implementation)`，参考实现打印它的版权行。`_VERSION` 是 `"Lua 5.4"`，只有读取横幅文本的程序才会看到区别。
 * **没有共享库加载器**，所以 `package.loadlib` 的行为等同于一个未启用动态加载的 Lua 构建，原生搜索器在找到文件后会报告自己没有加载器。
-* **性能比参考实现慢，倍数取决于在做什么。** `tools/run_bench.mbtx` 是本机上的度量工具：同一批用例两边都跑，校验和必须一致。协程切换已经与 C 参考实现在同一量级（约 1.3x），分配密集的负载 3–6x（`table-small`、`string-build`），算术与派发密集的循环 28–63x，纯模式搜索最差（大串上的 `string.find` 约 180x，逐字节扫描）。结构性原因是 `Value` 的表示——32 字节 enum、最大载荷 `LStr` 24 字节，每次槽位读写都要拷贝它并付宿主的引用计数；不是分配器，这正是分配密集的用例反而最接近的原因。
+* **性能比参考实现慢，倍数取决于在做什么。** `tools/run_bench.mbtx` 在本机度量：两边跑同一批用例、校验和必须一致，每个用例默认重复 3 次取最快一次——同一份二进制在两次运行之间的绝对值能差到 2 倍，所以**只有比值可信**，绝对值只能给区间。比值：协程切换约 1.3x，分配密集的负载（`table-small`、`string-build`）3–6x，表与字符串操作 12–46x，算术与派发密集的循环 29–74x（`calls` 最差）。结构性原因是 `Value` 的表示——32 字节 enum、最大载荷 `LStr` 24 字节，每次槽位读写都要拷贝它并付宿主的引用计数；不是分配器，这正是分配密集的用例反而最接近的原因。纯模式搜索曾是最差的一项（每次搜索在每个位置分配一个切片再比较，`0.483s`），改用宿主 `memchr`/`memcmp` 后为 `0.004–0.007s`，与参考实现同量级（约 1.2x）。
 * **环不会被释放。** 内存由宿主运行时的引用计数回收；收集器判定可达性（这正是弱表、ephemeron 和 `__gc` 需要的），但它不做清扫。因此一个环会留到进程结束。
 * **`load` 收到 reader 函数时会先读完再编译。** 参考实现边读边解析，所以一个"读到的 chunk 很早就语法错误"的 reader——或者带副作用的 reader，例如对文件用 `io.lines`——会停在半路；这里会先把 reader 读干。对遵守契约（最终必须返回 nil 或空串）的 reader，两者一致；永不结束的 reader 在这里会被一直读下去，而不是因语法错误提前失败。
 
@@ -146,7 +146,7 @@ moon test
 * `tests/language.lua`、`tests/stdlib.lua`、`tests/require_test.lua` 和 `tests/examples.lua` 是由 `src/lua/suite_test.mbt` 通过解释器执行的 Lua 程序——和嵌入者使用的方式同形（黑盒），所以失败会带着出错的 Lua 行号报出来。
 * 其余测试就放在它们所钉住的代码旁边：代码生成器产出的寄存器布局（`src/compiler/codegen_wbtest.mbt`）、`printf` 各转换与数字解析（`src/core/number_wbtest.mbt`）、命令行的选项表和 `-l name=module` 拆分（`cmd/main/main_wbtest.mbt`）、被启动的脚本看到的报错形态（`src/lua/launcher_test.mbt`）、以及宿主边界（`src/host/ffi_wbtest.mbt`）。
 * 官方 Lua 5.4 测试套件是一致性的裁判。它不在本仓库分发——`tools/run_official_tests.mbtx` 需要 `lua-5.4.9-tests/` 下有一份拷贝；当前数字见上面 `## 状态`。
-* 性能由 `bench/` 与 `tools/run_bench.mbtx` 度量：每个用例自带断言，打印一行 `bench <名字> <秒> <校验和>`；传入第二个解释器即可得到比值。改之前先跑基线，改完两者背靠背再跑，不要与上一轮的旧数字比较。
+* 性能由 `bench/` 与 `tools/run_bench.mbtx` 度量：每个用例自带断言，打印一行 `bench <名字> <秒> <校验和>`；传入第二个解释器即可得到比值，`--repeat=N` 决定每个用例重复几次（默认 3，取最快一次）。改动前后要背靠背跑、比较**比值**，不要与上一轮的旧数字比较。
 
 ```
 moon run --target native tools/run_bench.mbtx /path/to/reference/lua

@@ -257,7 +257,7 @@ What the interpreter does, in the areas the suite exercises hardest:
 * **There is no loader for shared libraries**, so `package.loadlib` answers the
   way a Lua built without one does, and the native searcher reports that it has
   no loader for a file it finds.
-* **It is slower than the reference, by a factor that depends on the work.**  `tools/run_bench.mbtx` measures it on this machine: both sides run the same cases and have to agree on every checksum.  A coroutine switch is in the same range as the C implementation (~1.3x), allocation-heavy work is 3-6x (`table-small`, `string-build`), arithmetic and dispatch-heavy loops are 28-63x, and plain pattern searching is worst (a `string.find` over a long subject is ~180x, a byte at a time).  The structural cause is the representation of `Value` -- a 32 byte enum whose largest payload is `LStr` at 24 bytes -- so every slot read and write copies it and pays the host's reference counting.  It is not the allocator, which is why the allocation-heavy cases are the closest.
+* **It is slower than the reference, by a factor that depends on the work.**  `tools/run_bench.mbtx` measures it on this machine: both sides run the same cases and have to agree on every checksum, and each case runs three times by default with the fastest run reported -- the absolute seconds of one and the same binary can differ by a factor of two between runs, so **only the ratios are trustworthy** and the absolute figures come as a range.  The ratios: a coroutine switch ~1.3x, allocation-heavy work (`table-small`, `string-build`) 3-6x, table and string operations 12-46x, and arithmetic and dispatch-heavy loops 29-74x (worst: `calls`).  The structural cause is the representation of `Value` -- a 32 byte enum whose largest payload is `LStr` at 24 bytes -- so every slot read and write copies it and pays the host's reference counting.  It is not the allocator, which is why the allocation-heavy cases are the closest.  Plain pattern searching used to be the worst of all (a slice allocated per position and compared: 0.483 s); it now uses the host's `memchr`/`memcmp` and takes 0.004-0.007 s, in the same range as the reference (~1.2x).
 * **Cycles are not freed.**  Memory is reclaimed by the host runtime's reference
   counting; the collector decides reachability, which is what weak tables,
   ephemerons and `__gc` need, but it does not sweep.  A cycle therefore stays
@@ -290,7 +290,7 @@ moon test
 * The official Lua 5.4 test suite is the conformance judge.  It is not
   redistributed here — `tools/run_official_tests.mbtx` needs a copy in
   `lua-5.4.9-tests/`, and the current figures are under `## Status`.
-* Performance is measured by `bench/` and `tools/run_bench.mbtx`: each case asserts its own checksum and prints one `bench <name> <seconds> <checksum>` line, and passing a second interpreter turns the output into ratios.  Measure the baseline before a change and run the two back to back afterwards, never against a number from an earlier session.
+* Performance is measured by `bench/` and `tools/run_bench.mbtx`: each case asserts its own checksum and prints one `bench <name> <seconds> <checksum>` line, and passing a second interpreter turns the output into ratios (`--repeat=N` sets how often each case runs, three by default, keeping the fastest).  Measure back to back before and after a change and compare the **ratios**, never a number from an earlier session.
 
 ```
 moon run --target native tools/run_bench.mbtx /path/to/reference/lua

@@ -26,10 +26,41 @@ let cases : Array[String] = [
   "calls", "arith", "tables", "strings", "coroutines",
 ]
 
+/// How many times each case runs by default; the fastest run is reported.
+let default_repeats : Int = 3
+
 struct Measurement {
   name : String
   seconds : Double
   checksum : String
+}
+
+/// Keeps the fastest run of each measurement: a micro benchmark's noise is all
+/// interference (other processes, clock frequency, cache state), so the minimum
+/// is the closest thing to the cost being asked about.  A checksum that differs
+/// between repeats is a failure, not noise.
+fn record(acc : Array[Measurement], m : Measurement) -> Unit raise Failure {
+  let mut i = 0
+  while i < acc.length() {
+    if acc[i].name == m.name {
+      if acc[i].checksum != m.checksum {
+        fail(
+          m.name +
+          ": repeat produced a different checksum (" +
+          acc[i].checksum +
+          " then " +
+          m.checksum +
+          ")",
+        )
+      }
+      if m.seconds < acc[i].seconds {
+        acc[i] = m
+      }
+      return
+    }
+    i = i + 1
+  }
+  acc.push(m)
 }
 
 /// One line per measurement, with the fields the cases print.
@@ -141,41 +172,54 @@ fn fmt(d : Double) -> String {
 /// The interpreter to run and the one to compare against.  A bare path is what
 /// to compare against, so `run_bench.mbtx /path/to/lua` answers "how much
 /// slower are we than that?".
-fn parse_args(args : ArrayView[String]) -> (String, String?) {
+fn parse_args(args : ArrayView[String]) -> (String, String?, Int) {
   let mut ours = default_lua
   let mut other : String? = None
+  let mut repeats = default_repeats
   for a in args {
     if a.has_prefix("--lua=") {
       ours = a[6:].to_owned()
     } else if a.has_prefix("--against=") {
       other = Some(a[10:].to_owned())
+    } else if a.has_prefix("--repeat=") {
+      let n = try @string.parse_int(a[9:]) catch {
+        _ => default_repeats
+      }
+      repeats = if n < 1 { 1 } else { n }
     } else {
       other = Some(a)
     }
   }
-  (ours, other)
+  (ours, other, repeats)
 }
 
 async fn main {
-  let (ours, other) = parse_args(@env.args()[1:])
+  let (ours, other, repeats) = parse_args(@env.args()[1:])
   println("interpreter:  " + ours)
   match other {
     Some(path) => println("comparing to: " + path)
     None => println("comparing to: (nothing -- pass an interpreter to compare against)")
   }
+  println(
+    "each case runs " +
+    repeats.to_string() +
+    " times, and the fastest run of each measurement is the one reported",
+  )
   let baseline : Array[Measurement] = []
   let comparison : Array[Measurement] = []
   for name in cases {
     println("  " + name + " ...")
-    for m in measure(ours, name) {
-      baseline.push(m)
-    }
-    match other {
-      Some(path) =>
-        for m in measure(path, name) {
-          comparison.push(m)
-        }
-      None => ()
+    for _ in 0..<repeats {
+      for m in measure(ours, name) {
+        record(baseline, m)
+      }
+      match other {
+        Some(path) =>
+          for m in measure(path, name) {
+            record(comparison, m)
+          }
+        None => ()
+      }
     }
   }
   println("")
