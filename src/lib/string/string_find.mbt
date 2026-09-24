@@ -167,6 +167,18 @@ pub fn str_gsub(
   let mut last_match = -1
   let mut count = 0L
   let mut changed = false
+  // A string or a number is appended as text; a function or a table is called
+  // for a value.  The text is the same for every match, so whether it names a
+  // capture or the whole match is decided once, here.
+  let repl_text : Bytes? = match repl {
+    @core.VStr(r) => Some(r.data())
+    @core.VInt(_) | @core.VNum(_) => Some(@core.number_to_bytes(repl))
+    _ => None
+  }
+  let repl_plain = match repl_text {
+    Some(t) => !contains_byte(t, 37)
+    None => false
+  }
   while count < max_n {
     ms.reset_captures()
     let res = @pattern.do_match(ms, pos, pstart)
@@ -176,66 +188,66 @@ pub fn str_gsub(
         if e != last_match {
           matched = true
           count = count + 1
-          let captures = @pattern.push_captures(ms, pos, e)
-          let value = match repl {
-            @core.VStr(r) =>
-              substitute_escapes(
-                state,
-                r.data(),
-                captures,
-                @core.bytes_slice(src, pos, e - pos),
-              )
-            @core.VInt(_) | @core.VNum(_) =>
-              substitute_escapes(
-                state,
-                @core.number_to_bytes(repl),
-                captures,
-                @core.bytes_slice(src, pos, e - pos),
-              )
-            // The table is consulted through `lua_gettable`, so an `__index`
-            // metamethod can supply the replacement.
-            @core.VTable(_) =>
-              @vm.gettable(
-                state,
-                repl,
-                if captures.length() > 0 {
-                  captures[0]
-                } else {
-                  @core.VNil
-                },
-                -1,
-              )
-            @core.VFunc(_) | @core.VBuiltin(_) => {
-              state.current_thread.ny = state.current_thread.ny + 1
-              let r = @vm.call_value(state, repl, captures, 1)
-              state.current_thread.ny = state.current_thread.ny - 1
-              if r.length() > 0 {
-                r[0]
+          match repl_text {
+            Some(text) => {
+              // Any substitution makes the result a new string, even when the
+              // replacement is the text it replaced.
+              changed = true
+              if repl_plain {
+                buf.write_bytes(text.view())
               } else {
-                @core.VNil
+                add_substitution(state, buf, ms, src, pos, e, text)
               }
             }
-            _ => @core.VNil
-          }
-          match value {
-            @core.VNil | @core.VBool(false) =>
-              buf.write_bytes(@core.bytes_slice(src, pos, e - pos).view())
-            @core.VStr(v) => {
-              // Any real substitution makes the result a new string; only an
-              // entirely unchanged run reuses the original object.
-              changed = true
-              buf.write_bytes(v.data().view())
-            }
-            @core.VInt(_) | @core.VNum(_) => {
-              changed = true
-              buf.write_bytes(@core.number_to_bytes(value).view())
-            }
-            other => {
-              let name = @core.type_error_name(state, other)
-              @core.runtime_error(
-                state,
-                "invalid replacement value (a " + name + ")",
-              )
+            None => {
+              let captures = @pattern.push_captures(ms, pos, e)
+              let value = match repl {
+                // The table is consulted through `lua_gettable`, so an
+                // `__index` metamethod can supply the replacement.
+                @core.VTable(_) =>
+                  @vm.gettable(
+                    state,
+                    repl,
+                    if captures.length() > 0 {
+                      captures[0]
+                    } else {
+                      @core.VNil
+                    },
+                    -1,
+                  )
+                @core.VFunc(_) | @core.VBuiltin(_) => {
+                  state.current_thread.ny = state.current_thread.ny + 1
+                  let r = @vm.call_value(state, repl, captures, 1)
+                  state.current_thread.ny = state.current_thread.ny - 1
+                  if r.length() > 0 {
+                    r[0]
+                  } else {
+                    @core.VNil
+                  }
+                }
+                _ => @core.VNil
+              }
+              // A nil or false answer keeps the text that was there, which is
+              // the one case where the result is not a new string.
+              match value {
+                @core.VNil | @core.VBool(false) =>
+                  buf.write_bytes(src.view(start=pos, end=e))
+                @core.VStr(v) => {
+                  changed = true
+                  buf.write_bytes(v.data().view())
+                }
+                @core.VInt(_) | @core.VNum(_) => {
+                  changed = true
+                  buf.write_bytes(@core.number_to_bytes(value).view())
+                }
+                other => {
+                  let name = @core.type_error_name(state, other)
+                  @core.runtime_error(
+                    state,
+                    "invalid replacement value (a " + name + ")",
+                  )
+                }
+              }
             }
           }
           last_match = e
@@ -265,54 +277,70 @@ pub fn str_gsub(
 }
 
 ///|
-/// Expands `%n` references inside a replacement string.
-pub fn substitute_escapes(
-  state : @core.LuaState,
-  repl : Bytes,
-  captures : Array[@core.Value],
-  whole : Bytes,
-) -> @core.Value raise @core.LuaRaised {
-  if repl.length() == 0 {
-    return @core.VStr(@core.LStr::empty())
-  }
-  let buf = Buffer::Buffer(size_hint=repl.length())
+/// Whether the byte `c` occurs in `b`.
+fn contains_byte(b : Bytes, c : Int) -> Bool {
   let mut i = 0
-  while i < repl.length() {
-    let c = @core.ubyte_at(repl, i)
-    if c == 37 {
-      i = i + 1
-      let d = if i < repl.length() { @core.ubyte_at(repl, i) } else { -1 }
-      if d == 37 {
-        buf.write_byte(@core.byte_of(37))
-        i = i + 1
-      } else if d == 48 {
-        // %0 refers to the whole match, always.
-        buf.write_bytes(whole.view())
-        i = i + 1
-      } else if d >= 49 && d <= 57 {
-        let idx = d - 49
-        if idx >= captures.length() {
-          @core.runtime_error(
-            state,
-            "invalid capture index %" + (idx + 1).to_string(),
-          )
-        }
-        match captures[idx] {
-          @core.VStr(v) => buf.write_bytes(v.data().view())
-          @core.VInt(_) | @core.VNum(_) =>
-            buf.write_bytes(@core.number_to_bytes(captures[idx]).view())
-          _ => buf.write_bytes(whole.view())
-        }
-        i = i + 1
-      } else {
-        @core.runtime_error(state, "invalid use of '%' in replacement string")
-      }
-    } else {
-      buf.write_byte(repl.at(i))
-      i = i + 1
+  while i < b.length() {
+    if @core.ubyte_at(b, i) == c {
+      return true
     }
+    i = i + 1
   }
-  @core.VStr(@core.LStr::of_bytes(buf.to_bytes()))
+  false
+}
+
+///|
+/// Appends one replacement to the accumulated result, expanding `%n` references
+/// as it goes.  This is the reference's `add_s`, and the reason it is written as
+/// "append into the result" rather than "build the replacement string, then
+/// append that" is that the second shape allocates a buffer, its bytes and a
+/// string object for every match of a `gsub`.
+///
+/// A capture is read only where the replacement names one, so a match that
+/// nothing refers to costs nothing beyond the text itself.
+fn add_substitution(
+  state : @core.LuaState,
+  buf : Buffer,
+  ms : @pattern.MatchState,
+  src : Bytes,
+  s : Int,
+  e : Int,
+  repl : Bytes,
+) -> Unit raise @core.LuaRaised {
+  let n = repl.length()
+  let mut at = 0
+  while true {
+    let hit = @core.bytes_index_of(repl, at, 37)
+    if hit < 0 {
+      buf.write_bytes(repl.view(start=at))
+      return
+    }
+    buf.write_bytes(repl.view(start=at, end=hit))
+    let mut i = hit + 1
+    let c = if i < n { @core.ubyte_at(repl, i) } else { -1 }
+    if c == 37 {
+      // `%%` is a literal per cent sign.
+      buf.write_byte(@core.byte_of(37))
+      i = i + 1
+    } else if c == 48 {
+      // `%0` is the whole match, which is a range of the subject rather than a
+      // capture, so it is written from there directly.
+      buf.write_bytes(src.view(start=s, end=e))
+      i = i + 1
+    } else if c >= 49 && c <= 57 {
+      let cap = @pattern.one_capture(ms, c - 49, s, e)
+      match cap {
+        @core.VStr(v) => buf.write_bytes(v.data().view())
+        @core.VInt(_) | @core.VNum(_) =>
+          buf.write_bytes(@core.number_to_bytes(cap).view())
+        _ => ()
+      }
+      i = i + 1
+    } else {
+      @core.runtime_error(state, "invalid use of '%' in replacement string")
+    }
+    at = i
+  }
 }
 
 ///|----------------------------------------------------------------

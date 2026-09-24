@@ -74,6 +74,18 @@ pub extern "c" fn lua_mbt_memeq(
 ) -> Int = "lua_mbt_memeq"
 
 ///|
+/// Copies `len` bytes from `src + si` into `dst + di`, which is how a substring
+/// is made without a buffer in between.
+#borrow(dst, src)
+pub extern "c" fn lua_mbt_bytes_copy(
+  dst : Bytes,
+  di : Int64,
+  src : Bytes,
+  si : Int64,
+  len : Int64,
+) = "lua_mbt_bytes_copy"
+
+///|
 pub extern "c" fn lua_mbt_stdin() -> Int64 = "lua_mbt_stdin"
 
 ///|

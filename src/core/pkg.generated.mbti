@@ -236,6 +236,8 @@ pub fn bytes_add(Bytes, String) -> Bytes
 
 pub fn bytes_concat(Array[Bytes]) -> Bytes
 
+pub fn bytes_index_of(Bytes, Int, Int) -> Int
+
 pub fn bytes_of(String) -> Bytes
 
 pub fn bytes_one(Int) -> Bytes

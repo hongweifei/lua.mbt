@@ -169,6 +169,19 @@ MBT_EXPORT int32_t lua_mbt_memeq(moonbit_bytes_t a, int64_t ai,
              : 0;
 }
 
+/* Copies `len` bytes from `src + si` to `dst + di`.  A byte sequence in MoonBit
+ * is NUL terminated and is never written through an offset it was not made for,
+ * so this is a `memcpy` of the range.  Pulling a substring of a string is the
+ * one allocation-heavy operation in the string library, and a loop in the
+ * language would be a call per byte. */
+MBT_EXPORT void lua_mbt_bytes_copy(moonbit_bytes_t dst, int64_t di,
+                                   moonbit_bytes_t src, int64_t si,
+                                   int64_t len) {
+  if (len > 0) {
+    memcpy((char *)dst + di, (const char *)src + si, (size_t)len);
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* standard streams and files                                          */
 /* ------------------------------------------------------------------ */

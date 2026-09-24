@@ -20,6 +20,10 @@ pub fn LStr::of_string(s : String) -> LStr {
 let str_intern_limit : Int = 40
 
 ///|
+/// The interned strings.  The key is the bytes rather than the string: a `Bytes`
+/// key is one word, while an `LStr` key is a 24 byte structure the map has to
+/// carry around, and that costs more per lookup than the second pass over the
+/// contents that keying by bytes implies.
 let str_intern_table : Map[Bytes, LStr] = Map([])
 
 ///|

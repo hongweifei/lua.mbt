@@ -13,14 +13,22 @@ pub fn text_of(b : Bytes) -> String {
 }
 
 ///|
+/// The empty byte sequence.  Slicing nothing is common enough (`string.sub` of
+/// an empty range, `string.rep` with a count of 0) that it is worth not
+/// allocating for it; nothing writes into a byte sequence it did not make.
+let empty_bytes : Bytes = Bytes::new(0)
+
+///|
 /// Copies `len` bytes starting at `start`.  The range must be valid.
 pub fn bytes_slice(b : Bytes, start : Int, len : Int) -> Bytes {
   if len <= 0 {
-    return Bytes::new(0)
+    return empty_bytes
   }
-  let buf = Buffer::Buffer(size_hint=len)
-  buf.write_bytes(b.view(start~, end=start + len))
-  buf.to_bytes()
+  // One byte sequence, one copy: going through a buffer would allocate the
+  // buffer, its storage and the result.
+  let out = Bytes::make(len, 0)
+  @host.lua_mbt_bytes_copy(out, 0L, b, start.to_int64(), len.to_int64())
+  out
 }
 
 ///|
@@ -44,6 +52,18 @@ pub fn ubyte_at(b : Bytes, i : Int) -> Int {
     Some(v) => v.to_int()
     None => -1
   }
+}
+
+///|
+/// The index of the first `byte` at or after `from`, or -1 when there is none.
+/// The search is the host's `memchr`, as in the reference implementation: a
+/// byte-at-a-time loop written here would be a call per byte.
+pub fn bytes_index_of(b : Bytes, from : Int, byte : Int) -> Int {
+  let n = b.length()
+  if from < 0 || from > n {
+    return -1
+  }
+  @host.lua_mbt_memchr(b, from.to_int64(), (n - from).to_int64(), byte).to_int()
 }
 
 ///|

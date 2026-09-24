@@ -2,6 +2,8 @@
 package "hongweifei/lua/src/host"
 
 // Values
+pub fn lua_mbt_bytes_copy(Bytes, Int64, Bytes, Int64, Int64) -> Unit
+
 pub fn lua_mbt_clearerr(Int64) -> Unit
 
 pub fn lua_mbt_clock() -> Double

@@ -121,8 +121,6 @@ pub fn str_upper(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Arra
 
 pub fn string_to_number(@core.LuaState, @core.Value, String) -> @core.Value raise @core.LuaRaised
 
-pub fn substitute_escapes(@core.LuaState, Bytes, Array[@core.Value], Bytes) -> @core.Value raise @core.LuaRaised
-
 pub fn unsafe_char_text(Int) -> String
 
 pub fn upgrade_upval(@core.LuaState, Array[@core.Value], Int, @core.Value) -> Unit
