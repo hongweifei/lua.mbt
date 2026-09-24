@@ -157,3 +157,12 @@ pub fn tolower_byte(c : Int) -> Byte {
   }
   case_lower[c]
 }
+
+///|
+/// How much of the host stack is left below this call, in bytes, or -1 when the
+/// host cannot say.  A call that re-enters the interpreter costs host stack, so
+/// what stops such a recursion is this measurement (`MIN_HOST_STACK`) and not
+/// only a count of levels.
+pub fn host_stack_left() -> Int {
+  @host.lua_mbt_stack_left()
+}

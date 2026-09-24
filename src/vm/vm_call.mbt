@@ -18,7 +18,14 @@ pub fn call_value(
     thread.stack.push(a)
   }
   st.native_depth = st.native_depth + 1
-  if st.native_depth > @core.MAX_NATIVE_DEPTH {
+  // Re-entering the interpreter costs host stack, and a program that recurses
+  // through host callbacks can run the real stack out before a count of levels
+  // would stop it: the level count below is the reference's, but what one level
+  // costs is this backend's to know.  Both are checked, and the stack is the one
+  // that decides on a host whose stack is small.
+  let stack_left = @core.host_stack_left()
+  if st.native_depth > @core.MAX_NATIVE_DEPTH ||
+    (stack_left >= 0 && stack_left < @core.MIN_HOST_STACK) {
     st.native_depth = st.native_depth - 1
     thread.frames.truncate(saved_frames)
     thread.stack.truncate(func_slot)

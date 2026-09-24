@@ -18,6 +18,12 @@
 
 #define _CRT_SECURE_NO_WARNINGS
 
+/* `pthread_getattr_np`, which says where this thread's stack is, is a GNU
+ * extension: it is declared only when this is defined before <pthread.h>. */
+#if !defined(_WIN32) && !defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,6 +47,7 @@
 #define MBT_FILENO _fileno
 #else
 #include <unistd.h>
+#include <pthread.h>
 #define MBT_POPEN popen
 #define MBT_PCLOSE pclose
 #define MBT_FILENO fileno
@@ -807,3 +814,47 @@ MBT_EXPORT int32_t lua_mbt_ctype(int32_t which, int32_t c) {
  * `str_upper`/`str_lower` apply per byte. */
 MBT_EXPORT int32_t lua_mbt_toupper32(int32_t c) { return toupper(c); }
 MBT_EXPORT int32_t lua_mbt_tolower32(int32_t c) { return tolower(c); }
+
+/* ------------------------------------------------------------------ */
+/* host stack                                                          */
+/* ------------------------------------------------------------------ */
+
+/* How much of the host stack is left below this call, in bytes, or -1 when the
+ * host cannot say.  The interpreter re-enters itself once per host-to-Lua
+ * callback, and each of those consumes host stack -- the one resource it shares
+ * with its host.  The reference guards that with a fixed count of C levels
+ * (`LUAI_MAXCCALLS`); a count cannot be safe here, because what one level costs
+ * is a property of the code the backend generates (kilobytes, for the C backend
+ * this builds against) rather than of the language, so the guard measures the
+ * stack itself. */
+MBT_EXPORT int64_t lua_mbt_stack_left(void) {
+  char here;
+#if defined(_WIN32)
+  ULONG_PTR low = 0;
+  ULONG_PTR high = 0;
+  GetCurrentThreadStackLimits(&low, &high);
+  if (low == 0 || (char *)&here <= (char *)low) return -1;
+  return (int64_t)((char *)&here - (char *)low);
+#elif defined(__APPLE__)
+  char *top = (char *)pthread_get_stackaddr_np(pthread_self());
+  size_t size = pthread_get_stacksize_np(pthread_self());
+  char *low = top - size;
+  if (top == 0 || (char *)&here <= low) return -1;
+  return (int64_t)((char *)&here - low);
+#elif defined(__linux__)
+  pthread_attr_t attr;
+  void *low = 0;
+  size_t size = 0;
+  if (pthread_getattr_np(pthread_self(), &attr) != 0) return -1;
+  if (pthread_attr_getstack(&attr, &low, &size) != 0) {
+    pthread_attr_destroy(&attr);
+    return -1;
+  }
+  pthread_attr_destroy(&attr);
+  if (low == 0 || (char *)&here <= (char *)low) return -1;
+  return (int64_t)((char *)&here - (char *)low);
+#else
+  (void)here;
+  return -1;
+#endif
+}

@@ -90,6 +90,8 @@ pub fn lua_mbt_setlocale(Bytes, Int) -> Int
 
 pub fn lua_mbt_setvbuf(Int64, Int, Int) -> Int
 
+pub fn lua_mbt_stack_left() -> Int
+
 pub fn lua_mbt_stderr() -> Int64
 
 pub fn lua_mbt_stdin() -> Int64

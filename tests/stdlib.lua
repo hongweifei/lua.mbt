@@ -941,4 +941,24 @@ do
     "a variable-length format has no size")
 end
 
+-- A recursion that runs through a host callback -- `string.gsub` calling a
+-- replacement function that calls `gsub` again -- is refused, not crashed.
+-- Each host-to-Lua re-entry costs host stack, and what stops it is the stack
+-- that is left rather than a count of levels (see `MIN_HOST_STACK` and the
+-- note on the limit in README).  The depth it reaches is the host's business;
+-- that it is refused, and how, is not.
+do
+  local count = 0
+  local function foo()
+    count = count + 1
+    string.gsub("a", ".", foo)
+  end
+  local ok, err = pcall(foo)
+  eq(ok, false, "the recursion is refused")
+  eq(type(err), "string", "with an error")
+  eq(string.find(err, "stack overflow", 1, true) ~= nil, true,
+    "whose message names the stack: " .. tostring(err))
+  eq(count > 10, true, "and it got somewhere before it was refused")
+end
+
 print("stdlib: ok")

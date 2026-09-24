@@ -299,3 +299,8 @@ pub extern "c" fn lua_mbt_toupper32(c : Int) -> Int = "lua_mbt_toupper32"
 
 ///|
 pub extern "c" fn lua_mbt_tolower32(c : Int) -> Int = "lua_mbt_tolower32"
+
+///|
+/// How much of the host stack is left below this call, in bytes, or -1 when the
+/// host cannot say.  See the note on `lua_mbt_stack_left` in `stub.c`.
+pub extern "c" fn lua_mbt_stack_left() -> Int = "lua_mbt_stack_left"

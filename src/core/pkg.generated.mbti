@@ -100,6 +100,8 @@ pub const MAX_VARS : Int = 200
 
 pub const MEMORY_LIMIT : Int = 1073741824
 
+pub const MIN_HOST_STACK : Int = 262144
+
 pub const OP_ADD : Int = 12
 
 pub const OP_BAND : Int = 19
@@ -335,6 +337,8 @@ pub fn hex_float_value(Bytes) -> Double
 pub fn host_ctype(Int, Int) -> Int
 
 pub fn host_exit(Int) -> Unit
+
+pub fn host_stack_left() -> Int
 
 pub fn instr(Int, Int, Int, Int) -> Instr
 

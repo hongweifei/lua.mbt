@@ -196,8 +196,23 @@ pub const MAX_LUA_FRAMES : Int = 200000
 
 ///|
 /// Maximum nesting of calls that re-enter the interpreter from the host.  Each
-/// of those consumes host stack, so the limit is much lower.
+/// of those consumes host stack, so the limit is much lower.  This is the
+/// reference's own shape (`LUAI_MAXCCALLS`, which it also counts in levels);
+/// what actually stops the recursion is `MIN_HOST_STACK` below, since what one
+/// level costs is a property of the generated code rather than of the language.
 pub const MAX_NATIVE_DEPTH : Int = 190
+
+///|
+/// How much host stack has to remain below a call that re-enters the
+/// interpreter, in bytes.  The check that uses it is in `call_value`, and it is
+/// what keeps a program that recurses through host callbacks (`string.gsub`
+/// with a replacement function, a `__index` that calls back) from running the
+/// real stack out: the reference's fixed count of C levels assumes a level
+/// costs a few hundred bytes, which is true of C code and not of the code this
+/// backend produces.  The margin is what the unwinding of that recursion needs
+/// -- the message handler, the tracebacks and the `__close` runs all happen
+/// while the deep frames are still standing.
+pub const MIN_HOST_STACK : Int = 256 * 1024
 
 ///|
 /// `LUAI_MAXCCALLS` in the reference implementation.
