@@ -1,0 +1,206 @@
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/shell",
+  "moonbitlang/core/env",
+  "moonbitlang/core/string",
+}
+
+// Runs the micro benchmarks in bench/ through the interpreter and prints the
+// cost of each one.
+//
+//   moon run --target native tools/run_bench.mbtx
+//   moon run --target native tools/run_bench.mbtx <other-lua>
+//
+// The second form runs every case through another interpreter as well -- a
+// reference build of Lua 5.4, say -- and prints the ratio, which is what makes
+// the effect of an optimisation visible: measure the branch and the baseline
+// back to back, never against a number from an earlier session.
+//
+// Each case asserts its own checksum and prints one line per measurement,
+// `bench <name> <cpu seconds> <checksum>`, so the two implementations are
+// compared on the same work as well as on the time it took.
+
+let bench_dir : String = "bench"
+let default_lua : String = "_build/native/release/build/cmd/main/main.exe"
+let cases : Array[String] = [
+  "calls", "arith", "tables", "strings", "coroutines",
+]
+
+struct Measurement {
+  name : String
+  seconds : Double
+  checksum : String
+}
+
+/// One line per measurement, with the fields the cases print.
+fn parse_measurements(out : String) -> Array[Measurement] {
+  let found : Array[Measurement] = []
+  for line in out.split("\n") {
+    let parts : Array[String] = [for p in line.trim().split("\t") => p.to_owned()]
+    if parts.length() == 4 && parts[0] == "bench" {
+      found.push({
+        name: parts[1],
+        seconds: to_seconds(parts[2]),
+        checksum: parts[3],
+      })
+    }
+  }
+  found
+}
+
+/// The seconds a case printed, "1.234" -> 1.234.  A case prints three decimals,
+/// which is the precision the comparison works at: at a 10-60x gap the slower
+/// side is what is measured well and the other one carries a few per cent of
+/// timer noise, while the clock a Lua program can read only ticks at a
+/// millisecond on some hosts.
+fn to_seconds(text : String) -> Double {
+  try @string.parse_double(text) catch {
+    _ => 0.0
+  }
+}
+
+/// Runs one case and returns what it measured, or fails with its output.
+async fn measure(exe : String, name : String) -> Array[Measurement] {
+  let path = bench_dir + "/" + name + ".lua"
+  let cmd = @shell.Cmd(exe, [path], stderr=@shell.Capture)
+  let out = cmd.output(timeout_ms=600000)
+  let stdout = out.stdout()
+  let measured = parse_measurements(stdout)
+  if out.exit_code() != 0 || measured.length() == 0 {
+    fail(
+      "case " +
+      name +
+      " through " +
+      exe +
+      " failed (exit " +
+      out.exit_code().to_string() +
+      "):\n" +
+      out.stderr() +
+      stdout,
+    )
+  }
+  measured
+}
+
+/// Where the second interpreter's measurements are looked up.
+fn find(ms : Array[Measurement], name : String) -> Measurement? {
+  for m in ms {
+    if m.name == name {
+      return Some(m)
+    }
+  }
+  None
+}
+
+/// The ratio as text, or a note when there is nothing to compare.
+fn ratio(base : Double, other : Double) -> String {
+  if base <= 0.0 || other <= 0.0 {
+    "--"
+  } else {
+    fmt1(base / other)
+  }
+}
+
+/// One decimal place, for a ratio.
+fn fmt1(x : Double) -> String {
+  let scaled = (x * 10.0).round().to_int()
+  (scaled / 10).to_string() + "." + (scaled % 10).to_string()
+}
+
+fn pad(s : String, n : Int) -> String {
+  let mut out = s
+  while out.length() < n {
+    out = out + " "
+  }
+  out
+}
+
+fn pad_start(s : String, n : Int) -> String {
+  let mut out = s
+  while out.length() < n {
+    out = " " + out
+  }
+  out
+}
+
+/// A zero-padded integer, for the fraction of a second.
+fn pad_zero(s : String, n : Int) -> String {
+  let mut out = s
+  while out.length() < n {
+    out = "0" + out
+  }
+  out
+}
+
+/// Seconds with three decimals, without pulling in a number formatter.
+fn fmt(d : Double) -> String {
+  let scaled = (d * 1000.0).round().to_int()
+  (scaled / 1000).to_string() + "." + pad_zero((scaled % 1000).to_string(), 3)
+}
+
+/// The interpreter to run and the one to compare against.  A bare path is what
+/// to compare against, so `run_bench.mbtx /path/to/lua` answers "how much
+/// slower are we than that?".
+fn parse_args(args : ArrayView[String]) -> (String, String?) {
+  let mut ours = default_lua
+  let mut other : String? = None
+  for a in args {
+    if a.has_prefix("--lua=") {
+      ours = a[6:].to_owned()
+    } else if a.has_prefix("--against=") {
+      other = Some(a[10:].to_owned())
+    } else {
+      other = Some(a)
+    }
+  }
+  (ours, other)
+}
+
+async fn main {
+  let (ours, other) = parse_args(@env.args()[1:])
+  println("interpreter:  " + ours)
+  match other {
+    Some(path) => println("comparing to: " + path)
+    None => println("comparing to: (nothing -- pass an interpreter to compare against)")
+  }
+  let baseline : Array[Measurement] = []
+  let comparison : Array[Measurement] = []
+  for name in cases {
+    println("  " + name + " ...")
+    for m in measure(ours, name) {
+      baseline.push(m)
+    }
+    match other {
+      Some(path) =>
+        for m in measure(path, name) {
+          comparison.push(m)
+        }
+      None => ()
+    }
+  }
+  println("")
+  println(pad("measurement", 20) + pad_start("ours (s)", 10) + pad_start("other (s)", 11) + pad_start("ratio", 8))
+  let mut mismatched = 0
+  for m in baseline {
+    let (other_time, note) = match find(comparison, m.name) {
+      Some(o) => {
+        if o.checksum != m.checksum {
+          mismatched = mismatched + 1
+          (fmt(o.seconds), "CHECKSUM " + o.checksum + " != " + m.checksum)
+        } else {
+          (fmt(o.seconds), ratio(m.seconds, o.seconds))
+        }
+      }
+      None => ("--", "--")
+    }
+    println(
+      pad(m.name, 20) +
+      pad_start(fmt(m.seconds), 10) +
+      pad_start(other_time, 11) +
+      pad_start(note, 8),
+    )
+  }
+  if mismatched > 0 {
+    fail("\{mismatched} case(s) produced different results in the two interpreters")
+  }
+}
