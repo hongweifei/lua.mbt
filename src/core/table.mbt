@@ -18,6 +18,9 @@ pub(all) struct LTable {
 
 ///|
 pub fn LTable::new() -> LTable {
+  // A table costs its header plus what its slots grow by later (charged where
+  // they are stored).
+  charge_object_bytes(56)
   {
     arr: [],
     hkeys: [],

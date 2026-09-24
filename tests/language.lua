@@ -713,6 +713,35 @@ do
   eq(w[1], nil, "and an extreme step size still collects")
 end
 
+-- `setstepmul` scales the work one step is worth, which is what it does in the
+-- reference (`incstep` multiplies the debt by it): a larger multiplier finishes a
+-- cycle in fewer calls than a smaller one.  A parameter is stored as a multiple
+-- of four, as the reference stores it, so what it last reported comes back
+-- rounded down.
+do
+  local function steps(mul, size)
+    collectgarbage("setstepmul", mul)
+    collectgarbage()
+    local n = 0
+    repeat n = n + 1 until collectgarbage("step", size)
+    return n
+  end
+  eq(steps(5000, 2) < steps(100, 2), true, "a larger stepmul needs fewer steps")
+  eq(steps(50, 2) > steps(100, 2), true, "and a smaller one needs more")
+  eq(steps(100, 20000), 1, "a step of a cycle's size still finishes it at once")
+  collectgarbage("setstepmul", 50)
+  eq(collectgarbage("setstepmul", 100), 48, "a parameter comes back a multiple of four")
+end
+
+-- `count` carries the objects a library function makes, not only the strings.
+do
+  collectgarbage()
+  local before = collectgarbage("count")
+  local t = {}
+  for i = 1, 20000 do t[i] = {i} end
+  eq(collectgarbage("count") > before, true, "the tables a program makes show in the count")
+end
+
 -- A fresh state is in *generational* mode: the mode a change reports is the one
 -- being left, so the first switch to incremental answers "generational".
 do

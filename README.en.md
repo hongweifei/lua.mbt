@@ -205,26 +205,10 @@ What the interpreter does, in the areas the suite exercises hardest:
   which on a large machine is many gigabytes later.  Memory here is owned by the
   host runtime, which cannot refuse gracefully, so the interpreter keeps its own
   budget.  It is one constant.
-* **`collectgarbage("setstepmul", m)` is accepted and stored but has no
-  effect.**  It scales how much work one incremental step does; a collection here
-  is atomic, so there is no step size to scale, and scaling the work a step is
-  *charged* makes `step` disagree with the reference about whether a cycle just
-  finished (the reference answers from the debt it had before the step, which is
-  negative between cycles).  `setpause` does shape the threshold, and both it
-  and the step size are clamped so that an extreme value a program sets cannot
-  wrap them.
-* **The answers of `collectgarbage("step")` and `collectgarbage("count")` are
-  this implementation's own figures.**  The reference's `step` reports whether
-  the *phase machine* it is in happened to finish a cycle, which is a by-product
-  of its incremental state: in one run `step 0` on a fresh state answers true and
-  after collecting a large heap answers false, and in its default generational
-  mode a loop that steps until a cycle ends can go round forever.  Here a step is
-  charged a fixed amount toward one cycle, so it answers consistently and
-  `dosteps`-style counting works in any mode; the absolute count differs from the
-  reference's (which is also why `setstepmul` cannot be honoured).  `count`
-  reports the bytes the live set holds as measured by the collector rather than
-  the reference's allocator figure, so a program comparing it against a constant
-  sees a different number — the suite only compares it with itself.
+* **`collectgarbage("setstepmul", m)` does shape a step here**, though the ledger is this implementation's own.  It scales the work one step is worth, in the direction the reference takes (`incstep` multiplies the debt by it): a larger multiplier finishes a cycle in fewer calls and a smaller one in more (measured: 5000 takes 2 calls, 50 takes 200; the default of 100 leaves everything as it was).  The reference's own stepmul effect is about 1%, because its debt and credit dominate, so the absolute counts still differ.  A parameter is stored as a multiple of four, as the reference stores it (`GCPARAM_ADJ`), so `setstepmul(50)` reports 48 next time; where the reference's byte-sized slot makes a very large parameter wrap, this keeps the value and clamps instead.
+
+* **The answers of `collectgarbage("step")` and the figure of `count` are this implementation's own.**  The reference's `step` reports whether its *phase machine* happened to finish a cycle -- `step 0` answers `true` on a fresh state and `false` after collecting a large heap -- where this answers `true` for `size == 0` always (bounded, and it cannot spin; a faithful attempt at the phase machine is in the working list).  `count` reports the bytes the collector measured the live set to hold, and it now also carries the **objects a library function has made since the last cycle** (tables, closures, threads, file userdata), so it rises with allocation and falls when a cycle runs, as the reference's does; the absolute figures still differ, because its figure is its allocator's own.
+
 * **Binary chunks are not interchangeable with the reference's.**  The header is
   byte for byte the same — signature, version, format, machine word sizes and the
   two test constants — because that is what decides whether a chunk is source or

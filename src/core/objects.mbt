@@ -230,7 +230,30 @@ pub fn Value::as_builtin(self : Value) -> LBuiltin? {
 /// Threads
 
 ///|
+/// The bytes every table, closure, thread and userdata created so far occupies,
+/// on the same clock as the string one and for the same reason: what a program
+/// has allocated since the last cycle is what `collectgarbage("count")` reports
+/// on top of what the cycle measured.  It only ever grows.
+let obj_allocated_bytes : Ref[Int] = Ref(0)
+
+///|
+/// How many bytes of objects the interpreter has created, in total.
+fn object_bytes_allocated() -> Int {
+  obj_allocated_bytes.val
+}
+
+///|
+/// Charges one object to the clock, where the object is made.  A creator that
+/// can reach the state charges its own accounting instead (the interpreter's
+/// `OP_NEWTABLE` and `OP_CLOSURE`, and what a table grows by); this is for the
+/// objects a library function makes, which has no state in hand.
+pub fn charge_object_bytes(n : Int) -> Unit {
+  obj_allocated_bytes.val = obj_allocated_bytes.val + n
+}
+
+///|
 pub fn LThread::new() -> LThread {
+  charge_object_bytes(200)
   {
     stack: [],
     frames: [],

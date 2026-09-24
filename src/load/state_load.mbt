@@ -63,6 +63,7 @@ pub fn closure_of(
   env : @core.Value,
 ) -> @core.Value {
   let _ = st
+  @core.charge_object_bytes(40)
   let upvals : Array[@core.LUpval] = [@core.LUpval::new_closed(env)]
   let cl : @core.LClosure = {
     proto,

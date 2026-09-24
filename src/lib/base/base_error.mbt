@@ -160,15 +160,19 @@ pub fn base_collectgarbage(
     // collection is atomic.
     "step" => {
       let size = @core.opt_int(state, args, 2, "collectgarbage", 0L).to_int()
-      // A step is charged `size` kilobytes of work, and a cycle is finished
-      // once one cycle's worth has been asked for.  The size comes from the
-      // program, so the charge is capped rather than allowed to overflow: a
-      // wrapped one would be negative and the cycle would never finish.
-      // (`gcstepmul` is accepted and stored but does not scale this: the
-      // reference scales the debt in "units of work" and carries a negative
-      // debt between cycles, and scaling the charge without that credit makes
-      // `step` disagree with it about whether a cycle just finished.)
-      let mut kb = size.to_int64() * 1024L
+      // A step is charged `size` kilobytes of work, and a cycle is finished once
+      // one cycle's worth has been asked for.  The size comes from the program,
+      // so the charge is capped rather than allowed to overflow: a wrapped one
+      // would be negative and the cycle would never finish.
+      //
+      // `setstepmul` scales the charge, which is what it does in the reference
+      // (`incstep` multiplies the debt by it): a larger multiplier finishes a
+      // cycle in fewer calls, a smaller one in more.  The cap stays last, so a
+      // multiplier cannot ask for more than one cycle -- `dosteps(20000)` still
+      // finishes in a single call -- and the default (100) leaves the arithmetic
+      // exactly as it was.
+      let mul = if state.gc_stepmul < 0 { 0 } else { state.gc_stepmul }
+      let mut kb = size.to_int64() * 1024L * mul.to_int64() / 100L
       if kb > @core.GC_STEP.to_int64() {
         kb = @core.GC_STEP.to_int64()
       }
@@ -198,7 +202,11 @@ pub fn base_collectgarbage(
     }
     "setstepmul" => {
       let old = state.gc_stepmul
-      state.gc_stepmul = @core.opt_int(state, args, 2, "collectgarbage", 100L).to_int()
+      // The reference keeps its gc parameters divided by `GCPARAM_ADJ` and hands
+      // them back multiplied, so what a program sets comes back rounded down to a
+      // multiple of four -- `setstepmul(50)` reports 48 next time.
+      let asked = @core.opt_int(state, args, 2, "collectgarbage", 100L).to_int()
+      state.gc_stepmul = asked / @core.GCPARAM_ADJ * @core.GCPARAM_ADJ
       [@core.VInt(old.to_int64())]
     }
     _ => [@core.VInt(0L)]

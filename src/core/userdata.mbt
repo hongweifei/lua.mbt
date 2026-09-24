@@ -38,6 +38,7 @@ pub(all) struct LUserData {
 
 ///|
 pub fn LUserData::new_file(f : LFile) -> LUserData {
+  charge_object_bytes(64)
   {
     meta: None,
     kind: UDFile(f),

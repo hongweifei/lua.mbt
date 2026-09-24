@@ -520,6 +520,7 @@ pub fn gc_collect(st : LuaState) -> Array[Value] {
   // count has not accounted for.
   st.memory_units = measure_live(st)
   st.gc_string_base = string_bytes_allocated()
+  st.gc_object_base = object_bytes_allocated()
   pending
 }
 
@@ -548,5 +549,7 @@ fn measure_live(st : LuaState) -> Int {
 /// atomic, so the second part is exactly the garbage that has not been looked
 /// at yet -- which is what makes the count fall when a cycle runs.
 pub fn live_size(st : LuaState) -> Int {
-  st.memory_units + (string_bytes_allocated() - st.gc_string_base)
+  st.memory_units +
+  (string_bytes_allocated() - st.gc_string_base) +
+  (object_bytes_allocated() - st.gc_object_base)
 }

@@ -60,6 +60,8 @@ pub const BK_YIELD : Int = 1
 
 pub const CCALLS_LIMIT_LATE : Int = 220
 
+pub const GCPARAM_ADJ : Int = 4
+
 pub const GC_STEP : Int = 204800
 
 pub const HOOK_CALL : Int = 1
@@ -235,6 +237,8 @@ pub fn bytes_repeat(Bytes, Int) -> Bytes
 pub fn bytes_slice(Bytes, Int, Int) -> Bytes
 
 pub fn callee_name(LuaState) -> ObjName?
+
+pub fn charge_object_bytes(Int) -> Unit
 
 pub fn check_any(LuaState, Array[Value], Int, String) -> Value raise LuaRaised
 
@@ -736,6 +740,7 @@ pub(all) struct LuaState {
   mut gc_marked : Int
   mut gc_marked_size : Int
   mut gc_counted_strings : Map[Int, Unit]
+  mut gc_object_base : Int
   mut gc_string_base : Int
 }
 

@@ -223,7 +223,9 @@ pub fn execute(
             // `L->top.p = ra + 1`).
             fr.top = base + inst.a + 1
             thread.stack[base + inst.a] = @core.VTable(@core.LTable::new())
-            st.memory_units = st.memory_units + 56
+            // The table's own cost is charged where it is made
+            // (`LTable::new`), so that a table a library function builds counts
+            // the same way.
           }
           @core.OP_SELF => {
             let t = thread.stack[base + inst.b]
