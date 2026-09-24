@@ -122,7 +122,8 @@ pub fn match_capture(
       ms.src,
       s.to_int64(),
       len.to_int64(),
-    ) != 0 {
+    ) !=
+    0 {
     Some(s + len)
   } else {
     None

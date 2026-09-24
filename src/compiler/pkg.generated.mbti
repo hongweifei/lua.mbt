@@ -229,6 +229,8 @@ pub fn line_of(Expr) -> Int
 
 pub fn parse_chunk(Bytes, String) -> FuncBody raise @core.LuaRaised
 
+pub fn parse_chunk_fed(SourceFeed, String) -> FuncBody raise @core.LuaRaised
+
 pub fn plan_targets(FuncState, Array[Expr]) -> Array[TargetPlan] raise @core.LuaRaised
 
 pub fn render_token_text(Bytes) -> String
@@ -389,7 +391,9 @@ pub(all) struct LabelDesc {
 }
 
 pub(all) struct Lexer {
-  src : Bytes
+  mut buf : FixedArray[Byte]
+  mut filled : Int
+  feed : SourceFeed?
   mut pos : Int
   mut line : Int
   mut current : Int
@@ -402,6 +406,7 @@ pub fn[T] Lexer::error(Self, String) -> T raise @core.LuaRaised
 pub fn[T] Lexer::error_near(Self, String, Bytes) -> T raise @core.LuaRaised
 pub fn[T] Lexer::error_raw(Self, String, Int, Bool) -> T raise @core.LuaRaised
 pub fn Lexer::finish_numeral(Self, Bytes, Int) -> Token raise @core.LuaRaised
+pub fn Lexer::from_feed(SourceFeed, String) -> Self
 pub fn Lexer::intern(Self, Bytes) -> @core.LStr
 pub fn Lexer::is_newline(Self) -> Bool
 pub fn Lexer::make_symbol(Self, Int, Int, Int) -> Token
@@ -418,6 +423,7 @@ pub fn Lexer::read_utf8_escape(Self, Int, @buffer.Buffer) -> Unit raise @core.Lu
 pub fn Lexer::save_and_next(Self, @buffer.Buffer) -> Unit
 pub fn Lexer::single_char_token(Self, Int) -> Token raise @core.LuaRaised
 pub fn Lexer::skip_sep(Self) -> Int
+pub fn Lexer::slice(Self, Int, Int) -> Bytes
 pub fn Lexer::symbol_of(Self, Int) -> Int
 pub fn Lexer::try_long_bracket(Self) -> Int
 
@@ -450,6 +456,7 @@ pub fn Parser::expr(Self) -> Expr raise @core.LuaRaised
 pub fn Parser::expr_list(Self) -> Array[Expr] raise @core.LuaRaised
 pub fn Parser::expr_stat(Self, Int) -> Stat raise @core.LuaRaised
 pub fn Parser::for_stat(Self, Int) -> Stat raise @core.LuaRaised
+pub fn Parser::from_feed(SourceFeed, String) -> Self raise @core.LuaRaised
 pub fn Parser::func_args(Self) -> Array[Expr] raise @core.LuaRaised
 pub fn Parser::func_body(Self, Bool, String) -> FuncBody raise @core.LuaRaised
 pub fn Parser::function_stat(Self, Int) -> Stat raise @core.LuaRaised
@@ -472,6 +479,11 @@ pub fn Parser::table_constructor(Self) -> Expr raise @core.LuaRaised
 pub fn Parser::test_next(Self, Int) -> Bool raise @core.LuaRaised
 pub fn Parser::token_text(Self) -> String
 pub fn Parser::while_stat(Self, Int) -> Stat raise @core.LuaRaised
+
+pub(all) struct SourceFeed {
+  next : () -> Bytes?
+  failure : () -> @core.Value?
+}
 
 pub(all) enum Stat {
   SLocal(Array[LocalDecl], Array[Expr], Int)

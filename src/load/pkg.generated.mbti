@@ -16,6 +16,8 @@ pub fn base_require(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> A
 
 pub fn chunk_id(String) -> String
 
+pub fn closure_of(@core.LuaState, @core.LProto, @core.Value) -> @core.Value
+
 pub fn compile_source(@core.LuaState, Bytes, String, @core.Value) -> @core.LoadOutcome
 
 pub fn do_string(@core.LuaState, Bytes, String) -> Array[@core.Value] raise @core.LuaRaised

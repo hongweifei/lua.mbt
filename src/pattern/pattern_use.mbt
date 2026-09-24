@@ -99,13 +99,8 @@ pub fn plain_find(src : Bytes, init : Int, p : Bytes) -> Int {
     }
     let found = at.to_int()
     if rest == 0 ||
-      @host.lua_mbt_memeq(
-        src,
-        (found + 1).to_int64(),
-        p,
-        1L,
-        rest.to_int64(),
-      ) != 0 {
+      @host.lua_mbt_memeq(src, (found + 1).to_int64(), p, 1L, rest.to_int64()) !=
+      0 {
       return found
     }
     s1 = found + 1

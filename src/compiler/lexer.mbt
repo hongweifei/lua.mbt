@@ -1,8 +1,32 @@
 // The scanner: whitespace, names, numerals, operators.
 
 ///|
+/// Where a chunk's bytes come from when not all of them are at hand: `next`
+/// gives the piece the reader produced, or `None` once it is spent, and
+/// `failure` answers with the failure that ended the stream, if any.
+///
+/// Pulling piece by piece is what makes a reader with side effects stop where
+/// the parser stopped, and a reader that never ends fail on the syntax error the
+/// extra input causes instead of being read forever -- the reference reads its
+/// reader the same way, through `luaZ_fill`.  A failure is *kept* rather than
+/// raised, because it has to outrank the syntax error the missing bytes would
+/// produce, and the caller asks for it after the parse is over.
+pub(all) struct SourceFeed {
+  next : () -> Bytes?
+  failure : () -> @core.Value?
+}
+
+///|
 pub(all) struct Lexer {
-  src : Bytes
+  /// The bytes read so far, in a buffer with room to grow: `filled` says how
+  /// much of it is real, and the rest is slack a piece may be appended into.
+  /// A reader hands its pieces over one at a time, and the parser may still need
+  /// the bytes before the one it is at, so the bytes have to be kept -- but
+  /// appending to a flat buffer would copy it once per piece, which is why the
+  /// buffer is grown by doubling instead.
+  mut buf : FixedArray[Byte]
+  mut filled : Int
+  feed : SourceFeed?
   mut pos : Int
   mut line : Int
   mut current : Int
@@ -13,7 +37,26 @@ pub(all) struct Lexer {
 ///|
 pub fn Lexer::new(src : Bytes, chunk : String) -> Lexer {
   let lx : Lexer = {
-    src,
+    buf: src.to_fixedarray(),
+    filled: src.length(),
+    feed: None,
+    pos: 0,
+    line: 1,
+    current: -1,
+    chunk,
+    interned: Map([]),
+  }
+  lx.current = lx.byte_at(0)
+  lx
+}
+
+///|
+/// A lexer that pulls the chunk from a reader as the parser asks for it.
+pub fn Lexer::from_feed(feed : SourceFeed, chunk : String) -> Lexer {
+  let lx : Lexer = {
+    buf: FixedArray::make(0, @core.byte_of(0)),
+    filled: 0,
+    feed: Some(feed),
     pos: 0,
     line: 1,
     current: -1,
@@ -40,7 +83,55 @@ pub fn Lexer::intern(self : Lexer, b : Bytes) -> @core.LStr {
 
 ///|
 pub fn Lexer::byte_at(self : Lexer, i : Int) -> Int {
-  @core.ubyte_at(self.src, i)
+  while i >= self.filled {
+    if !self.pull() {
+      return -1
+    }
+  }
+  self.buf[i].to_int()
+}
+
+///|
+/// Takes one more piece from the reader, and answers whether one arrived.  The
+/// piece is appended to a buffer that doubles when it runs out of room, so a
+/// reader that hands over many small pieces costs the copying of each byte once
+/// rather than once per piece.
+fn Lexer::pull(self : Lexer) -> Bool {
+  let feed = match self.feed {
+    Some(f) => f
+    None => return false
+  }
+  match (feed.next)() {
+    None => false
+    Some(piece) => {
+      let need = self.filled + piece.length()
+      if need > self.buf.length() {
+        let mut cap = if self.buf.length() == 0 {
+          64
+        } else {
+          self.buf.length()
+        }
+        while cap < need {
+          cap = cap * 2
+        }
+        self.buf = self.buf.make_and_blit(
+          allocate_len=cap,
+          init=@core.byte_of(0),
+          len=self.filled,
+        )
+      }
+      self.buf.blit_from_bytes(self.filled, piece, 0, piece.length())
+      self.filled = need
+      true
+    }
+  }
+}
+
+///|
+/// The bytes of a range that has already been read: a token's spelling as the
+/// source wrote it, which is what an error message quotes.
+pub fn Lexer::slice(self : Lexer, start : Int, len : Int) -> Bytes {
+  Bytes::makei(len, i => self.buf[start + i])
 }
 
 ///|
@@ -80,7 +171,7 @@ pub fn[T] Lexer::error_raw(
   } else {
     self.pos
   }
-  self.error_near(msg, @core.bytes_slice(self.src, start, stop - start))
+  self.error_near(msg, self.slice(start, stop - start))
 }
 
 ///|
@@ -219,7 +310,7 @@ pub fn Lexer::next_token(self : Lexer) -> Token raise @core.LuaRaised {
           return {
             kind: TK_STRING,
             text: self.intern(content),
-            raw: @core.bytes_slice(self.src, written, self.pos - written),
+            raw: self.slice(written, self.pos - written),
             int_value: 0L,
             float_value: 0.0,
             line: startline,
@@ -298,7 +389,7 @@ pub fn Lexer::next_token(self : Lexer) -> Token raise @core.LuaRaised {
         return {
           kind: TK_STRING,
           text: self.intern(content),
-          raw: @core.bytes_slice(self.src, written, self.pos - written),
+          raw: self.slice(written, self.pos - written),
           int_value: 0L,
           float_value: 0.0,
           line: startline,

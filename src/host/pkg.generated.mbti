@@ -62,6 +62,10 @@ pub fn lua_mbt_locale_decpoint() -> Int
 
 pub fn lua_mbt_lstrcmp(Bytes, Int, Bytes, Int) -> Int
 
+pub fn lua_mbt_memchr(Bytes, Int64, Int64, Int) -> Int64
+
+pub fn lua_mbt_memeq(Bytes, Int64, Bytes, Int64, Int64) -> Int
+
 pub fn lua_mbt_pclose(Int64) -> Int
 
 pub fn lua_mbt_popen(Bytes, Bytes) -> Int64

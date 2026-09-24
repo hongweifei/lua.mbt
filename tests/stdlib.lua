@@ -706,6 +706,66 @@ do
   eq(bare(lmsg), "reader function must return a string", "with the reference's text")
   eq(lmsg:match("^.-:%d+: ") ~= nil, true, "and a position in front of it")
 
+  -- `load` reads a reader only as far as the parser needed, which is what the
+  -- reference does through `luaZ_fill`: a reader with side effects is left where
+  -- the parse stopped, and one that never ends fails on the syntax error its
+  -- extra input causes instead of being read forever.  Every count below was
+  -- read off a reference build.
+  do
+    local pieces = { "local x = ", "((", "and more", "and more again" }
+    local calls, i = 0, 0
+    local broken = load(function()
+      calls = calls + 1
+      i = i + 1
+      return pieces[i]
+    end)
+    eq(broken, nil, "a broken chunk handed over in pieces does not load")
+    eq(calls, 3, "and the reader stopped where the parser did")
+
+    local n = 0
+    local endless = load(function()
+      n = n + 1
+      if n > 4 then error("read far too much") end
+      return "return 1"
+    end)
+    eq(endless, nil, "a reader that never ends does not load")
+    eq(n, 2, "it fails on the second piece, not after reading forever")
+
+    -- The file behind a reader is left where the parse stopped as well.
+    local name = "stdlib_probe_reader.lua"
+    local out = assert(io.open(name, "w"))
+    out:write("local x = = 1\nprint('one')\nprint('two')\n")
+    out:close()
+    local h = assert(io.open(name, "r"))
+    local fromfile = load(function() return h:read("L") end)
+    eq(fromfile, nil, "the file does not compile")
+    local pos, size = h:seek(), h:seek("end")
+    eq(pos < size, true, "and the reader stopped before the end of the file")
+    h:close()
+    os.remove(name)
+
+    -- A piece may be a number, because `lua_isstring` accepts one.
+    local k = 0
+    local with_number = load(function()
+      k = k + 1
+      if k == 1 then return "return " end
+      if k == 2 then return 42 end
+      return nil
+    end)
+    eq(type(with_number), "function", "a number is a piece of source text")
+    eq(with_number(), 42, "and the chunk it built returns it")
+
+    -- The mode is decided by the first piece, before the rest is read.
+    local reads = 0
+    local refused, why = load(function()
+      reads = reads + 1
+      return "return 1"
+    end, "=reader", "b")
+    eq(refused, nil, "a text chunk is refused in binary mode")
+    eq(why, "attempt to load a text chunk (mode is 'b')", "with the reference's words")
+    eq(reads, 1, "and only the first piece was read")
+  end
+
   -- `assert` hands its message to `error`, whose default level names the
   -- caller; only a string message gets the position.
   local oka, ma = pcall(function() return assert(false, "boom") end)

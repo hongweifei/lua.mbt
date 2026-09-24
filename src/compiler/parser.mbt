@@ -34,7 +34,20 @@ pub(all) struct Parser {
 
 ///|
 pub fn Parser::new(src : Bytes, chunk : String) -> Parser raise @core.LuaRaised {
-  let lex = Lexer::new(src, chunk)
+  Parser::of_lexer(Lexer::new(src, chunk))
+}
+
+///|
+/// A parser whose chunk arrives from a reader as the lexer asks for it.
+pub fn Parser::from_feed(
+  feed : SourceFeed,
+  chunk : String,
+) -> Parser raise @core.LuaRaised {
+  Parser::of_lexer(Lexer::from_feed(feed, chunk))
+}
+
+///|
+fn Parser::of_lexer(lex : Lexer) -> Parser raise @core.LuaRaised {
   let first = lex.next_token()
   {
     lex,
@@ -214,7 +227,22 @@ pub fn parse_chunk(
   src : Bytes,
   chunk : String,
 ) -> FuncBody raise @core.LuaRaised {
-  let p = Parser::new(src, chunk)
+  Parser::new(src, chunk).finish_chunk()
+}
+
+///|
+/// The same, for a chunk that arrives from a reader.
+pub fn parse_chunk_fed(
+  feed : SourceFeed,
+  chunk : String,
+) -> FuncBody raise @core.LuaRaised {
+  Parser::from_feed(feed, chunk).finish_chunk()
+}
+
+///|
+/// Reads the block out to the end of the chunk and wraps it as the main one.
+fn Parser::finish_chunk(self : Parser) -> FuncBody raise @core.LuaRaised {
+  let p = self
   let body = p.block()
   if p.token.kind != TK_EOF {
     p.syntax_error_near("<eof> expected")

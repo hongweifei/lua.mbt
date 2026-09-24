@@ -262,13 +262,6 @@ What the interpreter does, in the areas the suite exercises hardest:
   counting; the collector decides reachability, which is what weak tables,
   ephemerons and `__gc` need, but it does not sweep.  A cycle therefore stays
   until the process ends.
-* **A `load` given a reader function reads it to the end before compiling.**  The
-  reference parses as it reads, so a reader whose chunk turns out to be malformed
-  early — or one that has side effects, such as `io.lines` over a file — is left
-  part-way through; here the whole reader is consumed first.  For a reader that
-  honours the contract, which is that it must eventually return nil or an empty
-  string, the two agree; a reader that never ends is read forever instead of
-  failing fast on the syntax error.
 
 ## Tests
 

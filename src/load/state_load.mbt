@@ -47,19 +47,30 @@ pub fn compile_source(
       }
       match compiled {
         Err(e) => @core.LoadError(message_of_error(st, e))
-        Ok(proto) => {
-          let upvals : Array[@core.LUpval] = [@core.LUpval::new_closed(env)]
-          let cl : @core.LClosure = {
-            proto,
-            upvals,
-            id: @core.next_object_id(),
-            mark_epoch: 0,
-          }
-          @core.LoadOk(@core.VFunc(cl))
-        }
+        Ok(proto) => @core.LoadOk(closure_of(st, proto, env))
       }
     }
   }
+}
+
+///|
+/// A prototype as a callable closure, with `env` as its one upvalue.  Both the
+/// string path above and the streaming one in `base_load` end here, so a chunk
+/// is a closure the same way whichever way it arrived.
+pub fn closure_of(
+  st : @core.LuaState,
+  proto : @core.LProto,
+  env : @core.Value,
+) -> @core.Value {
+  let _ = st
+  let upvals : Array[@core.LUpval] = [@core.LUpval::new_closed(env)]
+  let cl : @core.LClosure = {
+    proto,
+    upvals,
+    id: @core.next_object_id(),
+    mark_epoch: 0,
+  }
+  @core.VFunc(cl)
 }
 
 ///|

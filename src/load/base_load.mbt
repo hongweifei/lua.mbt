@@ -36,31 +36,20 @@ pub fn base_load(
   } else {
     @core.VTable(state.globals)
   }
-  let source = if is_reader {
-    match read_chunk(state, chunk) {
-      Ok(text) => text
-      Err(msg) => return [@core.VNil, msg]
-    }
-  } else {
-    chunk_to_source(state, chunk, args.length() >= 1)
+  if is_reader {
+    return load_from_reader(state, chunk, name, mode, env)
   }
+  let source = chunk_to_source(state, chunk, args.length() >= 1)
   // `checkmode` looks at what the chunk actually is before deciding whether
   // the requested mode refuses it.
-  let kind = if @chunk.is_binary_chunk(source) { "binary" } else { "text" }
-  if !mode.contains(if kind == "binary" { "b" } else { "t" }) {
-    return [
-      @core.VNil,
-      @core.VStr(
-        @core.LStr::of_string(
-          "attempt to load a " + kind + " chunk (mode is '" + mode + "')",
-        ),
-      ),
-    ]
-  }
-  match compile_source(state, source, name, env) {
-    @core.LoadOk(f) => [f]
-    @core.LoadError(msg) => [@core.VNil, @core.VStr(@core.LStr::of_bytes(msg))]
-  }
+  finish_compiled(
+    state,
+    source,
+    @chunk.is_binary_chunk(source),
+    name,
+    mode,
+    env,
+  )
 }
 
 ///|
@@ -267,18 +256,29 @@ fn reported_error(state : @core.LuaState, v : @core.Value) -> @core.Value {
 }
 
 ///|
-/// Collects the text of a chunk from a reader function.  A reader that raises,
-/// or that returns something which is not a string, does not propagate the
-/// error: `load` hands back `nil` with the message instead, like `load_aux`.
-/// What a reader raises is that message, so it must not be taken for a piece of
-/// the chunk -- a reader that always fails would then loop forever.
-fn read_chunk(
-  state : @core.LuaState,
-  chunk : @core.Value,
-) -> Result[Bytes, @core.Value] {
-  let buf = Buffer::Buffer()
-  while true {
-    let next = Ok(@vm.call_value(state, chunk, [], 1)) catch {
+/// A reader function as a stream of pieces: `next` answers with the piece that
+/// came back, or `None` once the reader is spent, and `failure` with the failure
+/// that ended it -- a reader that raised, or one that answered with something
+/// which is not a string.  A failure is kept rather than raised because the
+/// caller reports it *after* the parse: it has to outrank the syntax error the
+/// missing bytes would otherwise cause.
+priv struct ReaderSource {
+  next : () -> Bytes?
+  failure : () -> @core.Value?
+}
+
+///|
+/// Wraps a reader.  A reader that raises, or that answers with something which
+/// is not a string, does not propagate the error: `load` hands back `nil` with
+/// the message instead, like `load_aux`.
+fn reader_source(state : @core.LuaState, reader : @core.Value) -> ReaderSource {
+  let mut ended = false
+  let mut failure : @core.Value? = None
+  let next = () => {
+    if ended {
+      return None
+    }
+    let answer = Ok(@vm.call_value(state, reader, [], 1)) catch {
       @core.LuaRaised(e) => Err(reported_error(state, e))
       @core.LuaYield(_) =>
         Err(
@@ -287,34 +287,211 @@ fn read_chunk(
           ),
         )
     }
-    let piece = match next {
-      Err(e) => return Err(e)
-      Ok(values) => if values.length() > 0 { values[0] } else { @core.VNil }
-    }
-    match piece {
-      @core.VStr(s) =>
-        if s.length() > 0 {
-          buf.write_bytes(s.data().view())
-        } else {
-          return Ok(buf.to_bytes())
-        }
-      @core.VNil => return Ok(buf.to_bytes())
-      _ =>
-        return Err(
-          reported_error(
-            state,
-            @core.VStr(
-              @core.LStr::of_string(
-                // `generic_reader` raises this through `luaL_error`, so it carries
-                // `luaL_where(L, 1)` -- the position of whoever called `load`.
-                @core.current_position(state) +
-                "reader function must return a string",
+    match answer {
+      Err(e) => {
+        failure = Some(e)
+        ended = true
+        None
+      }
+      Ok(values) => {
+        let v = if values.length() > 0 { values[0] } else { @core.VNil }
+        match v {
+          @core.VStr(s) =>
+            if s.length() > 0 {
+              Some(s.data())
+            } else {
+              ended = true
+              None
+            }
+          // `lua_isstring` accepts a number, and the piece is what
+          // `lua_tolstring` writes out -- so a reader may hand over numerals.
+          @core.VInt(_) | @core.VNum(_) => Some(@core.number_to_bytes(v))
+          @core.VNil => {
+            ended = true
+            None
+          }
+          _ => {
+            failure = Some(
+              reported_error(
+                state,
+                @core.VStr(
+                  @core.LStr::of_string(
+                    // `generic_reader` raises this through `luaL_error`, so it carries
+                    // `luaL_where(L, 1)` -- the position of whoever called `load`.
+                    @core.current_position(state) +
+                    "reader function must return a string",
+                  ),
+                ),
               ),
-            ),
-          ),
-        )
+            )
+            ended = true
+            None
+          }
+        }
+      }
     }
-  } nobreak {
-    Err(@core.VNil)
+  }
+  { next, failure: () => failure, }
+}
+
+///|
+/// The stream handed to the lexer, with the piece that was pulled to look at its
+/// first byte put back in front of it.  Nothing can have failed by then -- the
+/// piece arrived -- so the feed starts clean.
+fn feed_from(source : ReaderSource, first : Bytes) -> @compiler.SourceFeed {
+  let mut pending : Bytes? = Some(first)
+  let next = () => {
+    match pending {
+      Some(p) => {
+        pending = None
+        Some(p)
+      }
+      None => (source.next)()
+    }
+  }
+  { next, failure: source.failure, }
+}
+
+///|
+/// The mode check and the compilation, for the paths that end up with the
+/// chunk's bytes in hand: a string chunk, and a precompiled one that had to be
+/// read whole before it could be undumped.
+fn finish_compiled(
+  state : @core.LuaState,
+  source : Bytes,
+  binary : Bool,
+  name : String,
+  mode : String,
+  env : @core.Value,
+) -> Array[@core.Value] {
+  match mode_refusal(mode, binary) {
+    Some(msg) => [@core.VNil, @core.VStr(@core.LStr::of_string(msg))]
+    None => compile_chunk_value(state, source, name, env)
+  }
+}
+
+///|
+/// `checkmode`: whether the requested mode refuses a chunk of this kind, which
+/// is decided by what the chunk *is* rather than by what it looked like.  It is
+/// asked as soon as the first byte is known, so a refusal does not read the
+/// rest of a chunk it is going to reject.
+fn mode_refusal(mode : String, binary : Bool) -> String? {
+  let kind = if binary { "binary" } else { "text" }
+  if mode.contains(if binary { "b" } else { "t" }) {
+    None
+  } else {
+    Some("attempt to load a " + kind + " chunk (mode is '" + mode + "')")
+  }
+}
+
+///|
+/// The compilation itself, as the values `load` hands back.
+fn compile_chunk_value(
+  state : @core.LuaState,
+  source : Bytes,
+  name : String,
+  env : @core.Value,
+) -> Array[@core.Value] {
+  match compile_source(state, source, name, env) {
+    @core.LoadOk(f) => [f]
+    @core.LoadError(msg) => [@core.VNil, @core.VStr(@core.LStr::of_bytes(msg))]
+  }
+}
+
+///|
+/// `load` with a reader function.  The chunk is read as the parser asks for it,
+/// so a reader with side effects is left where the parser stopped and a reader
+/// that never ends fails on the syntax error its extra input causes -- which is
+/// what the reference does, reading its reader through `luaZ_fill` the same way.
+///
+/// A precompiled chunk is the exception: it has to be read whole before it can
+/// be undumped, and the first byte is what says so.
+fn load_from_reader(
+  state : @core.LuaState,
+  reader : @core.Value,
+  name : String,
+  mode : String,
+  env : @core.Value,
+) -> Array[@core.Value] {
+  let source = reader_source(state, reader)
+  let first = match (source.next)() {
+    Some(p) => p
+    None => {
+      match (source.failure)() {
+        Some(e) => return [@core.VNil, e]
+        None => ()
+      }
+      // Nothing at all is an empty chunk, which compiles like any other.
+      return finish_compiled(state, Bytes::new(0), false, name, mode, env)
+    }
+  }
+  // The first byte says which kind this is, and the mode is checked against it
+  // before anything else is read -- which is `f_parser`'s order.
+  let binary = @chunk.is_binary_chunk(first)
+  match mode_refusal(mode, binary) {
+    Some(msg) => return [@core.VNil, @core.VStr(@core.LStr::of_string(msg))]
+    None => ()
+  }
+  if binary {
+    let buf = Buffer::Buffer(size_hint=first.length() + 64)
+    buf.write_bytes(first.view())
+    while true {
+      match (source.next)() {
+        Some(p) => buf.write_bytes(p.view())
+        None => break
+      }
+    }
+    match (source.failure)() {
+      Some(e) => return [@core.VNil, e]
+      None => ()
+    }
+    return compile_chunk_value(state, buf.to_bytes(), name, env)
+  }
+  let parsed = Ok(
+    @compiler.parse_chunk_fed(feed_from(source, first), chunk_id(name)),
+  ) catch {
+    @core.LuaRaised(e) => Err(e)
+    @core.LuaYield(_) =>
+      Err(
+        @core.VStr(
+          @core.LStr::of_string(@vm.yield_error(state, state.current_thread)),
+        ),
+      )
+  }
+  // A failure the reader itself reported is the failure to hand back, whatever
+  // the parser made of the bytes it did get.
+  match (source.failure)() {
+    Some(e) => [@core.VNil, e]
+    None =>
+      match parsed {
+        Err(e) =>
+          [
+            @core.VNil,
+            @core.VStr(@core.LStr::of_bytes(message_of_error(state, e))),
+          ]
+        Ok(body) => {
+          let compiled = Ok(
+            @compiler.compile_chunk(body, @core.LStr::of_string(name)),
+          ) catch {
+            @core.LuaRaised(e) => Err(e)
+            @core.LuaYield(_) =>
+              Err(
+                @core.VStr(
+                  @core.LStr::of_string(
+                    @vm.yield_error(state, state.current_thread),
+                  ),
+                ),
+              )
+          }
+          match compiled {
+            Err(e) =>
+              [
+                @core.VNil,
+                @core.VStr(@core.LStr::of_bytes(message_of_error(state, e))),
+              ]
+            Ok(proto) => [closure_of(state, proto, env)]
+          }
+        }
+      }
   }
 }
