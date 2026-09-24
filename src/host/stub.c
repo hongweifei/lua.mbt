@@ -25,6 +25,9 @@
 #include <time.h>
 #include <errno.h>
 #include <locale.h>
+/* The character classes `lua_mbt_ctype` asks about.  MSVC pulls these in with
+ * its other headers; the C library elsewhere wants the header named. */
+#include <ctype.h>
 
 #include <moonbit.h>
 
