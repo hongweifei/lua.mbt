@@ -236,7 +236,9 @@ pub fn bytes_add(Bytes, String) -> Bytes
 
 pub fn bytes_concat(Array[Bytes]) -> Bytes
 
-pub fn bytes_index_of(Bytes, Int, Int) -> Int
+pub fn bytes_equal_range(Bytes, Int, Bytes, Int, Int) -> Bool
+
+pub fn bytes_index_of(Bytes, Int, Int, Int) -> Int
 
 pub fn bytes_of(String) -> Bytes
 
@@ -435,6 +437,8 @@ pub fn opt_number(LuaState, Array[Value], Int, String, Double) -> Double raise L
 pub fn position_at_level(LuaState, Int) -> Bytes
 
 pub fn[T] raise_fresh(LuaState, Value) -> T raise LuaRaised
+
+pub fn read_stdin_all() -> Bytes
 
 pub fn read_whole_file(Bytes) -> Result[Bytes, Bytes]
 

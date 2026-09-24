@@ -55,15 +55,30 @@ pub fn ubyte_at(b : Bytes, i : Int) -> Int {
 }
 
 ///|
-/// The index of the first `byte` at or after `from`, or -1 when there is none.
-/// The search is the host's `memchr`, as in the reference implementation: a
-/// byte-at-a-time loop written here would be a call per byte.
-pub fn bytes_index_of(b : Bytes, from : Int, byte : Int) -> Int {
-  let n = b.length()
-  if from < 0 || from > n {
+/// The index of the first `byte` among the `len` bytes at `from`, or -1 when
+/// there is none.  The search is the host's `memchr`, as in the reference
+/// implementation: a byte-at-a-time loop written here would be a call per byte.
+/// The window is given rather than taken to the end of `b` because the callers
+/// that search a pattern need it -- `lmemfind` only considers positions a match
+/// could still start at.
+pub fn bytes_index_of(b : Bytes, from : Int, len : Int, byte : Int) -> Int {
+  if len <= 0 || from < 0 || from + len > b.length() {
     return -1
   }
-  @host.lua_mbt_memchr(b, from.to_int64(), (n - from).to_int64(), byte).to_int()
+  @host.lua_mbt_memchr(b, from.to_int64(), len.to_int64(), byte).to_int()
+}
+
+///|
+/// Whether `len` bytes of `a` from `ai` are the same as those of `b` from `bi`.
+/// The host's `memcmp`, for the same reason as `bytes_index_of`.
+pub fn bytes_equal_range(
+  a : Bytes,
+  ai : Int,
+  b : Bytes,
+  bi : Int,
+  len : Int,
+) -> Bool {
+  @host.lua_mbt_memeq(a, ai.to_int64(), b, bi.to_int64(), len.to_int64()) != 0
 }
 
 ///|

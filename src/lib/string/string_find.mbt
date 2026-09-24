@@ -310,7 +310,7 @@ fn add_substitution(
   let n = repl.length()
   let mut at = 0
   while true {
-    let hit = @core.bytes_index_of(repl, at, 37)
+    let hit = @core.bytes_index_of(repl, at, n - at, 37)
     if hit < 0 {
       buf.write_bytes(repl.view(start=at))
       return

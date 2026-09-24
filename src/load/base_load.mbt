@@ -94,7 +94,7 @@ pub fn base_loadfile(
     ""
   }
   let data = if name == "" {
-    read_stdin_all()
+    @core.read_stdin_all()
   } else {
     match @core.read_whole_file(@core.bytes_of(name)) {
       Ok(d) => d
@@ -137,25 +137,6 @@ pub fn base_dofile(
     @core.VNil => @core.raise_fresh(state, r[1])
     f => @vm.call_value(state, f, [], -1)
   }
-}
-
-///|
-/// Reads standard input to the end.
-pub fn read_stdin_all() -> Bytes {
-  let buf = Buffer::Buffer(size_hint=4096)
-  let inp = @host.lua_mbt_stdin()
-  if inp == 0L {
-    return Bytes::new(0)
-  }
-  let chunk = Bytes::new(65536)
-  while true {
-    let n = @host.lua_mbt_fread(inp, chunk, 65536)
-    if n <= 0 {
-      break
-    }
-    buf.write_bytes(chunk.view(end=n))
-  }
-  buf.to_bytes()
 }
 
 ///|

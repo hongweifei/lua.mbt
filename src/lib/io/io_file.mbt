@@ -19,6 +19,21 @@ pub fn new_file_value(
 }
 
 ///|
+/// The host's standard input as a plain file record, for the one caller that
+/// reads it directly: `debug.debug` reads the standard input with `fgets` in the
+/// reference, not through the handle `io.stdin` names, so a program that closed
+/// or replaced that handle does not change what the interactive session reads.
+pub fn standard_input_file() -> @core.LFile {
+  {
+    handle: @host.lua_mbt_stdin(),
+    closed: false,
+    standard: true,
+    popened: false,
+    name: "stdin",
+  }
+}
+
+///|
 /// The complaint about an argument that should hold a file handle.  An
 /// argument that was never passed has no type at all, which the reference
 /// reports as "no value".

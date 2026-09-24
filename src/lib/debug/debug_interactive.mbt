@@ -14,14 +14,9 @@ pub fn db_debug(
   _args : Array[@core.Value],
 ) -> Array[@core.Value] raise @core.LuaRaised {
   // The reference reads the standard input directly (`fgets`), so the stream is
-  // built here rather than taken from the io library's own handle.
-  let input : @core.LFile = {
-    handle: @host.lua_mbt_stdin(),
-    closed: false,
-    standard: true,
-    popened: false,
-    name: "stdin",
-  }
+  // taken from the io library as a plain file record rather than through the
+  // handle `io.stdin` names.
+  let input = @iolib.standard_input_file()
   let mut done = false
   while !done {
     @core.write_stderr(@core.bytes_of("lua_debug> "))

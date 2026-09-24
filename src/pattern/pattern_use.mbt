@@ -88,19 +88,11 @@ pub fn plain_find(src : Bytes, init : Int, p : Bytes) -> Int {
   let first = @core.ubyte_at(p, 0)
   let mut s1 = init
   while s1 < limit {
-    let at = @host.lua_mbt_memchr(
-      src,
-      s1.to_int64(),
-      (limit - s1).to_int64(),
-      first,
-    )
-    if at < 0 {
+    let found = @core.bytes_index_of(src, s1, limit - s1, first)
+    if found < 0 {
       return -1
     }
-    let found = at.to_int()
-    if rest == 0 ||
-      @host.lua_mbt_memeq(src, (found + 1).to_int64(), p, 1L, rest.to_int64()) !=
-      0 {
+    if rest == 0 || @core.bytes_equal_range(src, found + 1, p, 1, rest) {
       return found
     }
     s1 = found + 1

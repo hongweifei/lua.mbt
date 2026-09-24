@@ -1,4 +1,3 @@
 import {
   "hongweifei/lua/src/core",
-  "hongweifei/lua/src/host",
 }

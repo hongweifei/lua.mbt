@@ -70,10 +70,12 @@ host
          ├─ compiler
          ├─ chunk
          ├─ pattern
-         ├─ load  ← chunk, compiler, host, vm
+         ├─ load  ← chunk, compiler, vm
          ├─ lib/* ← load, vm, pattern, chunk
-         └─ lua   ← lib/*, load, vm, host
+         └─ lua   ← lib/*, load, vm
 ```
+
+宿主边界只有 `host` 一个包，直接依赖它的只有五处：`core`（解释器自己要用到的宿主服务，其余包经它的包装使用）、`src/lua`（启动器与 `package` 的搜索路径）、以及三个本身就是宿主服务包装的标准库——`lib/io`、`lib/os`，和 `lib/math` 的随机数（参考实现里 `liolib.c`/`loslib.c`/`lmathlib.c` 同样是直接调 C 库的薄包装）。
 
 值会跨包边界传递，所以共享声明导出得很宽：类型、struct、enum、trait 与 suberror 都是 `pub(all)`；其他包依赖的 trait 实现是 `pub impl`。方法留在声明其类型的包里。少数包在 `moon.pkg` 中设了 `warnings = "-24"`，因为每个标准库入口都带 `raise LuaRaised` 以匹配内建函数的类型，无论该函数是否真的会抛。
 

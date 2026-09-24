@@ -80,6 +80,8 @@ pub fn set_default_file(@core.LuaState, Array[@core.Value], String, String, Byte
 
 pub fn skip_space(@core.LFile) -> Int
 
+pub fn standard_input_file() -> @core.LFile
+
 // Errors
 
 // Types and methods

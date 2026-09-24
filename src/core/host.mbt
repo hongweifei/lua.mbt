@@ -58,6 +58,28 @@ pub fn read_whole_file(path : Bytes) -> Result[Bytes, Bytes] {
 }
 
 ///|
+/// Reads the standard input to the end.  This is what `lua` does with no script
+/// named and what a chunk with no text is compiled from, and it reads the host's
+/// stream rather than the io library's handle for the standard input, as the
+/// reference does.
+pub fn read_stdin_all() -> Bytes {
+  let buf = Buffer::Buffer(size_hint=4096)
+  let inp = @host.lua_mbt_stdin()
+  if inp == 0L {
+    return Bytes::new(0)
+  }
+  let chunk = Bytes::new(65536)
+  while true {
+    let n = @host.lua_mbt_fread(inp, chunk, 65536)
+    if n <= 0 {
+      break
+    }
+    buf.write_bytes(chunk.view(end=n))
+  }
+  buf.to_bytes()
+}
+
+///|
 /// Writes a whole file.
 pub fn write_whole_file(path : Bytes, data : Bytes) -> Result[Unit, Bytes] {
   let f = @host.lua_mbt_fopen(path, b"wb")

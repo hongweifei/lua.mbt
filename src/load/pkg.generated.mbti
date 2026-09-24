@@ -30,8 +30,6 @@ pub fn package_table(@core.LuaState, String) -> @core.LTable
 
 pub fn pcall_here(@core.LuaState, @core.Value, Array[@core.Value]) -> (Bool, Array[@core.Value])
 
-pub fn read_stdin_all() -> Bytes
-
 // Errors
 
 // Types and methods

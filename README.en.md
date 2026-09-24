@@ -84,10 +84,18 @@ host
          ├─ compiler
          ├─ chunk
          ├─ pattern
-         ├─ load  ← chunk, compiler, host, vm
+         ├─ load  ← chunk, compiler, vm
          ├─ lib/* ← load, vm, pattern, chunk
-         └─ lua   ← lib/*, load, vm, host
+         └─ lua   ← lib/*, load, vm
 ```
+
+The host boundary is one package, and only five places depend on it directly:
+`core` (the host services the interpreter itself needs, which every other
+package reaches through its wrappers), `src/lua` (the launcher and `package`'s
+search paths), and the three standard libraries that *are* wrappers over host
+services -- `lib/io`, `lib/os`, and the random number generator in `lib/math`
+(`liolib.c`/`loslib.c`/`lmathlib.c` are thin wrappers over the C library in the
+reference the same way).
 
 Values cross package boundaries, so the shared declarations are exported
 widely: types, structs, enums, traits and suberrors are `pub(all)`; trait

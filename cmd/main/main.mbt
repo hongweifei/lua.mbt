@@ -232,7 +232,7 @@ fn require_module(state : @core.LuaState, spec : String) -> Bool {
 /// Loads and runs a file, passing the script arguments through `arg`.
 fn run_script(state : @core.LuaState, path : String) -> Bool {
   let raw = if path == "-" {
-    @load.read_stdin_all()
+    @core.read_stdin_all()
   } else {
     match @core.read_whole_file(@core.bytes_of(path)) {
       Ok(d) => d
@@ -467,7 +467,7 @@ fn main {
       print_version()
       repl(state)
     } else {
-      let data = @load.read_stdin_all()
+      let data = @core.read_stdin_all()
       let (status, msg) = @lua.run_protected_reporting(state, data, "=stdin")
       if status != 0 {
         report_message(msg)
