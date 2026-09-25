@@ -258,6 +258,7 @@ pub fn LTable::raw_len(self : LTable) -> Int64 {
 
 ///|
 /// Traversal
+#valtype
 pub(all) enum NextResult {
   NextPair(Value, Value)
   NextEnd

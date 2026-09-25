@@ -169,10 +169,13 @@ pub fn push_frame(
         enter_protection(st, thread)
         return
       }
-      let args : Array[@core.Value] = []
+      // The argument list is made at its final size: `push` would grow the
+      // array from nothing, reallocating once per argument, and this is the
+      // path of every call into the standard library.
+      let args : Array[@core.Value] = Array::make(nargs, @core.VNil)
       let mut i = 0
       while i < nargs {
-        args.push(thread.stack[func_slot + 1 + i])
+        args[i] = thread.stack[func_slot + 1 + i]
         i = i + 1
       }
       let frame : @core.Frame = {
