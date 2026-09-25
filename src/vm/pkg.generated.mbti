@@ -74,8 +74,6 @@ pub fn handle_at_raise_point(@core.LuaState, @core.LThread, @core.Value) -> @cor
 
 pub fn hook_call_event(@core.LuaState, @core.LThread, Int, Bool) -> Unit raise @core.LuaRaised
 
-pub fn hook_new_frame(@core.LThread) -> Unit
-
 pub fn hook_return_event(@core.LuaState, @core.LThread, Int, Int) -> Unit raise @core.LuaRaised
 
 pub fn hook_tick(@core.LuaState, @core.LThread, @core.Frame, Int) -> Unit raise @core.LuaRaised

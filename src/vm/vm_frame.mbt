@@ -209,14 +209,21 @@ pub fn push_frame(
     }
     @core.VFunc(cl) => {
       let base = func_slot + 1
-      thread.ensure_stack(base + cl.proto.maxstack + 1)
+      // The stack is grown only when it is actually short: a call in a loop
+      // usually finds the window already there, and `ensure_stack` is a call.
+      let need = base + cl.proto.maxstack + 1
+      if thread.stack.length() < need {
+        thread.ensure_stack(need)
+      }
+      // Missing parameters are the exception: the loop below writes nothing
+      // when every parameter was given, so it does not run at all.
       let np = cl.proto.numparams
-      let mut i = 0
-      while i < np {
-        if i >= nargs {
+      if nargs < np {
+        let mut i = nargs
+        while i < np {
           thread.stack[base + i] = @core.VNil
+          i = i + 1
         }
-        i = i + 1
       }
       let va : Array[@core.Value] = if cl.proto.is_vararg {
         let out : Array[@core.Value] = []
@@ -264,8 +271,9 @@ pub fn push_frame(
       }
       thread.frames.push(frame)
       // Every new Lua frame resets the line hook old-pc marker, so that the
-      // frame's first instruction fires the line event.
-      hook_new_frame(thread)
+      // frame's first instruction fires the line event.  It is one store, done
+      // here rather than through a call that only stores.
+      thread.hook_old_pc = 0
     }
     _ => {
       // Not a function: a `__call` metamethod makes it callable, with the

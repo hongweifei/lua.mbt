@@ -151,13 +151,6 @@ pub fn set_traps(thread : @core.LThread) -> Unit {
 }
 
 ///|
-/// `luaD_hookcall`: every new Lua frame resets the old-pc marker used by the
-/// line hook, so that its first instruction fires the line event.
-pub fn hook_new_frame(thread : @core.LThread) -> Unit {
-  thread.hook_old_pc = 0
-}
-
-///|
 /// Runs the line and count events for the instruction at `pc` of the current
 /// frame.  Called once per instruction from the interpreter loop.
 pub fn hook_tick(
