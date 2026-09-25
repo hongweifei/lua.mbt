@@ -108,9 +108,15 @@ pub fn may_raise(Int) -> Bool
 
 pub fn metafield(@core.LuaState, @core.Value, String) -> @core.Value
 
+pub fn metafield_lstr(@core.LuaState, @core.Value, @core.LStr) -> @core.Value
+
 pub fn metamethod_report(String) -> String
 
 pub fn metatable_of(@core.LuaState, @core.Value) -> @core.LTable?
+
+pub let nm_index : @core.LStr
+
+pub let nm_newindex : @core.LStr
 
 pub fn[T] no_integer_representation(@core.LuaState, @core.Value, Int) -> T raise @core.LuaRaised
 

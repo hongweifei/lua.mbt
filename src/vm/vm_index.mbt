@@ -7,11 +7,7 @@ pub fn metatable_of(st : @core.LuaState, v : @core.Value) -> @core.LTable? {
   match v {
     @core.VTable(t) => t.meta
     @core.VUserData(u) => u.meta
-    _ =>
-      match st.registry.get_str("__mt_" + v.type_name()) {
-        @core.VTable(t) => Some(t)
-        _ => None
-      }
+    _ => st.type_metas[v.meta_slot()]
   }
 }
 
@@ -26,21 +22,22 @@ pub fn set_metatable_of(
   match v {
     @core.VTable(t) => t.set_metatable(mt)
     @core.VUserData(u) => u.meta = mt
-    _ =>
-      match mt {
-        Some(t) => st.registry.set_str("__mt_" + v.type_name(), @core.VTable(t))
-        None => {
-          let _ = st.registry.set(
-            @core.VStr(@core.LStr::of_string("__mt_" + v.type_name())),
-            @core.VNil,
-          )
-        }
-      }
+    _ => st.type_metas[v.meta_slot()] = mt
   }
   // A `__mode` or `__gc` in the metatable is what makes the collector look at
   // this value every cycle.
   @core.gc_register(st, v)
 }
+
+///|
+/// The metamethod names the hot paths ask for.  Interning one per call would
+/// encode the name into bytes and hash it every time -- once per indexed
+/// access that falls through to a metamethod, which is what a string method
+/// call is.
+pub let nm_index : @core.LStr = @core.LStr::of_string("__index")
+
+///|
+pub let nm_newindex : @core.LStr = @core.LStr::of_string("__newindex")
 
 ///|
 /// Reads a metamethod, or nil when there is no metatable or no such field.
@@ -49,8 +46,18 @@ pub fn metafield(
   v : @core.Value,
   name : String,
 ) -> @core.Value {
+  metafield_lstr(st, v, @core.LStr::of_string(name))
+}
+
+///|
+/// `metafield` for a name that is already interned.
+pub fn metafield_lstr(
+  st : @core.LuaState,
+  v : @core.Value,
+  name : @core.LStr,
+) -> @core.Value {
   match metatable_of(st, v) {
-    Some(mt) => mt.hash_get(@core.KStr(@core.LStr::of_string(name)))
+    Some(mt) => mt.hash_get(@core.KStr(name))
     None => @core.VNil
   }
 }
@@ -134,7 +141,7 @@ pub fn gettable(
         if !v.is_nil() {
           return v
         }
-        let handler = metafield(st, cur, "__index")
+        let handler = metafield_lstr(st, cur, nm_index)
         if handler.is_nil() {
           return @core.VNil
         }
@@ -145,7 +152,7 @@ pub fn gettable(
         cur = handler
       }
       @core.VUserData(_) => {
-        let handler = metafield(st, cur, "__index")
+        let handler = metafield_lstr(st, cur, nm_index)
         if is_callable(handler) {
           let res = call_metamethod(st, handler, [cur, k], 1, "index")
           return nth_or_nil(res, 0)
@@ -156,7 +163,7 @@ pub fn gettable(
         cur = handler
       }
       _ => {
-        let handler = metafield(st, cur, "__index")
+        let handler = metafield_lstr(st, cur, nm_index)
         if is_callable(handler) {
           let res = call_metamethod(st, handler, [cur, k], 1, "index")
           return nth_or_nil(res, 0)
@@ -282,7 +289,7 @@ pub fn settable(
           charge_growth(st, tbl, before)
           return
         }
-        let handler = metafield(st, cur, "__newindex")
+        let handler = metafield_lstr(st, cur, nm_newindex)
         if handler.is_nil() {
           if !tbl.set(k, v) {
             invalid_key_error(st, k)
@@ -297,7 +304,7 @@ pub fn settable(
         cur = handler
       }
       @core.VUserData(_) => {
-        let handler = metafield(st, cur, "__newindex")
+        let handler = metafield_lstr(st, cur, nm_newindex)
         if is_callable(handler) {
           let _ = call_metamethod(st, handler, [cur, k, v], 0, "newindex")
           return
@@ -308,7 +315,7 @@ pub fn settable(
         cur = handler
       }
       _ => {
-        let handler = metafield(st, cur, "__newindex")
+        let handler = metafield_lstr(st, cur, nm_newindex)
         if is_callable(handler) {
           let _ = call_metamethod(st, handler, [cur, k, v], 0, "newindex")
           return

@@ -62,13 +62,9 @@ pub fn db_setmetatable(
   match v {
     @core.VTable(t) => t.meta = mt
     @core.VUserData(u) => u.meta = mt
-    _ =>
-      // Values without a metatable slot keep it in the registry, keyed by
-      // type name, exactly like the base `setmetatable` does.
-      match mt {
-        Some(t) => st.registry.set_str("__mt_" + v.type_name(), @core.VTable(t))
-        None => st.registry.set_str("__mt_" + v.type_name(), @core.VNil)
-      }
+    // Values without a metatable slot of their own keep it per type, exactly
+    // where the base `setmetatable` keeps it.
+    _ => st.type_metas[v.meta_slot()] = mt
   }
   @core.One(v)
 }

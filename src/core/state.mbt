@@ -7,6 +7,13 @@ pub const MAX_CALL_DEPTH : Int = 200
 pub(all) struct LuaState {
   globals : LTable
   registry : LTable
+  /// The metatables shared by a whole type -- `string`, `number`, `nil`,
+  /// `boolean`, `function` and `thread` -- indexed by `Value::meta_slot`.
+  /// Tables and userdata carry theirs in the object itself.  The reference
+  /// keeps this array on the global state (`mt[]`); keeping it here rather
+  /// than in the registry means a string method call does not build a key and
+  /// look it up.
+  mut type_metas : Array[LTable?]
   main_thread : LThread
   mut current_thread : LThread
   mut native_depth : Int
@@ -139,6 +146,7 @@ pub fn lua_state_new() -> LuaState {
   let st : LuaState = {
     globals,
     registry,
+    type_metas: Array::make(6, None),
     main_thread: main,
     current_thread: main,
     native_depth: 0,

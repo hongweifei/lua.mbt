@@ -751,6 +751,7 @@ pub(all) struct LocVar {
 pub(all) struct LuaState {
   globals : LTable
   registry : LTable
+  mut type_metas : Array[LTable?]
   main_thread : LThread
   mut current_thread : LThread
   mut native_depth : Int
@@ -838,6 +839,7 @@ pub fn Value::as_file(Self) -> LFile?
 pub fn Value::is_nil(Self) -> Bool
 pub fn Value::is_number(Self) -> Bool
 pub fn Value::is_truthy(Self) -> Bool
+pub fn Value::meta_slot(Self) -> Int
 pub fn Value::obj_id(Self) -> Int
 pub fn Value::object_id(Self) -> Int
 pub fn Value::raw_equal(Self, Self) -> Bool

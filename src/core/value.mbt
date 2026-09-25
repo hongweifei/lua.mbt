@@ -276,6 +276,22 @@ pub fn Value::type_name(self : Value) -> String {
 }
 
 ///|
+/// The slot in `LuaState.type_metas` holding the metatable this value shares
+/// with its whole type, or -1 for a table or a userdata, which carry their own
+/// and are not addressed this way.
+pub fn Value::meta_slot(self : Value) -> Int {
+  match self {
+    VNil => 0
+    VBool(_) => 1
+    VInt(_) | VNum(_) => 2
+    VStr(_) => 3
+    VFunc(_) | VBuiltin(_) => 4
+    VThread(_) => 5
+    VTable(_) | VUserData(_) => -1
+  }
+}
+
+///|
 /// Identity of an object value, for `__eq` bookkeeping and for registry keys.
 pub fn Value::object_id(self : Value) -> Int {
   match self {
