@@ -11,7 +11,7 @@ pub fn get_packed_int(
   signed : Bool,
 ) -> Int64 raise @core.LuaRaised {
   if pos + size > data.length() {
-    @core.runtime_error(state, "data string too short")
+    @core.arg_error(state, 2, "unpack", "data string too short")
   }
   // Mirror `unpackint`: only the low eight bytes become the result; when the
   // field is wider, the unread bytes must be pure sign extension or overflow.
@@ -55,7 +55,7 @@ pub fn get_packed_float(
   little : Bool,
 ) -> Double raise @core.LuaRaised {
   if pos + size > data.length() {
-    @core.runtime_error(state, "data string too short")
+    @core.arg_error(state, 2, "unpack", "data string too short")
   }
   let mut acc : UInt64 = 0UL
   let mut i = 0
@@ -135,7 +135,7 @@ pub fn str_unpack(
     )
     pos = pos + pad
     if pos > data.length() {
-      @core.runtime_error(state, "data string too short")
+      @core.arg_error(state, 2, "unpack", "data string too short")
     }
     match opt.kind {
       PK_INT => {
@@ -162,7 +162,7 @@ pub fn str_unpack(
       }
       PK_CHAR => {
         if pos + opt.size > data.length() {
-          @core.runtime_error(state, "data string too short")
+          @core.arg_error(state, 2, "unpack", "data string too short")
         }
         out.push(
           @core.VStr(
@@ -175,7 +175,7 @@ pub fn str_unpack(
         let len = get_packed_int(state, data, pos, opt.size, hdr.little, false).to_int()
         pos = pos + opt.size
         if len < 0 || pos + len > data.length() {
-          @core.runtime_error(state, "data string too short")
+          @core.arg_error(state, 2, "unpack", "data string too short")
         }
         out.push(
           @core.VStr(@core.LStr::of_bytes(@core.bytes_slice(data, pos, len))),
@@ -188,7 +188,9 @@ pub fn str_unpack(
           len = len + 1
         }
         if pos + len >= data.length() {
-          @core.runtime_error(state, "unfinished string for format 'z'")
+          @core.arg_error(
+            state, 2, "unpack", "unfinished string for format 'z'",
+          )
         }
         out.push(
           @core.VStr(@core.LStr::of_bytes(@core.bytes_slice(data, pos, len))),

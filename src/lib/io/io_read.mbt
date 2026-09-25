@@ -300,7 +300,9 @@ pub fn lines_iterator(
   }
   let res = read_from_file(state, f, formats, 1)
   if res.length() > 0 && res[0].is_nil() {
-    return [@core.VNil]
+    // The file is done: `io_readline` answers with no values at all, not with
+    // one nil, which `select("#", it())` can tell apart.
+    return []
   }
   res
 }
@@ -331,7 +333,10 @@ pub fn io_lines_iterator(
       f.closed = true
       f.handle = 0L
     }
-    return [@core.VNil]
+    // No values, not one nil: the loop that owns this file closes it through
+    // the fourth value `io.lines` hands out, and `select("#", it())` sees the
+    // difference (`io_readline` answers the same way).
+    return []
   }
   res
 }

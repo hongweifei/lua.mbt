@@ -961,4 +961,45 @@ do
   eq(count > 10, true, "and it got somewhere before it was refused")
 end
 
+-- Three corners a differential sweep against the reference implementation
+-- turned up: an exhausted iterator answers with *no* values rather than one
+-- nil, `string.unpack` reports a short chunk as an argument error, and the file
+-- `io.lines` hands out as its fourth value is closed when the loop ends --
+-- including when it is broken out of.
+do
+  local it = ("a"):gmatch("a")
+  eq(it(), "a", "the one match")
+  eq(select("#", it()), 0, "an exhausted iterator answers with no values")
+  eq(select("#", ("x"):gmatch("z")()), 0, "and so does one that never matched")
+
+  eq((select(2, pcall(string.unpack, "i4", "ab"))):find(
+      "bad argument #2 to 'string.unpack' (data string too short)", 1, true) ~= nil,
+    true, "a short chunk is an argument error on the data")
+  eq((select(2, pcall(string.unpack, "z", "abc"))):find(
+      "bad argument #2 to 'string.unpack' (unfinished string for format 'z')",
+      1, true) ~= nil, true, "and so is an unterminated string for 'z'")
+
+  local path = os.tmpname()
+  local out = assert(io.open(path, "w"))
+  out:write("one" .. string.char(10) .. "two" .. string.char(10))
+  out:close()
+  local read, state, control, held = io.lines(path)
+  eq(type(held), "userdata", "io.lines hands the file out as its fourth value")
+  eq(state, nil, "with a nil state")
+  eq(control, nil, "and a nil control value")
+  eq(read(), "one", "the iterator reads the first line")
+  eq(pcall(function() return held:read("l") end), true,
+    "an unfinished iterator leaves the file open")
+  -- The fourth value of a generic `for` is a to-be-closed variable, so leaving
+  -- the loop -- by a break here -- closes the file that loop was handed.
+  local it2, st2, ctl2, held2 = io.lines(path)
+  for _ in it2, st2, ctl2, held2 do
+    break
+  end
+  local ok, err = pcall(function() return held2:read("l") end)
+  eq(ok, false, "a break out of the loop closes the file")
+  eq(err:find("closed file", 1, true) ~= nil, true, "with the closed file error")
+  os.remove(path)
+end
+
 print("stdlib: ok")

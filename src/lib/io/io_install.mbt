@@ -303,6 +303,13 @@ pub fn io_lines(
         up,
       ),
     ),
+    // The state and the control value are nil, and the *file* is the fourth
+    // value: a generic `for` closes it when the loop ends, however it ends.
+    // That is what closes the file when the loop is broken out of, which the
+    // iterator itself cannot see (`lstrlib`'s `io_lines` returns the same four).
+    @core.VNil,
+    @core.VNil,
+    v,
   ]
 }
 

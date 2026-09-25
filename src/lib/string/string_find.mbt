@@ -75,7 +75,9 @@ pub fn gmatch_iterator(
     }
     pos = pos + 1
   }
-  [@core.VNil]
+  // Nothing left: the reference's `gmatch_aux` answers with *no* values here,
+  // and the difference is visible -- `select("#", it())` is 0, not 1.
+  []
 }
 
 ///|
