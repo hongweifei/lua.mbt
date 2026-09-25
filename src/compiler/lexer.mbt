@@ -31,7 +31,11 @@ pub(all) struct Lexer {
   mut line : Int
   mut current : Int
   chunk : String
-  interned : Map[Bytes, @core.LStr]
+  /// The literal strings this chunk anchored.  Only the long ones need it: a
+  /// short literal is interned globally already, so two equal short literals
+  /// are one object without any help, while two equal long literals have to
+  /// be one object too -- `literals.lua` checks exactly that by address.
+  long_strings : Map[Bytes, @core.LStr]
 }
 
 ///|
@@ -44,7 +48,7 @@ pub fn Lexer::new(src : Bytes, chunk : String) -> Lexer {
     line: 1,
     current: -1,
     chunk,
-    interned: Map([]),
+    long_strings: Map([]),
   }
   lx.current = lx.byte_at(0)
   lx
@@ -61,21 +65,24 @@ pub fn Lexer::from_feed(feed : SourceFeed, chunk : String) -> Lexer {
     line: 1,
     current: -1,
     chunk,
-    interned: Map([]),
+    long_strings: Map([]),
   }
   lx.current = lx.byte_at(0)
   lx
 }
 
 ///|
-/// Reuse one string object per distinct contents, mirroring the table the
-/// reference implementation's lexer anchors strings in.
+/// The string object for a literal.  A short one is interned globally, so its
+/// object is already shared and the table below would only add a lookup.
 pub fn Lexer::intern(self : Lexer, b : Bytes) -> @core.LStr {
-  match self.interned.get(b) {
+  if @core.str_is_shared(b.length()) {
+    return @core.LStr::of_bytes(b)
+  }
+  match self.long_strings.get(b) {
     Some(s) => s
     None => {
       let s = @core.LStr::of_bytes(b)
-      self.interned[b] = s
+      self.long_strings[b] = s
       s
     }
   }

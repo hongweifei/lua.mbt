@@ -399,7 +399,7 @@ pub(all) struct Lexer {
   mut line : Int
   mut current : Int
   chunk : String
-  interned : Map[Bytes, @core.LStr]
+  long_strings : Map[Bytes, @core.LStr]
 }
 pub fn Lexer::byte_at(Self, Int) -> Int
 pub fn Lexer::chunk_name(Self) -> String

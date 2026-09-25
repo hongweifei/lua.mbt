@@ -20,6 +20,15 @@ pub fn LStr::of_string(s : String) -> LStr {
 let str_intern_limit : Int = 40
 
 ///|
+/// Whether equal strings of this length are one object.  Short strings are
+/// interned; longer ones are not, so a caller that needs two equal strings to
+/// be the *same* object -- the lexer, whose anchored literals `literals.lua`
+/// compares by address -- has to know which case it is in.
+pub fn str_is_shared(len : Int) -> Bool {
+  len < str_intern_limit
+}
+
+///|
 /// The interned strings.  The key is the bytes rather than the string: a `Bytes`
 /// key is one word, while an `LStr` key is a 24 byte structure the map has to
 /// carry around, and that costs more per lookup than the second pass over the

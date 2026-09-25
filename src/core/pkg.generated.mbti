@@ -460,6 +460,8 @@ pub let src_iterator : Int
 
 pub let src_none : Int
 
+pub fn str_is_shared(Int) -> Bool
+
 pub fn table_bytes(LTable) -> Int
 
 pub fn text_of(Bytes) -> String
