@@ -76,8 +76,8 @@ pub fn get_packed_float(
 pub fn str_unpack(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let fmt = @core.check_str(state, args, 1, "unpack").data()
   let s = @core.check_str(state, args, 2, "unpack")
@@ -201,7 +201,7 @@ pub fn str_unpack(
     }
   }
   out.push(@core.VInt((pos + 1).to_int64()))
-  out
+  @core.Many(out)
 }
 
 ///|
@@ -209,8 +209,8 @@ pub fn str_unpack(
 pub fn str_packsize(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let fmt = @core.check_str(state, args, 1, "packsize").data()
   let hdr = pack_header()
@@ -258,5 +258,5 @@ pub fn str_packsize(
       )
     total = total + opt.size
   }
-  [@core.VInt(total.to_int64())]
+  @core.One(@core.VInt(total.to_int64()))
 }

@@ -27,8 +27,8 @@ pub fn check_mode(mode : Bytes) -> Bool {
 pub fn io_open(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let name = @core.check_str(state, args, 1, "open")
   let mode = if args.length() >= 2 && !args[1].is_nil() {
@@ -41,7 +41,7 @@ pub fn io_open(
   }
   let h = @host.lua_mbt_fopen(name.data(), mode)
   if h == 0L {
-    return [
+    return @core.Many([
       @core.VNil,
       @core.VStr(
         @core.LStr::of_bytes(
@@ -53,17 +53,17 @@ pub fn io_open(
         ),
       ),
       @core.VInt(@host.lua_mbt_errno().to_int64()),
-    ]
+    ])
   }
-  [new_file_value(state, h, @core.text_of(name.data()), false, false)]
+  @core.One(new_file_value(state, h, @core.text_of(name.data()), false, false))
 }
 
 ///|
 pub fn io_close(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   // Only a call with no argument at all closes the default output; an explicit
   // nil is a value that is not a file (`lua_isnone`, not `lua_isnoneornil`).
@@ -78,20 +78,20 @@ pub fn io_close(
 pub fn io_flush(
   _state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let _ = args
   let _ = @host.lua_mbt_fflush(0L)
-  []
+  @core.Nothing
 }
 
 ///|
 pub fn io_read(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let v = default_input(state)
   let f = match v.as_file() {
@@ -105,8 +105,8 @@ pub fn io_read(
 pub fn io_write(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let v = default_output(state)
   let f = match v.as_file() {
@@ -118,22 +118,22 @@ pub fn io_write(
     let b = write_arg(state, args, i, "write")
     let n = @host.lua_mbt_fwrite(f.handle, b, b.length())
     if n != b.length() {
-      return file_result(false, f.name)
+      return @core.Many(file_result(false, f.name))
     }
     i = i + 1
   }
-  [v]
+  @core.One(v)
 }
 
 ///|
 /// Sets or returns the default input or output file.
 pub fn set_default_file(
   state : @core.LuaState,
-  args : Array[@core.Value],
+  args : ArrayView[@core.Value],
   key : String,
   fname : String,
   mode : Bytes,
-) -> Array[@core.Value] raise @core.LuaRaised {
+) -> @core.BuiltinResult raise @core.LuaRaised {
   if args.length() >= 1 && !args[0].is_nil() {
     // A string *or a number* names a file to open (`lua_tostring` coerces);
     // anything else has to be a file handle.
@@ -201,9 +201,9 @@ pub fn set_default_file(
       new_file_value(state, @host.lua_mbt_stdout(), "stdout", true, false)
     }
     let _ = state.registry.set_str(key, std)
-    [std]
+    @core.One(std)
   } else {
-    [cur]
+    @core.One(cur)
   }
 }
 
@@ -237,8 +237,8 @@ pub fn default_output(st : @core.LuaState) -> @core.Value {
 pub fn io_input(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   set_default_file(state, args, "__io_input", "input", @core.bytes_of("r"))
 }
@@ -247,8 +247,8 @@ pub fn io_input(
 pub fn io_output(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   set_default_file(state, args, "__io_output", "output", @core.bytes_of("w"))
 }
@@ -257,12 +257,12 @@ pub fn io_output(
 pub fn io_lines(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   if args.length() == 0 || args[0].is_nil() {
     let v = default_input(state)
-    return [
+    return @core.Many([
       @core.VBuiltin(
         @core.make_builtin(
           "io_lines_iterator",
@@ -272,7 +272,7 @@ pub fn io_lines(
           [v],
         ),
       ),
-    ]
+    ])
   }
   let name = @core.check_str(state, args, 1, "lines")
   let h = @host.lua_mbt_fopen(name.data(), @core.bytes_of("r"))
@@ -293,7 +293,7 @@ pub fn io_lines(
     up.push(args[i])
     i = i + 1
   }
-  [
+  @core.Many([
     @core.VBuiltin(
       @core.make_builtin(
         "io_lines_iterator",
@@ -310,15 +310,15 @@ pub fn io_lines(
     @core.VNil,
     @core.VNil,
     v,
-  ]
+  ])
 }
 
 ///|
 pub fn io_popen(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let cmd = @core.check_str(state, args, 1, "popen")
   let mode = if args.length() >= 2 && !args[1].is_nil() {
@@ -331,7 +331,7 @@ pub fn io_popen(
   }
   let h = @host.lua_mbt_popen(cmd.data(), mode)
   if h == 0L {
-    return [
+    return @core.Many([
       @core.VNil,
       @core.VStr(
         @core.LStr::of_bytes(
@@ -343,28 +343,28 @@ pub fn io_popen(
         ),
       ),
       @core.VInt(@host.lua_mbt_errno().to_int64()),
-    ]
+    ])
   }
-  [new_file_value(state, h, @core.text_of(cmd.data()), false, true)]
+  @core.One(new_file_value(state, h, @core.text_of(cmd.data()), false, true))
 }
 
 ///|
 pub fn io_tmpfile(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let _ = args
   let h = @host.lua_mbt_tmpfile()
   if h == 0L {
-    return [
+    return @core.Many([
       @core.VNil,
       @core.VStr(@core.LStr::of_bytes(@core.errno_message())),
       @core.VInt(@host.lua_mbt_errno().to_int64()),
-    ]
+    ])
   }
-  [new_file_value(state, h, "tmpfile", false, false)]
+  @core.One(new_file_value(state, h, "tmpfile", false, false))
 }
 
 ///|
@@ -372,18 +372,18 @@ pub fn io_tmpfile(
 pub fn io_type(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let v = @core.check_any(state, args, 1, "type")
   match v.as_file() {
     Some(f) =>
       if f.closed {
-        [@core.VStr(@core.LStr::of_string("closed file"))]
+        @core.One(@core.VStr(@core.LStr::of_string("closed file")))
       } else {
-        [@core.VStr(@core.LStr::of_string("file"))]
+        @core.One(@core.VStr(@core.LStr::of_string("file")))
       }
-    None => [@core.VNil]
+    None => @core.One(@core.VNil)
   }
 }
 

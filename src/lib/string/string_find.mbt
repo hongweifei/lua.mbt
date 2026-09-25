@@ -4,8 +4,8 @@
 pub fn str_find(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   @pattern.str_find_aux(state, args, true)
 }
@@ -14,8 +14,8 @@ pub fn str_find(
 pub fn str_match(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   @pattern.str_find_aux(state, args, false)
 }
@@ -37,8 +37,8 @@ pub fn str_match(
 pub fn gmatch_iterator(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = args
   let src = match upvals[0] {
     @core.VStr(s) => s
@@ -69,7 +69,7 @@ pub fn gmatch_iterator(
         } else {
           upgrade_upval(state, upvals, 2, @core.VInt(e.to_int64()))
           upgrade_upval(state, upvals, 3, @core.VInt(e.to_int64()))
-          return @pattern.push_captures(ms, pos, e)
+          return @core.Many(@pattern.push_captures(ms, pos, e))
         }
       None => ()
     }
@@ -77,15 +77,15 @@ pub fn gmatch_iterator(
   }
   // Nothing left: the reference's `gmatch_aux` answers with *no* values here,
   // and the difference is visible -- `select("#", it())` is 0, not 1.
-  []
+  @core.Nothing
 }
 
 ///|
 pub fn str_gmatch(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let s = @core.check_str(state, args, 1, "gmatch")
   let p = @core.check_str(state, args, 2, "gmatch")
@@ -102,7 +102,7 @@ pub fn str_gmatch(
     ]),
   )
   let _ = state.registry.set_lstr(@core.LStr::of_string("__gmatch_last"), b)
-  [b]
+  @core.One(b)
 }
 
 ///|----------------------------------------------------------------
@@ -117,8 +117,8 @@ pub fn str_gmatch(
 pub fn str_gsub(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let s = @core.check_str(state, args, 1, "gsub")
   let p = @core.check_str(state, args, 2, "gsub")
@@ -270,12 +270,12 @@ pub fn str_gsub(
     }
   }
   if !changed {
-    return [@core.VStr(s), @core.VInt(count)]
+    return @core.Two(@core.VStr(s), @core.VInt(count))
   }
   if pos < src.length() {
     buf.write_bytes(src.view(start=pos))
   }
-  [@core.VStr(@core.LStr::of_bytes(buf.to_bytes())), @core.VInt(count)]
+  @core.Two(@core.VStr(@core.LStr::of_bytes(buf.to_bytes())), @core.VInt(count))
 }
 
 ///|

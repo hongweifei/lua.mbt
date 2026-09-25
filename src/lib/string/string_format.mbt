@@ -92,8 +92,8 @@ fn find_flag(flags : Bytes, c : Int) -> Int {
 pub fn str_format(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let fmt = @core.check_str(state, args, 1, "format")
   let f = fmt.data()
@@ -226,7 +226,7 @@ pub fn str_format(
         )
     }
   }
-  [@core.VStr(@core.LStr::of_bytes(buf.to_bytes()))]
+  @core.One(@core.VStr(@core.LStr::of_bytes(buf.to_bytes())))
 }
 
 ///|

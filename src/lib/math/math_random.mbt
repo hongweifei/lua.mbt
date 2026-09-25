@@ -29,14 +29,14 @@ pub fn project_random(rv : UInt64, n : UInt64) -> UInt64 {
 pub fn math_random(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let rv = @host.lua_mbt_rng_next()
   if args.length() == 0 {
     // A float in [0, 1) with 53 bits of precision.
     let mantissa = Double::convert_uint64(rv >> 11)
-    return [@core.VNum(mantissa * (1.0 / 9007199254740992.0))]
+    return @core.One(@core.VNum(mantissa * (1.0 / 9007199254740992.0)))
   }
   if args.length() > 2 {
     @core.runtime_error(state, "wrong number of arguments")
@@ -46,7 +46,7 @@ pub fn math_random(
   if args.length() == 1 {
     up = @core.check_int(state, args, 1, "random")
     if up == 0L {
-      return [@core.VInt(rv.reinterpret_as_int64())]
+      return @core.One(@core.VInt(rv.reinterpret_as_int64()))
     }
   } else {
     low = @core.check_int(state, args, 1, "random")
@@ -57,15 +57,17 @@ pub fn math_random(
   }
   let span = (up - low).reinterpret_as_uint64()
   let p = project_random(rv, span)
-  [@core.VInt((p + low.reinterpret_as_uint64()).reinterpret_as_int64())]
+  @core.One(
+    @core.VInt((p + low.reinterpret_as_uint64()).reinterpret_as_int64()),
+  )
 }
 
 ///|
 pub fn math_randomseed(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   // The seeds are both handed back, so that resuming from them repeats the
   // sequence, which is how a test checks that the state really is reproducible.
@@ -80,10 +82,10 @@ pub fn math_randomseed(
     ]
   }
   @host.lua_mbt_rng_seed(seeds[0], seeds[1])
-  [
+  @core.Two(
     @core.VInt(seeds[0].reinterpret_as_int64()),
     @core.VInt(seeds[1].reinterpret_as_int64()),
-  ]
+  )
 }
 
 ///|----------------------------------------------------------------

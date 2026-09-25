@@ -256,8 +256,8 @@ pub fn put_packed_float(
 pub fn str_pack(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let fmt = @core.check_str(state, args, 1, "pack").data()
   let hdr = pack_header()
@@ -411,7 +411,7 @@ pub fn str_pack(
       }
     }
   }
-  [@core.VStr(@core.LStr::of_bytes(buf.to_bytes()))]
+  @core.One(@core.VStr(@core.LStr::of_bytes(buf.to_bytes())))
 }
 
 ///|----------------------------------------------------------------

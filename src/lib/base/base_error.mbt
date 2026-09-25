@@ -6,8 +6,8 @@
 pub fn base_error(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   // `error()` with no argument raises nil; only a string message is prefixed
   // with the caller's position.
@@ -23,14 +23,14 @@ pub fn base_error(
 pub fn base_assert(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   if args.length() == 0 {
     @core.arg_error(state, 1, "assert", "value expected")
   }
   if args[0].is_truthy() {
-    return args
+    return @core.Many(args.to_owned())
   }
   if args.length() >= 2 {
     // `assert` hands its message to `error`, whose default level is 1 because
@@ -49,8 +49,8 @@ pub fn base_assert(
 pub fn base_pcall(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   if args.length() < 1 {
     @core.arg_error(state, 1, "pcall", "value expected")
@@ -71,9 +71,9 @@ pub fn base_pcall(
       for v in vals {
         out.push(v)
       }
-      out
+      @core.Many(out)
     }
-    Err(e) => [@core.VBool(false), e]
+    Err(e) => @core.Two(@core.VBool(false), e)
   }
 }
 
@@ -82,8 +82,8 @@ pub fn base_pcall(
 pub fn base_xpcall(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   // The handler is checked before anything runs (`luaL_checktype(L, 2,
   // LUA_TFUNCTION)` in `luaB_xpcall`), so a missing or wrong one is reported
@@ -105,11 +105,18 @@ pub fn base_xpcall(
       for v in vals {
         out.push(v)
       }
-      out
+      @core.Many(out)
     }
     Err(e) => {
       let hv = @vm.call_value(state, handler, [e], 1)
-      [@core.VBool(false), if hv.length() > 0 { hv[0] } else { @core.VNil }]
+      @core.Many([
+        @core.VBool(false),
+        if hv.length() > 0 {
+          hv[0]
+        } else {
+          @core.VNil
+        },
+      ])
     }
   }
 }
@@ -121,13 +128,13 @@ pub fn base_xpcall(
 pub fn base_collectgarbage(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   // Inside a `__gc` handler no option does anything: the answer is nil, which
   // is what `luaL_pushfail` gives for a call the collector cannot serve.
   if state.gc_finalizing {
-    return [@core.VNil]
+    return @core.One(@core.VNil)
   }
   let opt = @core.check_option(
     state,
@@ -144,17 +151,18 @@ pub fn base_collectgarbage(
     "collect" => {
       @vm.collect_and_retune(state)
       @vm.ledger_finish_cycle(state)
-      [@core.VInt(0L)]
+      @core.One(@core.VInt(0L))
     }
     "stop" => {
       state.gc_running = false
-      [@core.VInt(0L)]
+      @core.One(@core.VInt(0L))
     }
     "restart" => {
       state.gc_running = true
-      [@core.VInt(0L)]
+      @core.One(@core.VInt(0L))
     }
-    "count" => [@core.VNum(@core.live_size(state).to_double() / 1024.0)]
+    "count" =>
+      @core.One(@core.VNum(@core.live_size(state).to_double() / 1024.0))
     // A step is charged `size` kilobytes of work, and a cycle is finished
     // once that much has been asked for -- the reference's debt.  A step with
     // no size does a basic step, which always finishes one here, because a
@@ -164,23 +172,23 @@ pub fn base_collectgarbage(
     // collector's accounting, so they live there (`@vm.gc_step`).
     "step" => {
       let size = @core.opt_int(state, args, 2, "collectgarbage", 0L).to_int()
-      [@core.VBool(@vm.gc_step(state, size))]
+      @core.One(@core.VBool(@vm.gc_step(state, size)))
     }
-    "isrunning" => [@core.VBool(state.gc_running)]
+    "isrunning" => @core.One(@core.VBool(state.gc_running))
     "incremental" => {
       let prev = state.gc_mode
       state.gc_mode = "incremental"
-      [@core.VStr(@core.LStr::of_string(prev))]
+      @core.One(@core.VStr(@core.LStr::of_string(prev)))
     }
     "generational" => {
       let prev = state.gc_mode
       state.gc_mode = "generational"
-      [@core.VStr(@core.LStr::of_string(prev))]
+      @core.One(@core.VStr(@core.LStr::of_string(prev)))
     }
     "setpause" => {
       let old = state.gc_pause
       state.gc_pause = @core.opt_int(state, args, 2, "collectgarbage", 200L).to_int()
-      [@core.VInt(old.to_int64())]
+      @core.One(@core.VInt(old.to_int64()))
     }
     "setstepmul" => {
       let old = state.gc_stepmul
@@ -189,9 +197,9 @@ pub fn base_collectgarbage(
       // multiple of four -- `setstepmul(50)` reports 48 next time.
       let asked = @core.opt_int(state, args, 2, "collectgarbage", 100L).to_int()
       state.gc_stepmul = asked / @core.GCPARAM_ADJ * @core.GCPARAM_ADJ
-      [@core.VInt(old.to_int64())]
+      @core.One(@core.VInt(old.to_int64()))
     }
-    _ => [@core.VInt(0L)]
+    _ => @core.One(@core.VInt(0L))
   }
 }
 
@@ -200,8 +208,8 @@ pub fn base_collectgarbage(
 pub fn base_warn(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   // At least one argument is required, and every argument must be a string:
   // `luaL_checkstring(L, 1)` runs before the loop, so `warn()` is an argument
@@ -221,7 +229,7 @@ pub fn base_warn(
     } else if cmd == @core.bytes_of("off") {
       state.warn_enabled = false
     }
-    return []
+    return @core.Nothing
   }
   if state.warn_enabled {
     @core.write_stderr(
@@ -232,5 +240,5 @@ pub fn base_warn(
       ]),
     )
   }
-  []
+  @core.Nothing
 }

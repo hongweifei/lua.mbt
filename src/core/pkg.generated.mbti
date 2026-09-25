@@ -252,27 +252,27 @@ pub fn callee_name(LuaState) -> ObjName?
 
 pub fn charge_object_bytes(Int) -> Unit
 
-pub fn check_any(LuaState, Array[Value], Int, String) -> Value raise LuaRaised
+pub fn check_any(LuaState, ArrayView[Value], Int, String) -> Value raise LuaRaised
 
 pub fn check_decimal_float(Bytes) -> Bool
 
-pub fn check_function(LuaState, Array[Value], Int, String) -> Value raise LuaRaised
+pub fn check_function(LuaState, ArrayView[Value], Int, String) -> Value raise LuaRaised
 
 pub fn check_hex_float(Bytes) -> Bool
 
-pub fn check_int(LuaState, Array[Value], Int, String) -> Int64 raise LuaRaised
+pub fn check_int(LuaState, ArrayView[Value], Int, String) -> Int64 raise LuaRaised
 
-pub fn check_number(LuaState, Array[Value], Int, String) -> Double raise LuaRaised
+pub fn check_number(LuaState, ArrayView[Value], Int, String) -> Double raise LuaRaised
 
-pub fn check_option(LuaState, Array[Value], Int, String, Array[String], String) -> String raise LuaRaised
+pub fn check_option(LuaState, ArrayView[Value], Int, String, Array[String], String) -> String raise LuaRaised
 
-pub fn check_present(LuaState, Array[Value], Int, String, String) -> Value raise LuaRaised
+pub fn check_present(LuaState, ArrayView[Value], Int, String, String) -> Value raise LuaRaised
 
-pub fn check_str(LuaState, Array[Value], Int, String) -> LStr raise LuaRaised
+pub fn check_str(LuaState, ArrayView[Value], Int, String) -> LStr raise LuaRaised
 
-pub fn check_table(LuaState, Array[Value], Int, String) -> LTable raise LuaRaised
+pub fn check_table(LuaState, ArrayView[Value], Int, String) -> LTable raise LuaRaised
 
-pub fn check_thread(LuaState, Array[Value], Int, String) -> LThread raise LuaRaised
+pub fn check_thread(LuaState, ArrayView[Value], Int, String) -> LThread raise LuaRaised
 
 pub fn chunk_id_of(Bytes) -> String
 
@@ -372,7 +372,7 @@ pub fn is_no_source(Bytes) -> Bool
 
 pub fn is_space_byte(Int) -> Bool
 
-pub fn is_truthy_arg(LuaState, Array[Value], Int) -> Bool
+pub fn is_truthy_arg(LuaState, ArrayView[Value], Int) -> Bool
 
 pub fn key_hash(Key) -> Int
 
@@ -400,7 +400,7 @@ pub fn[T] lua_state_raise_value(LuaState, Value) -> T raise LuaRaised
 
 pub fn lua_str2num(Bytes) -> NumValue?
 
-pub fn make_builtin(String, Int, Int, (LuaState, Array[Value], Array[Value]) -> Array[Value] raise LuaRaised, Array[Value]) -> LBuiltin
+pub fn make_builtin(String, Int, Int, (LuaState, Array[Value], ArrayView[Value]) -> BuiltinResult raise LuaRaised, Array[Value]) -> LBuiltin
 
 pub let max_before_mul10 : UInt64
 
@@ -430,9 +430,9 @@ pub fn op_name(Int) -> String
 
 pub fn operand_info(LuaState, Int) -> String
 
-pub fn opt_int(LuaState, Array[Value], Int, String, Int64) -> Int64 raise LuaRaised
+pub fn opt_int(LuaState, ArrayView[Value], Int, String, Int64) -> Int64 raise LuaRaised
 
-pub fn opt_number(LuaState, Array[Value], Int, String, Double) -> Double raise LuaRaised
+pub fn opt_number(LuaState, ArrayView[Value], Int, String, Double) -> Double raise LuaRaised
 
 pub fn position_at_level(LuaState, Int) -> Bytes
 
@@ -511,6 +511,13 @@ pub(all) suberror LuaRaised {
 }
 
 // Types and methods
+pub(all) enum BuiltinResult {
+  Nothing
+  One(Value)
+  Two(Value, Value)
+  Many(Array[Value])
+}
+
 pub(all) enum Cont {
   ContPCall
   ContXPCall(Value)
@@ -520,6 +527,7 @@ pub(all) struct Frame {
   mut pc : Int
   func_slot : Int
   base : Int
+  nargs : Int
   ret_slot : Int
   nres_wanted : Int
   mut top : Int
@@ -579,13 +587,13 @@ pub(all) struct LBuiltin {
   name : String
   kind : Int
   arity : Int
-  body : (LuaState, Array[Value], Array[Value]) -> Array[Value] raise LuaRaised
+  body : (LuaState, Array[Value], ArrayView[Value]) -> BuiltinResult raise LuaRaised
   upvals : Array[Value]
   id : Int
   mut mark_epoch : Int
 }
-pub fn LBuiltin::make(String, Int, (LuaState, Array[Value], Array[Value]) -> Array[Value] raise LuaRaised) -> Self
-pub fn LBuiltin::make_kind(String, Int, Int, (LuaState, Array[Value], Array[Value]) -> Array[Value] raise LuaRaised) -> Self
+pub fn LBuiltin::make(String, Int, (LuaState, Array[Value], ArrayView[Value]) -> BuiltinResult raise LuaRaised) -> Self
+pub fn LBuiltin::make_kind(String, Int, Int, (LuaState, Array[Value], ArrayView[Value]) -> BuiltinResult raise LuaRaised) -> Self
 
 pub(all) struct LClosure {
   proto : LProto

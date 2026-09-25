@@ -8,27 +8,27 @@ import {
 // Values
 pub fn close_thread(@core.LuaState, @core.LThread, @core.Value) -> Unit raise @core.LuaRaised
 
-pub fn co_close(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn co_close(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn co_create(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn co_create(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn co_isyieldable(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn co_isyieldable(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn co_resume(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn co_resume(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn co_running(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn co_running(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn co_status(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn co_status(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn co_wrap(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn co_wrap(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn co_yield(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn co_yield(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
 pub fn open_coroutine_library(@core.LuaState) -> Unit
 
-pub fn resume_thread(@core.LuaState, @core.LThread, Array[@core.Value]) -> (Bool, Array[@core.Value])
+pub fn resume_thread(@core.LuaState, @core.LThread, ArrayView[@core.Value]) -> (Bool, Array[@core.Value])
 
-pub fn wrap_body(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn wrap_body(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
 // Errors
 

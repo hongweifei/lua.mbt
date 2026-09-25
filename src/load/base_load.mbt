@@ -5,8 +5,8 @@
 pub fn base_load(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let chunk = if args.length() >= 1 { args[0] } else { @core.VNil }
   // `lua_tolstring` decides the kind: a string or a number is source text, a
@@ -37,18 +37,20 @@ pub fn base_load(
     @core.VTable(state.globals)
   }
   if is_reader {
-    return load_from_reader(state, chunk, name, mode, env)
+    return @core.Many(load_from_reader(state, chunk, name, mode, env))
   }
   let source = chunk_to_source(state, chunk, args.length() >= 1)
   // `checkmode` looks at what the chunk actually is before deciding whether
   // the requested mode refuses it.
-  finish_compiled(
-    state,
-    source,
-    @chunk.is_binary_chunk(source),
-    name,
-    mode,
-    env,
+  @core.Many(
+    finish_compiled(
+      state,
+      source,
+      @chunk.is_binary_chunk(source),
+      name,
+      mode,
+      env,
+    ),
   )
 }
 
@@ -80,9 +82,19 @@ fn chunk_to_source(
 pub fn base_loadfile(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
+  @core.Many(do_loadfile(state, args))
+}
+
+///|
+/// The work of `loadfile`, which `dofile` also runs.  It answers with a list
+/// rather than a `BuiltinResult`: both callers hand the same values on.
+fn do_loadfile(
+  state : @core.LuaState,
+  args : ArrayView[@core.Value],
+) -> Array[@core.Value] raise @core.LuaRaised {
   let env = if args.length() >= 3 {
     args[2]
   } else {
@@ -129,13 +141,13 @@ pub fn base_loadfile(
 pub fn base_dofile(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
-  let r = base_loadfile(state, [], args)
+  let r = do_loadfile(state, args)
   match r[0] {
     @core.VNil => @core.raise_fresh(state, r[1])
-    f => @vm.call_value(state, f, [], -1)
+    f => @core.Many(@vm.call_value(state, f, [], -1))
   }
 }
 
@@ -146,8 +158,8 @@ pub fn base_dofile(
 pub fn base_require(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let name = @core.check_str(state, args, 1, "require")
   let loaded = package_table(state, "loaded")
@@ -156,7 +168,7 @@ pub fn base_require(
   // loaded again on the next `require` (`lua_toboolean` in `ll_require`).
   match loaded.get(@core.VStr(name)) {
     @core.VNil | @core.VBool(false) => ()
-    v => return [v]
+    v => return @core.One(v)
   }
   // `package.searchers` has to be a table; anything else is reported before a
   // search starts (`findloader`).
@@ -195,7 +207,7 @@ pub fn base_require(
         } else {
           let _ = loaded.set(@core.VStr(name), val)
         }
-        return [result, extra]
+        return @core.Two(result, extra)
       }
       @core.VStr(msg) => messages.push(msg.data())
       _ => ()

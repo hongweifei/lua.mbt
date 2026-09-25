@@ -89,8 +89,8 @@ pub fn execute(
         } else {
           None
         }
-        let results = match finished {
-          Some(vals) => vals
+        let results : Results = match finished {
+          Some(vals) => Listed(vals)
           None =>
             if b.kind == @core.BK_YIELD {
               // A `yield` that reached a frame of its own instead of being
@@ -101,9 +101,15 @@ pub fn execute(
               if thread.ny > 0 {
                 raise_yield_error(st, thread)
               }
-              return @core.RYield(fr.varargs)
+              return @core.RYield(
+                thread.stack[fr.base:fr.base + fr.nargs].to_owned(),
+              )
             } else {
-              (b.body)(st, b.upvals, fr.varargs)
+              builtin_answers(
+                thread,
+                fr,
+                (b.body)(st, b.upvals, thread.stack[fr.base:fr.base + fr.nargs]),
+              )
             }
         }
         if resuming {
@@ -118,12 +124,12 @@ pub fn execute(
           thread.ensure_stack(fr.base + results.length())
           let mut i = 0
           while i < results.length() {
-            thread.stack[fr.base + i] = results[i]
+            thread.stack[fr.base + i] = results.at(thread, i)
             i = i + 1
           }
           hook_return_event(st, thread, 1, results.length())
         }
-        match complete_frame(st, thread, ci, floor, Listed(results), true) {
+        match complete_frame(st, thread, ci, floor, results, true) {
           Some(vals) => return @core.RFinished(vals)
           None => ()
         }

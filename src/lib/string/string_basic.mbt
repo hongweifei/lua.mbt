@@ -4,19 +4,19 @@
 pub fn str_len(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let s = @core.check_str(state, args, 1, "len")
-  [@core.VInt(s.length().to_int64())]
+  @core.One(@core.VInt(s.length().to_int64()))
 }
 
 ///|
 pub fn str_sub(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let s = @core.check_str(state, args, 1, "sub")
   let data = s.data()
@@ -32,13 +32,13 @@ pub fn str_sub(
     j = len
   }
   if i > j {
-    [@core.VStr(@core.LStr::empty())]
+    @core.One(@core.VStr(@core.LStr::empty()))
   } else {
-    [
+    @core.Many([
       @core.VStr(
         @core.LStr::of_bytes(@core.bytes_slice(data, i - 1, j - i + 1)),
       ),
-    ]
+    ])
   }
 }
 
@@ -46,8 +46,8 @@ pub fn str_sub(
 pub fn str_upper(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let s = @core.check_str(state, args, 1, "upper")
   let src = s.data()
@@ -58,15 +58,15 @@ pub fn str_upper(
     buf.write_byte(@core.toupper_byte(c))
     i = i + 1
   }
-  [@core.VStr(@core.LStr::of_bytes(buf.to_bytes()))]
+  @core.One(@core.VStr(@core.LStr::of_bytes(buf.to_bytes())))
 }
 
 ///|
 pub fn str_lower(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let s = @core.check_str(state, args, 1, "lower")
   let src = s.data()
@@ -77,15 +77,15 @@ pub fn str_lower(
     buf.write_byte(@core.tolower_byte(c))
     i = i + 1
   }
-  [@core.VStr(@core.LStr::of_bytes(buf.to_bytes()))]
+  @core.One(@core.VStr(@core.LStr::of_bytes(buf.to_bytes())))
 }
 
 ///|
 pub fn str_rep(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let s = @core.check_str(state, args, 1, "rep")
   let n = @core.check_int(state, args, 2, "rep")
@@ -95,7 +95,7 @@ pub fn str_rep(
     Bytes::new(0)
   }
   if n <= 0L {
-    return [@core.VStr(@core.LStr::empty())]
+    return @core.One(@core.VStr(@core.LStr::empty()))
   }
   // `str_rep` refuses results that cannot fit; the divisor form catches
   // overflow without computing the size first.
@@ -113,15 +113,15 @@ pub fn str_rep(
     buf.write_bytes(s.data().view())
     i = i + 1L
   }
-  [@core.VStr(@core.LStr::of_bytes(buf.to_bytes()))]
+  @core.One(@core.VStr(@core.LStr::of_bytes(buf.to_bytes())))
 }
 
 ///|
 pub fn str_reverse(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let s = @core.check_str(state, args, 1, "reverse")
   let src = s.data()
@@ -131,7 +131,7 @@ pub fn str_reverse(
     i = i - 1
     buf.write_byte(src.at(i))
   }
-  [@core.VStr(@core.LStr::of_bytes(buf.to_bytes()))]
+  @core.One(@core.VStr(@core.LStr::of_bytes(buf.to_bytes())))
 }
 
 ///|
@@ -139,8 +139,8 @@ pub fn str_reverse(
 pub fn str_byte(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let s = @core.check_str(state, args, 1, "byte")
   let data = s.data()
@@ -161,7 +161,7 @@ pub fn str_byte(
     out.push(@core.VInt(@core.ubyte_at(data, k - 1).to_int64()))
     k = k + 1
   }
-  out
+  @core.Many(out)
 }
 
 ///|
@@ -169,8 +169,8 @@ pub fn str_byte(
 pub fn str_char(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let buf = Buffer::Buffer(size_hint=args.length())
   let mut i = 0
@@ -182,7 +182,7 @@ pub fn str_char(
     buf.write_byte(c.to_int().to_byte())
     i = i + 1
   }
-  [@core.VStr(@core.LStr::of_bytes(buf.to_bytes()))]
+  @core.One(@core.VStr(@core.LStr::of_bytes(buf.to_bytes())))
 }
 
 ///|

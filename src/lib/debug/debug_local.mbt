@@ -110,7 +110,10 @@ fn resolve_local(
           }
       }
     None =>
-      if n >= 1 && n <= fr.varargs.length() {
+      // A host frame's arguments are the slots it was entered with, which are
+      // the registers above its base -- the same window the arguments were
+      // handed to its body as.  The reference reports them as "(C temporary)".
+      if n >= 1 && n <= fr.nargs {
         Some(("(C temporary)", fr.base + n - 1))
       } else {
         None
@@ -122,8 +125,8 @@ fn resolve_local(
 pub fn db_getlocal(
   st : @core.LuaState,
   _upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let (thread, arg) = get_thread(st, args)
   let f = arg_or_nil(args, arg)
   // The variable index is checked before the function or level, as
@@ -135,10 +138,10 @@ pub fn db_getlocal(
     match f {
       @core.VFunc(cl) =>
         match parameter_name(cl, n) {
-          Some(name) => [@core.VStr(@core.LStr::of_string(name))]
-          None => [@core.VNil]
+          Some(name) => @core.One(@core.VStr(@core.LStr::of_string(name)))
+          None => @core.One(@core.VNil)
         }
-      _ => [@core.VNil]
+      _ => @core.One(@core.VNil)
     }
   } else {
     let level = @core.check_int(st, args, arg, "getlocal").to_int()
@@ -148,12 +151,18 @@ pub fn db_getlocal(
         let fr = thread.frames[idx]
         match vararg_index(fr, n) {
           Some(i) =>
-            [@core.VStr(@core.LStr::of_string("(vararg)")), fr.varargs[i]]
+            @core.Two(
+              @core.VStr(@core.LStr::of_string("(vararg)")),
+              fr.varargs[i],
+            )
           None =>
             match resolve_local(thread, fr, idx, n) {
               Some((name, slot)) =>
-                [@core.VStr(@core.LStr::of_string(name)), thread.stack[slot]]
-              None => [@core.VNil]
+                @core.Two(
+                  @core.VStr(@core.LStr::of_string(name)),
+                  thread.stack[slot],
+                )
+              None => @core.One(@core.VNil)
             }
         }
       }
@@ -166,8 +175,8 @@ pub fn db_getlocal(
 pub fn db_setlocal(
   st : @core.LuaState,
   _upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let (thread, arg) = get_thread(st, args)
   let level = @core.check_int(st, args, arg, "setlocal").to_int()
   let n = @core.check_int(st, args, arg + 1, "setlocal").to_int()
@@ -178,15 +187,15 @@ pub fn db_setlocal(
       match vararg_index(fr, n) {
         Some(i) => {
           fr.varargs[i] = value
-          [@core.VStr(@core.LStr::of_string("(vararg)"))]
+          @core.One(@core.VStr(@core.LStr::of_string("(vararg)")))
         }
         None =>
           match resolve_local(thread, fr, idx, n) {
             Some((name, slot)) => {
               thread.stack[slot] = value
-              [@core.VStr(@core.LStr::of_string(name))]
+              @core.One(@core.VStr(@core.LStr::of_string(name)))
             }
-            None => [@core.VNil]
+            None => @core.One(@core.VNil)
           }
       }
     }

@@ -6,61 +6,61 @@ import {
 }
 
 // Values
-pub fn math_abs(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_abs(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_acos(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_acos(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_asin(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_asin(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_atan(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_atan(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_ceil(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_ceil(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_cos(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_cos(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_cosh(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_cosh(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_deg(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_deg(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_exp(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_exp(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_float1(@core.LuaState, Array[@core.Value], String, (Double) -> Double) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_float1(@core.LuaState, ArrayView[@core.Value], String, (Double) -> Double) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_floor(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_floor(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_fmod(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_fmod(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_log(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_log(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_max(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_max(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_min(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_min(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_modf(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_modf(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_pow_fn(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_pow_fn(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_rad(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_rad(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_random(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_random(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_randomseed(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_randomseed(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_sin(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_sin(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_sinh(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_sinh(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_sqrt(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_sqrt(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_tan(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_tan(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_tanh(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_tanh(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_tointeger(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_tointeger(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_type(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_type(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn math_ult(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn math_ult(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
 pub fn open_math_library(@core.LuaState) -> Unit
 

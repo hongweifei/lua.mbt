@@ -7,17 +7,17 @@
 pub fn db_getregistry(
   st : @core.LuaState,
   _upvals : Array[@core.Value],
-  _args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
-  [@core.VTable(st.registry)]
+  _args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
+  @core.One(@core.VTable(st.registry))
 }
 
 ///|
 pub fn db_getmetatable(
   st : @core.LuaState,
   _upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   if args.length() < 1 {
     @core.arg_error(st, 1, "getmetatable", "value expected")
   }
@@ -25,10 +25,10 @@ pub fn db_getmetatable(
     Some(mt) =>
       // The reference hides a metatable whose __metatable field is set.
       match mt.get_str("__metatable") {
-        @core.VNil => [@core.VTable(mt)]
-        v => [v]
+        @core.VNil => @core.One(@core.VTable(mt))
+        v => @core.One(v)
       }
-    None => [@core.VNil]
+    None => @core.One(@core.VNil)
   }
 }
 
@@ -36,8 +36,8 @@ pub fn db_getmetatable(
 pub fn db_setmetatable(
   st : @core.LuaState,
   _upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   // The metatable is what is checked, and the check names the second argument
   // whether it is missing or of the wrong type (`luaL_argexpected`); the value
   // itself is not checked at all.
@@ -70,7 +70,7 @@ pub fn db_setmetatable(
         None => st.registry.set_str("__mt_" + v.type_name(), @core.VNil)
       }
   }
-  [v]
+  @core.One(v)
 }
 
 ///|
@@ -80,17 +80,17 @@ pub fn db_setmetatable(
 pub fn db_getuservalue(
   st : @core.LuaState,
   _upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let which = @core.opt_int(st, args, 2, "getuservalue", 1L).to_int() - 1
   match arg_or_nil(args, 1) {
     @core.VUserData(u) =>
       if !u.light && which >= 0 && which < u.uservalues.length() {
-        [u.uservalues[which], @core.VBool(true)]
+        @core.Two(u.uservalues[which], @core.VBool(true))
       } else {
-        [@core.VNil]
+        @core.One(@core.VNil)
       }
-    _ => [@core.VNil]
+    _ => @core.One(@core.VNil)
   }
 }
 
@@ -100,8 +100,8 @@ pub fn db_getuservalue(
 pub fn db_setuservalue(
   st : @core.LuaState,
   _upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   // `db_setuservalue` checks the value (arg 3) optionally, then the userdata,
   // then the new value -- so a missing userdata reports "no value" and a
   // missing value is only reached when there is a userdata to set it on.
@@ -120,9 +120,9 @@ pub fn db_setuservalue(
       let value = @core.check_any(st, args, 2, "setuservalue")
       if which >= 0 && which < u.uservalues.length() {
         u.uservalues[which] = value
-        [@core.VBool(true)]
+        @core.One(@core.VBool(true))
       } else {
-        [@core.VNil]
+        @core.One(@core.VNil)
       }
     }
     _ =>

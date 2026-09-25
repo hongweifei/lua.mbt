@@ -437,8 +437,8 @@ fn info_table(
 pub fn db_getinfo(
   st : @core.LuaState,
   _upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let (thread, arg) = get_thread(st, args)
   let f_arg = arg_or_nil(args, arg)
   let what_arg = arg_or_nil(args, arg + 1)
@@ -457,13 +457,13 @@ pub fn db_getinfo(
   }
   if is_function_arg(f_arg) {
     // Function form: no current line, no namewhat.
-    [@core.VTable(info_table(None, f_arg, what, "", @core.VNil))]
+    @core.One(@core.VTable(info_table(None, f_arg, what, "", @core.VNil)))
   } else {
     let level = @core.check_int(st, args, arg, "getinfo").to_int()
     let len = thread.frames.length()
     let idx = len - 1 - level
     if idx < 0 || idx >= len {
-      return [@core.VNil]
+      return @core.One(@core.VNil)
     }
     let fr = thread.frames[idx]
     let f = match fr.closure {
@@ -478,6 +478,6 @@ pub fn db_getinfo(
       Some((w, n)) => (w, @core.VStr(@core.LStr::of_string(n)))
       None => ("", @core.VNil)
     }
-    [@core.VTable(info_table(Some(fr), f, what, namewhat, name))]
+    @core.One(@core.VTable(info_table(Some(fr), f, what, namewhat, name)))
   }
 }

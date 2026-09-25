@@ -92,7 +92,7 @@ pub fn open_debug_library(st : @core.LuaState) -> Unit {
 /// the first remaining argument (1-based).
 pub fn get_thread(
   st : @core.LuaState,
-  args : Array[@core.Value],
+  args : ArrayView[@core.Value],
 ) -> (@core.LThread, Int) {
   if args.length() > 0 {
     match args[0] {
@@ -105,7 +105,7 @@ pub fn get_thread(
 
 ///|
 /// The n-th (1-based) argument, or nil when absent.
-pub fn arg_or_nil(args : Array[@core.Value], n : Int) -> @core.Value {
+pub fn arg_or_nil(args : ArrayView[@core.Value], n : Int) -> @core.Value {
   if n >= 1 && n <= args.length() {
     args[n - 1]
   } else {

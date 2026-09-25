@@ -398,7 +398,7 @@ fn userdata_name(u : LUserData) -> String {
 ///|
 pub fn check_any(
   st : LuaState,
-  args : Array[Value],
+  args : ArrayView[Value],
   n : Int,
   fname : String,
 ) -> Value raise LuaRaised {
@@ -415,7 +415,7 @@ pub fn check_any(
 /// says "string expected, got no value" while `pcall()` says "value expected".
 pub fn check_present(
   st : LuaState,
-  args : Array[Value],
+  args : ArrayView[Value],
   n : Int,
   fname : String,
   expected : String,
@@ -429,7 +429,7 @@ pub fn check_present(
 ///|
 pub fn check_int(
   st : LuaState,
-  args : Array[Value],
+  args : ArrayView[Value],
   n : Int,
   fname : String,
 ) -> Int64 raise LuaRaised {
@@ -461,7 +461,7 @@ pub fn check_int(
 ///|
 pub fn check_number(
   st : LuaState,
-  args : Array[Value],
+  args : ArrayView[Value],
   n : Int,
   fname : String,
 ) -> Double raise LuaRaised {
@@ -492,7 +492,7 @@ pub fn value_to_double_or_string(v : Value) -> Double? {
 ///|
 pub fn check_str(
   st : LuaState,
-  args : Array[Value],
+  args : ArrayView[Value],
   n : Int,
   fname : String,
 ) -> LStr raise LuaRaised {
@@ -509,7 +509,7 @@ pub fn check_str(
 ///|
 pub fn check_table(
   st : LuaState,
-  args : Array[Value],
+  args : ArrayView[Value],
   n : Int,
   fname : String,
 ) -> LTable raise LuaRaised {
@@ -524,7 +524,7 @@ pub fn check_table(
 ///|
 pub fn check_function(
   st : LuaState,
-  args : Array[Value],
+  args : ArrayView[Value],
   n : Int,
   fname : String,
 ) -> Value raise LuaRaised {
@@ -547,7 +547,7 @@ pub fn check_function(
 /// uses.
 pub fn check_thread(
   st : LuaState,
-  args : Array[Value],
+  args : ArrayView[Value],
   n : Int,
   fname : String,
 ) -> LThread raise LuaRaised {
@@ -562,7 +562,7 @@ pub fn check_thread(
 ///|
 pub fn check_option(
   st : LuaState,
-  args : Array[Value],
+  args : ArrayView[Value],
   n : Int,
   fname : String,
   options : Array[String],
@@ -585,7 +585,7 @@ pub fn check_option(
 /// Optional integer argument.
 pub fn opt_int(
   st : LuaState,
-  args : Array[Value],
+  args : ArrayView[Value],
   n : Int,
   fname : String,
   dflt : Int64,
@@ -600,7 +600,7 @@ pub fn opt_int(
 /// Optional number argument.
 pub fn opt_number(
   st : LuaState,
-  args : Array[Value],
+  args : ArrayView[Value],
   n : Int,
   fname : String,
   dflt : Double,
@@ -612,7 +612,7 @@ pub fn opt_number(
 }
 
 ///|
-pub fn is_truthy_arg(st : LuaState, args : Array[Value], n : Int) -> Bool {
+pub fn is_truthy_arg(st : LuaState, args : ArrayView[Value], n : Int) -> Bool {
   let _ = st
   if args.length() < n {
     return false

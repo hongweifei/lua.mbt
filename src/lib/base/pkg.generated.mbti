@@ -6,55 +6,55 @@ import {
 }
 
 // Values
-pub fn base_assert(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_assert(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn base_collectgarbage(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_collectgarbage(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn base_error(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_error(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn base_getmetatable(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_getmetatable(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn base_ipairs(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_ipairs(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn base_next(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_next(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn base_pairs(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_pairs(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn base_pcall(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_pcall(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn base_print(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_print(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn base_rawequal(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_rawequal(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn base_rawget(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_rawget(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn base_rawlen(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_rawlen(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn base_rawset(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_rawset(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn base_select(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_select(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn base_setmetatable(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_setmetatable(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn base_tonumber(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_tonumber(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn base_tostring(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_tostring(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn base_type(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_type(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn base_warn(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_warn(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn base_xpcall(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn base_xpcall(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
 pub fn ipairs_builtin(@core.LuaState) -> @core.Value
 
-pub fn ipairs_iterator(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn ipairs_iterator(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
 pub fn next_builtin(@core.LuaState) -> @core.Value
 
 pub fn open_base_library(@core.LuaState) -> Unit
 
-pub fn select_from(@core.LuaState, Int64, Int, Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn select_from(@core.LuaState, Int64, Int, ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
 pub fn str_to_int_base(Bytes, Int) -> Int64?
 

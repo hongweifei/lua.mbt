@@ -4,7 +4,7 @@
 pub fn resume_thread(
   state : @core.LuaState,
   co : @core.LThread,
-  args : Array[@core.Value],
+  args : ArrayView[@core.Value],
 ) -> (Bool, Array[@core.Value]) {
   // The reference counts a resume as a level of C calls, so coroutine nesting
   // without bound reports an overflow instead of exhausting the host stack.
@@ -85,7 +85,7 @@ pub fn resume_thread(
     // Continuing after a yield: the values become the results of the
     // `coroutine.yield` frame the thread stopped in, which the interpreter
     // finishes when it re-enters that frame.
-    co.resume_vals = Some(args)
+    co.resume_vals = Some(args.to_owned())
     // That call is now finished, which reports its return event.
     let hr = try {
       if (co.hook_mask & @core.HOOK_RETURN) != 0 && !co.hook_running {
@@ -205,22 +205,22 @@ pub fn close_thread(
 pub fn co_create(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let f = @core.check_function(state, args, 1, "create")
   let co = @core.LThread::new()
   co.func = f
   co.status = @core.THREAD_SUSPENDED
-  [@core.VThread(co)]
+  @core.One(@core.VThread(co))
 }
 
 ///|
 pub fn co_resume(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let co = @core.check_thread(state, args, 1, "resume")
   let rest : Array[@core.Value] = []
@@ -234,19 +234,19 @@ pub fn co_resume(
   for x in vals {
     out.push(x)
   }
-  out
+  @core.Many(out)
 }
 
 ///|
 pub fn co_status(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let co = @core.check_thread(state, args, 1, "status")
   if co.id == state.current_thread.id {
-    return [@core.VStr(@core.LStr::of_string("running"))]
+    return @core.One(@core.VStr(@core.LStr::of_string("running")))
   }
   let s = match co.status {
     @core.THREAD_RUNNING | @core.THREAD_NORMAL => "normal"
@@ -254,28 +254,28 @@ pub fn co_status(
     @core.THREAD_DEAD => "dead"
     _ => "suspended"
   }
-  [@core.VStr(@core.LStr::of_string(s))]
+  @core.One(@core.VStr(@core.LStr::of_string(s)))
 }
 
 ///|
 pub fn co_running(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let _ = args
   let th = state.current_thread
   let is_main = th.id == state.main_thread.id
-  [@core.VThread(th), @core.VBool(is_main)]
+  @core.Two(@core.VThread(th), @core.VBool(is_main))
 }
 
 ///|
 pub fn co_isyieldable(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   // No argument asks about the running thread; an explicit one has to be a
   // thread (`lua_isnone`, not `lua_isnoneornil`).
@@ -286,15 +286,15 @@ pub fn co_isyieldable(
   }
   // As in `yieldable(L)`: the thread can yield exactly when no host-level
   // call (a C-call boundary: `pcall`, `gsub`'s callback, ...) is active.
-  [@core.VBool(th.ny == 0)]
+  @core.One(@core.VBool(th.ny == 0))
 }
 
 ///|
 pub fn co_yield(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   // The interpreter handles `yield` before entering a native frame, so reaching
   // * this body means the call came through a host level call such as a
   // * metamethod, where yielding is not allowed.  On the main thread there is
@@ -308,8 +308,8 @@ pub fn co_yield(
 pub fn co_close(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let co = @core.check_thread(state, args, 1, "close")
   if co.id == state.current_thread.id {
@@ -322,13 +322,13 @@ pub fn co_close(
     @core.runtime_error(state, "cannot close a running coroutine")
   }
   if !co.started {
-    return [@core.VBool(true)]
+    return @core.One(@core.VBool(true))
   }
   if co.status == @core.THREAD_DEAD {
     // A dead coroutine still holding its error yields it to the first
     // `close`, exactly like `lua_closethread` does; later closes succeed.
     if co.dead_error.is_nil() {
-      return [@core.VBool(true)]
+      return @core.One(@core.VBool(true))
     }
     let e = co.dead_error
     co.dead_error = @core.VNil
@@ -349,7 +349,7 @@ pub fn co_close(
       Ok(kept) => kept
       Err(other) => other
     }
-    return [@core.VBool(false), reported]
+    return @core.Two(@core.VBool(false), reported)
   }
   let r = try {
     close_thread(state, co, @core.VNil)
@@ -360,8 +360,8 @@ pub fn co_close(
   }
   co.status = @core.THREAD_DEAD
   match r {
-    Ok(_) => [@core.VBool(true)]
-    Err(e) => [@core.VBool(false), e]
+    Ok(_) => @core.One(@core.VBool(true))
+    Err(e) => @core.Two(@core.VBool(false), e)
   }
 }
 
@@ -371,8 +371,8 @@ pub fn co_close(
 pub fn wrap_body(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let co = match upvals[0] {
     @core.VThread(t) => t
     _ => @core.runtime_error(state, "invalid coroutine")
@@ -409,27 +409,27 @@ pub fn wrap_body(
         @core.raise_fresh(state, @core.with_position(state, e, 1))
     }
   }
-  vals
+  @core.Many(vals)
 }
 
 ///|
 pub fn co_wrap(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let f = @core.check_function(state, args, 1, "wrap")
   let co = @core.LThread::new()
   co.func = f
   co.status = @core.THREAD_SUSPENDED
-  [
+  @core.Many([
     @core.VBuiltin(
       @core.make_builtin("wrap", @core.BK_NORMAL, -1, wrap_body, [
         @core.VThread(co),
       ]),
     ),
-  ]
+  ])
 }
 
 ///|

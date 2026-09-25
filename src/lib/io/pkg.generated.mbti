@@ -8,59 +8,59 @@ import {
 // Values
 pub fn check_mode(Bytes) -> Bool
 
-pub fn check_open_file(@core.LuaState, Array[@core.Value], Int, String) -> @core.LFile raise @core.LuaRaised
+pub fn check_open_file(@core.LuaState, ArrayView[@core.Value], Int, String) -> @core.LFile raise @core.LuaRaised
 
 pub fn default_input(@core.LuaState) -> @core.Value
 
 pub fn default_output(@core.LuaState) -> @core.Value
 
-pub fn file_close(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn file_close(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn file_flush(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn file_flush(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn file_gc(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn file_gc(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn file_lines(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn file_lines(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
 pub fn file_metatable(@core.LuaState) -> @core.LTable
 
-pub fn file_read(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn file_read(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
 pub fn file_result(Bool, String) -> Array[@core.Value]
 
-pub fn file_seek(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn file_seek(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn file_setvbuf(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn file_setvbuf(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn file_tostring(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn file_tostring(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn file_write(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn file_write(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn io_close(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn io_close(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn io_flush(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn io_flush(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn io_input(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn io_input(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn io_lines(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn io_lines(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn io_lines_iterator(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn io_lines_iterator(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn io_open(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn io_open(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn io_output(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn io_output(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn io_popen(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn io_popen(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn io_read(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn io_read(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn io_tmpfile(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn io_tmpfile(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn io_type(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn io_type(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn io_write(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn io_write(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn lines_iterator(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn lines_iterator(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
 pub fn new_file_value(@core.LuaState, Int64, String, Bool, Bool) -> @core.Value
 
@@ -70,13 +70,13 @@ pub fn read_all_from(@core.LFile) -> @core.Value
 
 pub fn read_chars_from(@core.LFile, Int) -> @core.Value
 
-pub fn read_from_file(@core.LuaState, @core.LFile, Array[@core.Value], Int) -> Array[@core.Value] raise @core.LuaRaised
+pub fn read_from_file(@core.LuaState, @core.LFile, ArrayView[@core.Value], Int) -> @core.BuiltinResult raise @core.LuaRaised
 
 pub fn read_line_from(@core.LFile, Bool) -> @core.Value
 
 pub fn read_number_from(@core.LFile) -> @core.Value
 
-pub fn set_default_file(@core.LuaState, Array[@core.Value], String, String, Bytes) -> Array[@core.Value] raise @core.LuaRaised
+pub fn set_default_file(@core.LuaState, ArrayView[@core.Value], String, String, Bytes) -> @core.BuiltinResult raise @core.LuaRaised
 
 pub fn skip_space(@core.LFile) -> Int
 

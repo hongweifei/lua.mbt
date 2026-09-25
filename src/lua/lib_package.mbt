@@ -176,8 +176,8 @@ pub fn file_exists(path : String) -> Bool {
 pub fn pkg_searchpath(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let name = @core.check_str(state, args, 1, "searchpath")
   let path = @core.check_str(state, args, 2, "searchpath")
@@ -198,8 +198,8 @@ pub fn pkg_searchpath(
     @core.text_of(rep),
   )
   match found {
-    Some(f) => [@core.VStr(@core.LStr::of_string(f))]
-    None => [@core.VNil, @core.VStr(@core.LStr::of_string(msg))]
+    Some(f) => @core.One(@core.VStr(@core.LStr::of_string(f)))
+    None => @core.Two(@core.VNil, @core.VStr(@core.LStr::of_string(msg)))
   }
 }
 
@@ -208,14 +208,14 @@ pub fn pkg_searchpath(
 pub fn searcher_preload(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let name = @core.check_str(state, args, 1, "searcher")
   let preload = @load.package_table(state, "preload")
   match preload.get(@core.VStr(name)) {
     @core.VNil =>
-      [
+      @core.Many([
         @core.VStr(
           @core.LStr::of_bytes(
             @core.bytes_concat([
@@ -225,10 +225,10 @@ pub fn searcher_preload(
             ]),
           ),
         ),
-      ]
+      ])
     // The loader data names where the loader came from, which `require`
     // returns as its second result.
-    f => [f, @core.VStr(@core.LStr::of_string(":preload:"))]
+    f => @core.Two(f, @core.VStr(@core.LStr::of_string(":preload:")))
   }
 }
 
@@ -237,8 +237,8 @@ pub fn searcher_preload(
 pub fn searcher_lua(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let name = @core.check_str(state, args, 1, "searcher")
   let pkg = @load.package_self(state)
@@ -255,12 +255,12 @@ pub fn searcher_lua(
     dirsep(),
   )
   match found {
-    None => [@core.VStr(@core.LStr::of_string(msg))]
+    None => @core.One(@core.VStr(@core.LStr::of_string(msg)))
     Some(file) => {
       let data = match @core.read_whole_file(@core.bytes_of(file)) {
         Ok(d) => d
         Err(e) =>
-          return [
+          return @core.Many([
             @core.VStr(
               @core.LStr::of_bytes(
                 @core.bytes_concat([
@@ -271,7 +271,7 @@ pub fn searcher_lua(
                 ]),
               ),
             ),
-          ]
+          ])
       }
       match
         @load.compile_source(
@@ -280,7 +280,7 @@ pub fn searcher_lua(
           "@" + file,
           @core.VTable(state.globals),
         ) {
-        @core.LoadOk(f) => [f, @core.VStr(@core.LStr::of_string(file))]
+        @core.LoadOk(f) => @core.Two(f, @core.VStr(@core.LStr::of_string(file)))
         // A module that does not compile is reported as a failure to load it
         // (`checkload`), not as the bare syntax error.
         @core.LoadError(msg) =>
@@ -307,12 +307,12 @@ pub fn searcher_lua(
 pub fn pkg_loadlib(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let _ = @core.check_str(state, args, 1, "loadlib")
   let _ = @core.check_str(state, args, 2, "loadlib")
-  [
+  @core.Many([
     @core.VNil,
     @core.VStr(
       @core.LStr::of_string(
@@ -320,7 +320,7 @@ pub fn pkg_loadlib(
       ),
     ),
     @core.VStr(@core.LStr::of_string("absent")),
-  ]
+  ])
 }
 
 ///|
@@ -332,8 +332,8 @@ pub fn pkg_loadlib(
 pub fn searcher_c(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let name = @core.check_str(state, args, 1, "searcher")
   let pkg = @load.package_self(state)
@@ -348,9 +348,11 @@ pub fn searcher_c(
     dirsep(),
   )
   match found {
-    None => [@core.VStr(@core.LStr::of_string(msg))]
+    None => @core.One(@core.VStr(@core.LStr::of_string(msg)))
     Some(file) =>
-      [@core.VStr(@core.LStr::of_string("no native loader for '" + file + "'"))]
+      @core.One(
+        @core.VStr(@core.LStr::of_string("no native loader for '" + file + "'")),
+      )
   }
 }
 

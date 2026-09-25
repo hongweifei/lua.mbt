@@ -128,14 +128,14 @@ pub fn string_to_number(
 /// operand's own metamethod is tried, and only then does it fail.
 pub fn str_arith_bin(
   state : @core.LuaState,
-  args : Array[@core.Value],
+  args : ArrayView[@core.Value],
   op : Int,
   fname : String,
-) -> Array[@core.Value] raise @core.LuaRaised {
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let a = coerce_to_number(args[0])
   let b = coerce_to_number(args[1])
   match (a, b) {
-    (Some(x), Some(y)) => [@vm.arith(state, op, x, y)]
+    (Some(x), Some(y)) => @core.One(@vm.arith(state, op, x, y))
     _ => try_operand_mt(state, args, fname)
   }
 }
@@ -161,9 +161,9 @@ fn coerce_to_number(v : @core.Value) -> @core.Value? {
 /// fail with the reference's message.
 fn try_operand_mt(
   state : @core.LuaState,
-  args : Array[@core.Value],
+  args : ArrayView[@core.Value],
   fname : String,
-) -> Array[@core.Value] raise @core.LuaRaised {
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let p2 = args[1]
   let tm = if p2 is @core.VStr(_) {
     @core.VNil
@@ -180,15 +180,15 @@ fn try_operand_mt(
       "attempt to " + fname + " a '" + t1 + "' with a '" + t2 + "'",
     )
   }
-  @vm.call_value(state, tm, [args[0], args[1]], 1)
+  @core.Many(@vm.call_value(state, tm, [args[0], args[1]], 1))
 }
 
 ///|
 pub fn str_arith_add(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   str_arith_bin(state, args, @core.BINOP_ADD, "add")
 }
@@ -197,8 +197,8 @@ pub fn str_arith_add(
 pub fn str_arith_sub(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   str_arith_bin(state, args, @core.BINOP_SUB, "sub")
 }
@@ -207,8 +207,8 @@ pub fn str_arith_sub(
 pub fn str_arith_mul(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   str_arith_bin(state, args, @core.BINOP_MUL, "mul")
 }
@@ -217,8 +217,8 @@ pub fn str_arith_mul(
 pub fn str_arith_div(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   str_arith_bin(state, args, @core.BINOP_DIV, "div")
 }
@@ -227,8 +227,8 @@ pub fn str_arith_div(
 pub fn str_arith_mod(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   str_arith_bin(state, args, @core.BINOP_MOD, "mod")
 }
@@ -237,8 +237,8 @@ pub fn str_arith_mod(
 pub fn str_arith_pow(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   str_arith_bin(state, args, @core.BINOP_POW, "pow")
 }
@@ -247,8 +247,8 @@ pub fn str_arith_pow(
 pub fn str_arith_idiv(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   str_arith_bin(state, args, @core.BINOP_IDIV, "idiv")
 }
@@ -257,9 +257,9 @@ pub fn str_arith_idiv(
 pub fn str_arith_unm(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let a = string_to_number(state, args[0], "unm")
-  [@vm.unop(state, @core.UNOP_MINUS, a)]
+  @core.One(@vm.unop(state, @core.UNOP_MINUS, a))
 }

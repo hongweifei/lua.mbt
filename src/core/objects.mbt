@@ -174,6 +174,27 @@ pub const BK_XPCALL : Int = 3
 pub const BK_PAIRS : Int = 4
 
 ///|
+/// What a builtin answers with.
+///
+/// A builtin used to build a list on every call -- one heap allocation, and the
+/// reference counting that comes with it, in the path of every standard library
+/// call -- even though nearly all of them answer with one value or none.  These
+/// say what the answer is without building anything; `Many` is for the answers
+/// that are genuinely a list, either because their number is not known until
+/// the call runs or because there are more than two of them.
+#valtype
+pub(all) enum BuiltinResult {
+  /// No values.
+  Nothing
+  /// One value.
+  One(Value)
+  /// Two values, which is what `next`, `ipairs`' iterator and `math.modf` give.
+  Two(Value, Value)
+  /// A list the call built.
+  Many(Array[Value])
+}
+
+///|
 /// A native (host) function.  `upvals` are the values a native closure captured
 /// when it was created, which is how functions like `string.gmatch` iterators
 /// keep their state.
@@ -181,7 +202,7 @@ pub(all) struct LBuiltin {
   name : String
   kind : Int
   arity : Int
-  body : (LuaState, Array[Value], Array[Value]) -> Array[Value] raise LuaRaised
+  body : (LuaState, Array[Value], ArrayView[Value]) -> BuiltinResult raise LuaRaised
   upvals : Array[Value]
   id : Int
   /// The collection cycle that last reached this builtin (see `LTable`).
@@ -192,7 +213,7 @@ pub(all) struct LBuiltin {
 pub fn LBuiltin::make(
   name : String,
   arity : Int,
-  body : (LuaState, Array[Value], Array[Value]) -> Array[Value] raise LuaRaised,
+  body : (LuaState, Array[Value], ArrayView[Value]) -> BuiltinResult raise LuaRaised,
 ) -> LBuiltin {
   make_builtin(name, BK_NORMAL, arity, body, [])
 }
@@ -202,7 +223,7 @@ pub fn LBuiltin::make_kind(
   name : String,
   kind : Int,
   arity : Int,
-  body : (LuaState, Array[Value], Array[Value]) -> Array[Value] raise LuaRaised,
+  body : (LuaState, Array[Value], ArrayView[Value]) -> BuiltinResult raise LuaRaised,
 ) -> LBuiltin {
   make_builtin(name, kind, arity, body, [])
 }
@@ -212,7 +233,7 @@ pub fn make_builtin(
   name : String,
   kind : Int,
   arity : Int,
-  body : (LuaState, Array[Value], Array[Value]) -> Array[Value] raise LuaRaised,
+  body : (LuaState, Array[Value], ArrayView[Value]) -> BuiltinResult raise LuaRaised,
   upvals : Array[Value],
 ) -> LBuiltin {
   { name, kind, arity, body, upvals, id: next_object_id(), mark_epoch: 0, }

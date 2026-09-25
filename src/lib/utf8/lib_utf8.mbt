@@ -69,8 +69,8 @@ pub fn utf8_encode(cp : Int, buf : Buffer) -> Unit {
 pub fn utf8_char(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let buf = Buffer::Buffer(size_hint=args.length() * 4)
   let mut i = 0
@@ -82,7 +82,7 @@ pub fn utf8_char(
     utf8_encode(cp.to_int(), buf)
     i = i + 1
   }
-  [@core.VStr(@core.LStr::of_bytes(buf.to_bytes()))]
+  @core.One(@core.VStr(@core.LStr::of_bytes(buf.to_bytes())))
 }
 
 ///|
@@ -103,8 +103,8 @@ fn u_posrelat(pos : Int64, len : Int) -> Int {
 pub fn utf8_codepoint(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let s = @core.check_str(state, args, 1, "codepoint")
   let data = s.data()
@@ -122,7 +122,7 @@ pub fn utf8_codepoint(
     @core.arg_error(state, 3, "codepoint", "out of bounds")
   }
   if posi > pose {
-    return []
+    return @core.Nothing
   }
   let out : Array[@core.Value] = []
   let mut i = posi - 1
@@ -135,15 +135,15 @@ pub fn utf8_codepoint(
       None => @core.runtime_error(state, "invalid UTF-8 code")
     }
   }
-  out
+  @core.Many(out)
 }
 
 ///|
 pub fn utf8_len(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   // A number is coerced to its text and a missing argument is reported as a
   // missing string (`luaL_checklstring`).
@@ -168,18 +168,18 @@ pub fn utf8_len(
         n = n + 1L
         posi = next
       }
-      None => return [@core.VNil, @core.VInt((posi + 1).to_int64())]
+      None => return @core.Two(@core.VNil, @core.VInt((posi + 1).to_int64()))
     }
   }
-  [@core.VInt(n)]
+  @core.One(@core.VInt(n))
 }
 
 ///|
 pub fn utf8_offset(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let s = @core.check_str(state, args, 1, "offset")
   let data = s.data()
@@ -221,9 +221,9 @@ pub fn utf8_offset(
     }
   }
   if nn == 0L {
-    [@core.VInt((posi + 1).to_int64())]
+    @core.One(@core.VInt((posi + 1).to_int64()))
   } else {
-    [@core.VNil]
+    @core.One(@core.VNil)
   }
 }
 
@@ -232,15 +232,15 @@ pub fn utf8_offset(
 pub fn utf8_codes_iterator(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let lax = match upvals[0] {
     @core.VBool(b) => b
     _ => false
   }
   let s = match args[0] {
     @core.VStr(s) => s
-    _ => return [@core.VNil]
+    _ => return @core.One(@core.VNil)
   }
   let data = s.data()
   let len = data.length()
@@ -249,20 +249,20 @@ pub fn utf8_codes_iterator(
   // starts at zero.  Negative positions end the iteration.
   let mut start = i.to_int()
   if i < 0L || start >= len {
-    return [@core.VNil]
+    return @core.One(@core.VNil)
   }
   while start < len && utf8_is_cont(data, start) {
     start = start + 1
   }
   if start >= len {
-    return [@core.VNil]
+    return @core.One(@core.VNil)
   }
   match utf8_decode(data, start, !lax) {
     Some((cp, next)) => {
       if next < len && utf8_is_cont(data, next) {
         @core.runtime_error(state, "invalid UTF-8 code")
       }
-      [@core.VInt((start + 1).to_int64()), @core.VInt(cp.to_int64())]
+      @core.Two(@core.VInt((start + 1).to_int64()), @core.VInt(cp.to_int64()))
     }
     None => @core.runtime_error(state, "invalid UTF-8 code")
   }
@@ -272,8 +272,8 @@ pub fn utf8_codes_iterator(
 pub fn utf8_codes(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   // `luaL_checkstring` coerces a number and reports the type it wanted, so a
   // missing argument is "no value" and `utf8.codes(1)` iterates "1".
@@ -284,7 +284,7 @@ pub fn utf8_codes(
   if first.length() > 0 && (first.at(0).to_int() & 0xc0) == 0x80 {
     @core.arg_error(state, 1, "codes", "invalid UTF-8 code")
   }
-  [
+  @core.Many([
     @core.VBuiltin(
       @core.make_builtin(
         "codes_iterator",
@@ -296,7 +296,7 @@ pub fn utf8_codes(
     ),
     @core.VStr(text),
     @core.VInt(0L),
-  ]
+  ])
 }
 
 ///|

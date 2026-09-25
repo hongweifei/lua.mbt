@@ -27,6 +27,10 @@ pub(all) struct Frame {
   mut pc : Int
   func_slot : Int
   base : Int
+  /// How many arguments this frame was entered with.  A builtin's arguments are
+  /// the registers above `base`, and its body is handed a view of them: a call
+  /// into the standard library does not build a list of its own arguments.
+  nargs : Int
   ret_slot : Int
   nres_wanted : Int
   mut top : Int

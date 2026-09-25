@@ -32,9 +32,9 @@ pub fn open_package_library(@core.LuaState) -> Unit
 
 pub fn pcall_value(@core.LuaState, @core.Value, Array[@core.Value]) -> (Bool, Array[@core.Value])
 
-pub fn pkg_loadlib(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn pkg_loadlib(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn pkg_searchpath(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn pkg_searchpath(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
 pub fn run_bytes(@core.LuaState, Bytes, String) -> (Bool, Array[@core.Value])
 
@@ -46,11 +46,11 @@ pub fn run_string(@core.LuaState, String, String) -> (Bool, Array[@core.Value])
 
 pub fn search_path(String, String, String, String) -> (String?, String)
 
-pub fn searcher_c(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn searcher_c(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn searcher_lua(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn searcher_lua(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
-pub fn searcher_preload(@core.LuaState, Array[@core.Value], Array[@core.Value]) -> Array[@core.Value] raise @core.LuaRaised
+pub fn searcher_preload(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
 pub fn set_global(@core.LuaState, String, @core.Value) -> Unit
 

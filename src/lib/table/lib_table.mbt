@@ -21,7 +21,7 @@ fn mt_has(st : @core.LuaState, v : @core.Value, name : String) -> Bool {
 /// carries a metatable with the metamethods the operation needs.
 fn checktab(
   state : @core.LuaState,
-  args : Array[@core.Value],
+  args : ArrayView[@core.Value],
   n : Int,
   fname : String,
   index_of~ : Bool,
@@ -116,8 +116,8 @@ fn seti(
 pub fn tbl_concat(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let t = checktab(
     state,
@@ -151,7 +151,7 @@ pub fn tbl_concat(
   if k == last {
     add_field(state, t, buf, last)
   }
-  [@core.VStr(@core.LStr::of_bytes(buf.to_bytes()))]
+  @core.One(@core.VStr(@core.LStr::of_bytes(buf.to_bytes())))
 }
 
 ///|
@@ -182,8 +182,8 @@ fn add_field(
 pub fn tbl_insert(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let t = checktab(
     state,
@@ -217,15 +217,15 @@ pub fn tbl_insert(
     @core.runtime_error(state, "wrong number of arguments to 'insert'")
   }
   seti(state, t, pos, args[args.length() - 1])
-  []
+  @core.Nothing
 }
 
 ///|
 pub fn tbl_remove(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let t = checktab(
     state,
@@ -253,15 +253,15 @@ pub fn tbl_remove(
     pos = pos + 1L
   }
   seti(state, t, pos, @core.VNil)
-  [v]
+  @core.One(v)
 }
 
 ///|
 pub fn tbl_move(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let f = @core.check_int(state, args, 2, "move")
   let e = @core.check_int(state, args, 3, "move")
@@ -320,15 +320,15 @@ pub fn tbl_move(
       }
     }
   }
-  [a2]
+  @core.One(a2)
 }
 
 ///|
 pub fn tbl_pack(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let _ = state
   let t = @core.LTable::new()
@@ -338,15 +338,15 @@ pub fn tbl_pack(
     i = i + 1
   }
   t.set_str("n", @core.VInt(args.length().to_int64()))
-  [@core.VTable(t)]
+  @core.One(@core.VTable(t))
 }
 
 ///|
 pub fn tbl_unpack(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   // Nothing is checked here: `tunpack` takes the range first and only then
   // asks for the length, so `table.unpack()` fails with the length error of a
@@ -380,7 +380,7 @@ pub fn tbl_unpack(
     }
     out.push(geti(state, t, j))
   }
-  out
+  @core.Many(out)
 }
 
 ///|----------------------------------------------------------------

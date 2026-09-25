@@ -4,20 +4,20 @@
 pub fn base_rawget(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let t = @core.check_table(state, args, 1, "rawget")
   let k = @core.check_any(state, args, 2, "rawget")
-  [t.get(k)]
+  @core.One(t.get(k))
 }
 
 ///|
 pub fn base_rawset(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let t = @core.check_table(state, args, 1, "rawset")
   let k = @core.check_any(state, args, 2, "rawset")
@@ -25,27 +25,27 @@ pub fn base_rawset(
   if !t.set(k, v) {
     @vm.invalid_key_error(state, k)
   }
-  [t.as_value()]
+  @core.One(t.as_value())
 }
 
 ///|
 pub fn base_rawequal(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let a = @core.check_any(state, args, 1, "rawequal")
   let b = @core.check_any(state, args, 2, "rawequal")
-  [@core.VBool(a.raw_equal(b))]
+  @core.One(@core.VBool(a.raw_equal(b)))
 }
 
 ///|
 pub fn base_rawlen(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   // The message names the value's own type, and a missing argument reports
   // "no value" -- `luaL_typeerror`'s shape, which `check_any` cannot give.
@@ -56,8 +56,8 @@ pub fn base_rawlen(
   }
   let v = args[0]
   match v {
-    @core.VTable(t) => [@core.VInt(t.raw_len())]
-    @core.VStr(s) => [@core.VInt(s.length().to_int64())]
+    @core.VTable(t) => @core.One(@core.VInt(t.raw_len()))
+    @core.VStr(s) => @core.One(@core.VInt(s.length().to_int64()))
     _ =>
       @core.arg_error(
         state,
@@ -72,17 +72,17 @@ pub fn base_rawlen(
 pub fn base_getmetatable(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let v = @core.check_any(state, args, 1, "getmetatable")
   match @vm.metatable_of(state, v) {
     Some(mt) =>
       match mt.get_str("__metatable") {
-        @core.VNil => [@core.VTable(mt)]
-        hidden => [hidden]
+        @core.VNil => @core.One(@core.VTable(mt))
+        hidden => @core.One(hidden)
       }
-    None => [@core.VNil]
+    None => @core.One(@core.VNil)
   }
 }
 
@@ -91,8 +91,8 @@ pub fn base_getmetatable(
 pub fn base_setmetatable(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let t = @core.check_table(state, args, 1, "setmetatable")
   // The metatable must be given: `luaL_argexpected` reports a missing second
@@ -129,21 +129,21 @@ pub fn base_setmetatable(
   // A metatable with a `__mode` or a `__gc` is what makes the collector look at
   // this table every cycle.
   @core.gc_register(state, @core.VTable(t))
-  [@core.VTable(t)]
+  @core.One(@core.VTable(t))
 }
 
 ///|
 pub fn base_next(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let t = @core.check_table(state, args, 1, "next")
   let k = if args.length() < 2 { @core.VNil } else { args[1] }
   match t.next(k) {
-    @core.NextPair(k2, v2) => [k2, v2]
-    @core.NextEnd => [@core.VNil]
+    @core.NextPair(k2, v2) => @core.Two(k2, v2)
+    @core.NextEnd => @core.One(@core.VNil)
     @core.NextBadKey => @core.vm_error(state, "invalid key to 'next'")
   }
 }
@@ -153,8 +153,8 @@ pub fn base_next(
 pub fn base_pairs(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let v = @core.check_any(state, args, 1, "pairs")
   let h = @vm.metafield(state, v, "__pairs")
@@ -163,12 +163,12 @@ pub fn base_pairs(
     while res.length() < 3 {
       res.push(@core.VNil)
     }
-    return res
+    return @core.Many(res)
   }
   // No type check here: `pairs(1)` is a valid call that returns the `next`
   // triple, and the failure comes when the iterator runs (`luaB_pairs` only
   // checks that an argument was given).
-  [next_builtin(state), v, @core.VNil]
+  @core.Many([next_builtin(state), v, @core.VNil])
 }
 
 ///|
@@ -176,17 +176,17 @@ pub fn base_pairs(
 pub fn ipairs_iterator(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let t = @core.check_any(state, args, 1, "ipairs")
   let i = @core.check_int(state, args, 2, "ipairs")
   let next_i = i + 1L
   let v = @vm.index_get(state, t, @core.VInt(next_i), -1)
   if v.is_nil() {
-    [@core.VNil]
+    @core.One(@core.VNil)
   } else {
-    [@core.VInt(next_i), v]
+    @core.Two(@core.VInt(next_i), v)
   }
 }
 
@@ -195,19 +195,19 @@ pub fn ipairs_iterator(
 pub fn base_ipairs(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let v = @core.check_any(state, args, 1, "ipairs")
-  [ipairs_builtin(state), v, @core.VInt(0L)]
+  @core.Many([ipairs_builtin(state), v, @core.VInt(0L)])
 }
 
 ///|
 pub fn base_select(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   if args.length() == 0 {
     @core.arg_error(state, 1, "select", "number expected, got no value")
@@ -216,7 +216,7 @@ pub fn base_select(
   match args[0] {
     @core.VStr(s) =>
       if @core.text_of(s.data()) == "#" {
-        [@core.VInt(n.to_int64())]
+        @core.One(@core.VInt(n.to_int64()))
       } else {
         select_from(state, @core.check_int(state, args, 1, "select"), n, args)
       }
@@ -229,8 +229,8 @@ pub fn select_from(
   state : @core.LuaState,
   i : Int64,
   n : Int,
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let mut idx = i
   if idx < 0L {
     idx = n.to_int64() + idx + 1L
@@ -246,5 +246,5 @@ pub fn select_from(
     out.push(args[j])
     j = j + 1
   }
-  out
+  @core.Many(out)
 }

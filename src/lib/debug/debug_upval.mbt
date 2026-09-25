@@ -67,17 +67,18 @@ fn setupvalue_of(f : @core.Value, n : Int, value : @core.Value) -> String? {
 pub fn db_getupvalue(
   st : @core.LuaState,
   _upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   // The upvalue index is checked first and the closure second, as
   // `db_getupvalue` does, so a missing index is what gets reported.
   let n = @core.check_int(st, args, 2, "getupvalue")
   let f = @core.check_function(st, args, 1, "getupvalue")
   match upvalue_of(f, n.to_int()) {
-    Some((name, value)) => [@core.VStr(@core.LStr::of_string(name)), value]
+    Some((name, value)) =>
+      @core.Two(@core.VStr(@core.LStr::of_string(name)), value)
     // An index that is out of range answers with nothing at all, which is
     // `auxupvalue`'s `return 0` -- not with a nil.
-    None => []
+    None => @core.Nothing
   }
 }
 
@@ -85,17 +86,17 @@ pub fn db_getupvalue(
 pub fn db_setupvalue(
   st : @core.LuaState,
   _upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   // The value is required and checked first, then the index, then the closure
   // (`db_setupvalue`: `luaL_checkany(L, 3)`, then the function).
   let value = @core.check_any(st, args, 3, "setupvalue")
   let n = @core.check_int(st, args, 2, "setupvalue")
   let f = @core.check_function(st, args, 1, "setupvalue")
   match setupvalue_of(f, n.to_int(), value) {
-    Some(name) => [@core.VStr(@core.LStr::of_string(name))]
+    Some(name) => @core.One(@core.VStr(@core.LStr::of_string(name)))
     // As in `getupvalue`, an index that is out of range answers with nothing.
-    None => []
+    None => @core.Nothing
   }
 }
 
@@ -103,8 +104,8 @@ pub fn db_setupvalue(
 pub fn db_upvalueid(
   st : @core.LuaState,
   _upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   // Index first, closure second (`db_upvalueid`).
   let n = @core.check_int(st, args, 2, "upvalueid").to_int()
   let f = @core.check_function(st, args, 1, "upvalueid")
@@ -117,23 +118,23 @@ pub fn db_upvalueid(
             @core.LUserData::new_light(@core.UDUpvalTag(cell.id)),
           )
         }
-        [cell.id_tag]
+        @core.One(cell.id_tag)
       } else {
-        [@core.VNil]
+        @core.One(@core.VNil)
       }
     // A host function holds its upvalues as plain values, and the reference
     // still answers with a tag for a slot that exists.
     @core.VBuiltin(b) =>
       if n >= 1 && n <= b.upvals.length() {
-        [
+        @core.Many([
           @core.VUserData(
             @core.LUserData::new_light(@core.UDCUpvalTag(b.id, n)),
           ),
-        ]
+        ])
       } else {
-        [@core.VNil]
+        @core.One(@core.VNil)
       }
-    _ => [@core.VNil]
+    _ => @core.One(@core.VNil)
   }
 }
 
@@ -141,8 +142,8 @@ pub fn db_upvalueid(
 pub fn db_upvaluejoin(
   st : @core.LuaState,
   _upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   // Each pair is checked index first (`checkupval`), and the first pair before
   // the second.
   let n1 = @core.check_int(st, args, 2, "upvaluejoin").to_int()
@@ -158,7 +159,7 @@ pub fn db_upvaluejoin(
         @core.arg_error(st, 4, "upvaluejoin", "invalid upvalue index")
       }
       a.upvals[n1 - 1] = c.upvals[n2 - 1]
-      []
+      @core.Nothing
     }
     _ => @core.arg_error(st, 1, "upvaluejoin", "Lua function expected")
   }

@@ -11,8 +11,8 @@
 pub fn db_debug(
   st : @core.LuaState,
   _upvals : Array[@core.Value],
-  _args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  _args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   // The reference reads the standard input directly (`fgets`), so the stream is
   // taken from the io library as a plain file record rather than through the
   // handle `io.stdin` names.
@@ -31,7 +31,7 @@ pub fn db_debug(
       _ => done = true
     }
   }
-  []
+  @core.Nothing
 }
 
 ///|
@@ -64,8 +64,8 @@ fn report_line(msg : Bytes) -> Unit {
 pub fn db_setcstacklimit(
   st : @core.LuaState,
   _upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = @core.check_int(st, args, 1, "setcstacklimit")
-  [@core.VInt(@core.MAX_CCALLS.to_int64())]
+  @core.One(@core.VInt(@core.MAX_CCALLS.to_int64()))
 }

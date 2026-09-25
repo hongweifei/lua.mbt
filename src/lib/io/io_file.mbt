@@ -39,7 +39,7 @@ pub fn standard_input_file() -> @core.LFile {
 /// reports as "no value".
 fn file_expected(
   state : @core.LuaState,
-  args : Array[@core.Value],
+  args : ArrayView[@core.Value],
   n : Int,
 ) -> String {
   let got = match args.get(n - 1) {
@@ -112,7 +112,7 @@ pub fn file_metatable(state : @core.LuaState) -> @core.LTable {
 /// The handle of a file argument, rejecting closed files.
 pub fn check_open_file(
   state : @core.LuaState,
-  args : Array[@core.Value],
+  args : ArrayView[@core.Value],
   n : Int,
   fname : String,
 ) -> @core.LFile raise @core.LuaRaised {
@@ -195,8 +195,8 @@ fn close_open_file(f : @core.LFile) -> Array[@core.Value] {
 pub fn file_close(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let v = match args.get(0) {
     Some(v) => v
@@ -210,12 +210,12 @@ pub fn file_close(
     @core.runtime_error(state, "attempt to use a closed file")
   }
   if f.standard {
-    return [
+    return @core.Many([
       @core.VNil,
       @core.VStr(@core.LStr::of_string("cannot close standard file")),
-    ]
+    ])
   }
-  close_open_file(f)
+  @core.Many(close_open_file(f))
 }
 
 ///|
@@ -226,8 +226,8 @@ pub fn file_close(
 pub fn file_gc(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let v = match args.get(0) {
     Some(v) => v
@@ -240,22 +240,22 @@ pub fn file_gc(
   if !f.closed && f.handle != 0L && !f.standard {
     let _ = close_open_file(f)
   }
-  []
+  @core.Nothing
 }
 
 ///|
 pub fn file_flush(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let f = check_open_file(state, args, 1, "flush")
   let r = @host.lua_mbt_fflush(f.handle)
   if r == 0 {
-    [@core.VBool(true)]
+    @core.One(@core.VBool(true))
   } else {
-    file_result(false, f.name)
+    @core.Many(file_result(false, f.name))
   }
 }
 
@@ -263,8 +263,8 @@ pub fn file_flush(
 pub fn file_setvbuf(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let f = check_open_file(state, args, 1, "setvbuf")
   let mode = @core.check_option(
@@ -283,9 +283,9 @@ pub fn file_setvbuf(
   }
   let r = @host.lua_mbt_setvbuf(f.handle, m, size.to_int())
   if r == 0 {
-    [@core.VBool(true)]
+    @core.One(@core.VBool(true))
   } else {
-    file_result(false, f.name)
+    @core.Many(file_result(false, f.name))
   }
 }
 
@@ -293,8 +293,8 @@ pub fn file_setvbuf(
 pub fn file_tostring(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let v = @core.check_any(state, args, 1, "tostring")
   let f = match v.as_file() {
@@ -302,15 +302,17 @@ pub fn file_tostring(
     None => @core.arg_error(state, 1, "tostring", "FILE* expected")
   }
   if f.closed {
-    [@core.VStr(@core.LStr::of_string("file (closed)"))]
+    @core.One(@core.VStr(@core.LStr::of_string("file (closed)")))
   } else {
-    // The reference prints the stream's address (`io_tostring`'s `file (%p)`),
-    // and the handle *is* the `FILE*`.
-    [
-      @core.VStr(
-        @core.LStr::of_string("file (" + @core.hex_address(f.handle) + ")"),
-      ),
-    ]
+    @core.Many(
+      // The reference prints the stream's address (`io_tostring`'s `file (%p)`),
+      // and the handle *is* the `FILE*`.
+      [
+        @core.VStr(
+          @core.LStr::of_string("file (" + @core.hex_address(f.handle) + ")"),
+        ),
+      ],
+    )
   }
 }
 
@@ -323,8 +325,8 @@ pub fn file_tostring(
 pub fn file_write(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let f = check_open_file(state, args, 1, "write")
   let mut i = 1
@@ -332,11 +334,11 @@ pub fn file_write(
     let b = write_arg(state, args, i, "write")
     let n = @host.lua_mbt_fwrite(f.handle, b, b.length())
     if n != b.length() {
-      return file_result(false, f.name)
+      return @core.Many(file_result(false, f.name))
     }
     i = i + 1
   }
-  [args[0]]
+  @core.One(args[0])
 }
 
 ///|
@@ -344,7 +346,7 @@ pub fn file_write(
 /// does not fall back on `tostring`.
 fn write_arg(
   state : @core.LuaState,
-  args : Array[@core.Value],
+  args : ArrayView[@core.Value],
   n : Int,
   fname : String,
 ) -> Bytes raise @core.LuaRaised {
@@ -359,8 +361,8 @@ fn write_arg(
 pub fn file_seek(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let f = check_open_file(state, args, 1, "seek")
   let whence = @core.check_option(
@@ -379,10 +381,10 @@ pub fn file_seek(
   }
   let r = @host.lua_mbt_fseek(f.handle, offset, w)
   if r != 0.0 {
-    return file_result(false, f.name)
+    return @core.Many(file_result(false, f.name))
   }
   let pos = @host.lua_mbt_ftell(f.handle)
-  [@core.VInt(pos)]
+  @core.One(@core.VInt(pos))
 }
 
 ///|----------------------------------------------------------------

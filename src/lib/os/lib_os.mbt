@@ -4,23 +4,23 @@
 pub fn os_clock(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = state
   let _ = upvals
   let _ = args
-  [@core.VNum(@host.lua_mbt_clock())]
+  @core.One(@core.VNum(@host.lua_mbt_clock()))
 }
 
 ///|
 pub fn os_time(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   if args.length() == 0 || args[0].is_nil() {
-    return [@core.VInt(@host.lua_mbt_time())]
+    return @core.One(@core.VInt(@host.lua_mbt_time()))
   }
   let t = @core.check_table(state, args, 1, "time")
   // Year, month and day have no default, so a date table missing one is
@@ -51,7 +51,7 @@ pub fn os_time(
       state, "time result cannot be represented in this installation",
     )
   }
-  [@core.VInt(r)]
+  @core.One(@core.VInt(r))
 }
 
 ///|
@@ -84,15 +84,15 @@ pub fn field_int(
 pub fn os_difftime(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   // Both timestamps are required, and both are integers: `l_checktime` goes
   // through `luaL_checkinteger`, so a fractional value is refused rather than
   // truncated.  The result is a float.
   let a = @core.check_int(state, args, 1, "difftime")
   let b = @core.check_int(state, args, 2, "difftime")
-  [@core.VNum(@host.lua_mbt_diff_seconds(a, b))]
+  @core.One(@core.VNum(@host.lua_mbt_diff_seconds(a, b)))
 }
 
 ///|
@@ -101,8 +101,8 @@ pub fn os_difftime(
 pub fn os_date(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let mut fmt = if args.length() >= 1 && !args[0].is_nil() {
     @core.check_str(state, args, 1, "date").data()
@@ -127,7 +127,7 @@ pub fn os_date(
     break_table = true
   }
   if break_table {
-    return [date_table(state, t, utc)]
+    return @core.One(date_table(state, t, utc))
   }
   check_date_format(state, fmt)
   let is_local = if utc { 0 } else { 1 }
@@ -152,7 +152,7 @@ pub fn os_date(
     }
   }
   let len = if n < 0 { 0 } else { n }
-  [@core.VStr(@core.LStr::of_bytes(@core.bytes_slice(buf, 0, len)))]
+  @core.One(@core.VStr(@core.LStr::of_bytes(@core.bytes_slice(buf, 0, len))))
 }
 
 ///|
@@ -286,13 +286,13 @@ pub fn os_env(name : String) -> Bytes? {
 pub fn os_getenv(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let name = @core.check_str(state, args, 1, "getenv")
   match os_env(@core.text_of(name.data())) {
-    Some(v) => [@core.VStr(@core.LStr::of_bytes(v))]
-    None => [@core.VNil]
+    Some(v) => @core.One(@core.VStr(@core.LStr::of_bytes(v)))
+    None => @core.One(@core.VNil)
   }
 }
 
@@ -300,13 +300,13 @@ pub fn os_getenv(
 pub fn os_remove(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let name = @core.check_str(state, args, 1, "remove")
   let r = @host.lua_mbt_remove(name.data())
   if r != 0 {
-    return [
+    return @core.Many([
       @core.VNil,
       @core.VStr(
         @core.LStr::of_bytes(
@@ -318,37 +318,37 @@ pub fn os_remove(
         ),
       ),
       @core.VInt(@host.lua_mbt_errno().to_int64()),
-    ]
+    ])
   }
-  [@core.VBool(true)]
+  @core.One(@core.VBool(true))
 }
 
 ///|
 pub fn os_rename(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let from = @core.check_str(state, args, 1, "rename")
   let to = @core.check_str(state, args, 2, "rename")
   let r = @host.lua_mbt_rename(from.data(), to.data())
   if r != 0 {
-    return [
+    return @core.Many([
       @core.VNil,
       @core.VStr(@core.LStr::of_bytes(@core.errno_message())),
       @core.VInt(@host.lua_mbt_errno().to_int64()),
-    ]
+    ])
   }
-  [@core.VBool(true)]
+  @core.One(@core.VBool(true))
 }
 
 ///|
 pub fn os_tmpname(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let _ = args
   let buf = Bytes::new(512)
@@ -357,7 +357,7 @@ pub fn os_tmpname(
     @core.runtime_error(state, "unable to generate a unique filename")
   }
   let len = @strlib.c_string_length(buf)
-  [@core.VStr(@core.LStr::of_bytes(@core.bytes_slice(buf, 0, len)))]
+  @core.One(@core.VStr(@core.LStr::of_bytes(@core.bytes_slice(buf, 0, len))))
 }
 
 ///|
@@ -366,18 +366,18 @@ pub fn os_tmpname(
 pub fn os_execute(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   // Without a command the answer is just whether a shell is available, and
   // with one it is `luaL_execresult`'s triple -- whose first value is *nil*,
   // not false, when the command failed.
   if args.length() == 0 || args[0].is_nil() {
-    return [@core.VBool(@host.lua_mbt_system_available() != 0)]
+    return @core.One(@core.VBool(@host.lua_mbt_system_available() != 0))
   }
   let cmd = @core.check_str(state, args, 1, "execute")
   let r = @host.lua_mbt_system(cmd.data())
-  [
+  @core.Many([
     if r == 0 {
       @core.VBool(true)
     } else {
@@ -385,7 +385,7 @@ pub fn os_execute(
     },
     @core.VStr(@core.LStr::of_string("exit")),
     @core.VInt(r.to_int64()),
-  ]
+  ])
 }
 
 ///|
@@ -394,26 +394,28 @@ pub fn os_execute(
 pub fn os_exit(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let code = @core.opt_int(state, args, 1, "exit", 0L)
   let _ = args
   @core.host_exit(code.to_int())
-  []
+  @core.Nothing
 }
 
 ///|
 pub fn os_setlocale(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   if args.length() == 0 || args[0].is_nil() {
     let buf = Bytes::new(256)
     let n = @host.lua_mbt_getlocale(buf, 256)
-    return [@core.VStr(@core.LStr::of_bytes(@core.bytes_slice(buf, 0, n)))]
+    return @core.One(
+      @core.VStr(@core.LStr::of_bytes(@core.bytes_slice(buf, 0, n))),
+    )
   }
   let locale = @core.check_str(state, args, 1, "setlocale")
   let cats : Array[String] = [
@@ -437,12 +439,12 @@ pub fn os_setlocale(
   }
   let ok = @host.lua_mbt_setlocale(locale.data(), category)
   if ok == 0 {
-    return [@core.VNil]
+    return @core.One(@core.VNil)
   }
   @core.bump_locale_generation()
   let buf = Bytes::new(256)
   let n = @host.lua_mbt_getlocale(buf, 256)
-  [@core.VStr(@core.LStr::of_bytes(@core.bytes_slice(buf, 0, n)))]
+  @core.One(@core.VStr(@core.LStr::of_bytes(@core.bytes_slice(buf, 0, n))))
 }
 
 ///|

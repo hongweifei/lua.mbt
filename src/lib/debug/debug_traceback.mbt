@@ -83,8 +83,8 @@ fn traceback_line(
 pub fn db_traceback(
   st : @core.LuaState,
   _upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let (thread, arg) = get_thread(st, args)
   let msg = arg_or_nil(args, arg)
   // Without a level, a trace of the running thread leaves this call itself out
@@ -97,20 +97,20 @@ pub fn db_traceback(
   // number into the text of the message).
   match msg {
     @core.VNil =>
-      [
+      @core.Many([
         @core.VStr(
           @core.LStr::of_string(traceback_body(st, thread, "", start_level)),
         ),
-      ]
+      ])
     @core.VStr(_) | @core.VInt(_) | @core.VNum(_) =>
-      [
+      @core.Many([
         @core.VStr(
           @core.LStr::of_string(
             traceback_body(st, thread, error_tostring(msg), start_level),
           ),
         ),
-      ]
-    v => [v]
+      ])
+    v => @core.One(v)
   }
 }
 

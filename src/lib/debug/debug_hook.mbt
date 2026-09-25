@@ -41,8 +41,8 @@ fn hook_mask_str(mask : Int) -> String {
 pub fn db_sethook(
   st : @core.LuaState,
   _upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let (thread, arg) = get_thread(st, args)
   let f = arg_or_nil(args, arg)
   // Turning hooks off is a call with no hook function, and nothing else is
@@ -73,7 +73,7 @@ pub fn db_sethook(
   }
   thread.hook_count = thread.hook_base_count
   @vm.set_traps(thread)
-  []
+  @core.Nothing
 }
 
 ///|
@@ -82,17 +82,17 @@ pub fn db_sethook(
 pub fn db_gethook(
   st : @core.LuaState,
   _upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = st
   let (thread, _arg) = get_thread(st, args)
   match thread.hook_fn {
-    @core.VNil => [@core.VNil]
+    @core.VNil => @core.One(@core.VNil)
     _ =>
-      [
+      @core.Many([
         thread.hook_fn,
         @core.VStr(@core.LStr::of_string(hook_mask_str(thread.hook_mask))),
         @core.VInt(thread.hook_base_count.to_int64()),
-      ]
+      ])
   }
 }

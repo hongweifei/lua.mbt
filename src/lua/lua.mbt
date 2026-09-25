@@ -93,13 +93,13 @@ fn error_object_message(st : @core.LuaState, e : @core.Value) -> String {
 fn script_msghandler(
   st : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let e = if args.length() > 0 { args[0] } else { @core.VNil }
   match e {
     @core.VStr(s) =>
-      [
+      @core.Many([
         @core.VStr(
           @core.LStr::of_string(
             @debuglib.traceback_body(
@@ -110,7 +110,7 @@ fn script_msghandler(
             ),
           ),
         ),
-      ]
+      ])
     _ => {
       let h = @vm.metafield(st, e, "__tostring")
       if @vm.is_callable(h) {
@@ -121,15 +121,21 @@ fn script_msghandler(
         match called {
           Some(res) =>
             match @vm.nth_or_nil(res, 0) {
-              @core.VStr(s) => [@core.VStr(s)]
+              @core.VStr(s) => @core.One(@core.VStr(s))
               _ =>
-                [@core.VStr(@core.LStr::of_string(error_object_message(st, e)))]
+                @core.One(
+                  @core.VStr(@core.LStr::of_string(error_object_message(st, e))),
+                )
             }
           None =>
-            [@core.VStr(@core.LStr::of_string(error_object_message(st, e)))]
+            @core.One(
+              @core.VStr(@core.LStr::of_string(error_object_message(st, e))),
+            )
         }
       } else {
-        [@core.VStr(@core.LStr::of_string(error_object_message(st, e)))]
+        @core.One(
+          @core.VStr(@core.LStr::of_string(error_object_message(st, e))),
+        )
       }
     }
   }
@@ -143,11 +149,11 @@ fn script_msghandler(
 fn pmain_body(
   st : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let f = if args.length() > 0 { args[0] } else { @core.VNil }
-  @vm.call_value(st, f, args[1:].to_owned(), -1)
+  @core.Many(@vm.call_value(st, f, args[1:].to_owned(), -1))
 }
 
 ///|

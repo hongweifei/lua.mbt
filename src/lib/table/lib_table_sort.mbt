@@ -182,8 +182,8 @@ fn partition(
 pub fn tbl_sort(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let t = checktab(
     state,
@@ -208,5 +208,5 @@ pub fn tbl_sort(
     let ss : SortState = { state, cmp, table: t, }
     aux_sort(ss, 1L, n)
   }
-  []
+  @core.Nothing
 }

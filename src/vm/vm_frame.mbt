@@ -169,25 +169,21 @@ pub fn push_frame(
         enter_protection(st, thread)
         return
       }
-      // The argument list is made at its final size: `push` would grow the
-      // array from nothing, reallocating once per argument, and this is the
-      // path of every call into the standard library.
-      let args : Array[@core.Value] = Array::make(nargs, @core.VNil)
-      let mut i = 0
-      while i < nargs {
-        args[i] = thread.stack[func_slot + 1 + i]
-        i = i + 1
-      }
+      // The arguments stay where the caller put them.  The body is handed a
+      // view of the registers above the function slot, so a call into the
+      // standard library copies nothing to be given its own arguments.
+      thread.ensure_stack(func_slot + 1 + nargs)
       let frame : @core.Frame = {
         pc: 0,
         func_slot,
         base: func_slot + 1,
+        nargs,
         ret_slot,
         nres_wanted: want,
         top: func_slot + 1,
         closure: None,
         builtin: Some(b),
-        varargs: args,
+        varargs: @core.no_values,
         prots: @core.no_prots,
         tbc: @core.no_tbc,
         tailcalls: 0,
@@ -239,6 +235,7 @@ pub fn push_frame(
         pc: 0,
         func_slot,
         base,
+        nargs: 0,
         ret_slot,
         nres_wanted: want,
         top: base + cl.proto.maxstack,
@@ -341,6 +338,7 @@ pub fn push_protection_frame(
     pc: 0,
     func_slot,
     base: func_slot + 1,
+    nargs,
     ret_slot: func_slot,
     nres_wanted: want,
     top: func_slot + 1,
@@ -666,6 +664,33 @@ pub fn Results::to_list(
       }
       out
     }
+  }
+}
+
+///|
+/// Where a builtin's answer goes.
+///
+/// The small answers are put in the registers the call already owns -- the
+/// window its arguments came from -- so a standard library call answers without
+/// building a list.  A list the call built is passed on as it stands.
+fn builtin_answers(
+  thread : @core.LThread,
+  fr : @core.Frame,
+  answer : @core.BuiltinResult,
+) -> Results {
+  match answer {
+    @core.Nothing => OnStack(fr.base, 0)
+    @core.One(v) => {
+      thread.stack[fr.base] = v
+      OnStack(fr.base, 1)
+    }
+    @core.Two(a, b) => {
+      thread.ensure_stack(fr.base + 2)
+      thread.stack[fr.base] = a
+      thread.stack[fr.base + 1] = b
+      OnStack(fr.base, 2)
+    }
+    @core.Many(list) => Listed(list)
   }
 }
 

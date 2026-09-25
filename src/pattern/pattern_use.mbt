@@ -109,9 +109,9 @@ pub fn plain_find(src : Bytes, init : Int, p : Bytes) -> Int {
 /// `string.find` and `string.match`.
 pub fn str_find_aux(
   state : @core.LuaState,
-  args : Array[@core.Value],
+  args : ArrayView[@core.Value],
   want_find : Bool,
-) -> Array[@core.Value] raise @core.LuaRaised {
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let fname = if want_find { "find" } else { "match" }
   let s = @core.check_str(state, args, 1, fname)
   let p = @core.check_str(state, args, 2, fname)
@@ -122,17 +122,17 @@ pub fn str_find_aux(
     src.length(),
   )
   if init > src.length() {
-    return [@core.VNil]
+    return @core.One(@core.VNil)
   }
   if want_find && (@core.is_truthy_arg(state, args, 4) || pattern_is_plain(pat)) {
     let found = plain_find(src, init, pat)
     if found >= 0 {
-      return [
+      return @core.Two(
         @core.VInt((found + 1).to_int64()),
         @core.VInt((found + pat.length()).to_int64()),
-      ]
+      )
     }
-    return [@core.VNil]
+    return @core.One(@core.VNil)
   }
   let ms = MatchState::new(src, pat)
   let mut pstart = 0
@@ -157,9 +157,9 @@ pub fn str_find_aux(
               out.push(v)
             }
           }
-          return out
+          return @core.Many(out)
         }
-        return push_captures(ms, si, e)
+        return @core.Many(push_captures(ms, si, e))
       }
       None => ()
     }
@@ -168,7 +168,7 @@ pub fn str_find_aux(
     }
     si = si + 1
   }
-  [@core.VNil]
+  @core.One(@core.VNil)
 }
 
 ///|

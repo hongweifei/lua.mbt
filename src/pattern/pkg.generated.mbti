@@ -78,7 +78,7 @@ pub fn single_match(MatchState, Int, Int, Int) -> Bool
 
 pub fn start_capture(MatchState, Int, Int, Int) -> Int? raise @core.LuaRaised
 
-pub fn str_find_aux(@core.LuaState, Array[@core.Value], Bool) -> Array[@core.Value] raise @core.LuaRaised
+pub fn str_find_aux(@core.LuaState, ArrayView[@core.Value], Bool) -> @core.BuiltinResult raise @core.LuaRaised
 
 // Errors
 

@@ -6,8 +6,8 @@
 pub fn base_print(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let parts : Array[Bytes] = []
   let mut i = 0
@@ -21,29 +21,29 @@ pub fn base_print(
   parts.push(@core.bytes_of("\n"))
   @core.write_stdout(@core.bytes_concat(parts))
   @core.flush_stdout()
-  []
+  @core.Nothing
 }
 
 ///|
 pub fn base_type(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let v = @core.check_any(state, args, 1, "type")
-  [@core.VStr(@core.LStr::of_string(v.type_name()))]
+  @core.One(@core.VStr(@core.LStr::of_string(v.type_name())))
 }
 
 ///|
 pub fn base_tostring(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let v = @core.check_any(state, args, 1, "tostring")
-  [@core.VStr(@core.LStr::of_bytes(@vm.to_string(state, v)))]
+  @core.One(@core.VStr(@core.LStr::of_bytes(@vm.to_string(state, v))))
 }
 
 ///|
@@ -51,22 +51,22 @@ pub fn base_tostring(
 pub fn base_tonumber(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   if args.length() < 2 || args[1].is_nil() {
     let v = @core.check_any(state, args, 1, "tonumber")
     match v {
-      @core.VInt(_) | @core.VNum(_) => return [v]
+      @core.VInt(_) | @core.VNum(_) => return @core.One(v)
       @core.VStr(s) =>
         match @core.lua_str2num(s.data()) {
-          Some(@core.NInt(i)) => return [@core.VInt(i)]
-          Some(@core.NFloat(d)) => return [@core.VNum(d)]
-          None => return [@core.VNil]
+          Some(@core.NInt(i)) => return @core.One(@core.VInt(i))
+          Some(@core.NFloat(d)) => return @core.One(@core.VNum(d))
+          None => return @core.One(@core.VNil)
         }
       _ => {
         let _ = @core.check_any(state, args, 1, "tonumber")
-        return [@core.VNil]
+        return @core.One(@core.VNil)
       }
     }
   }
@@ -93,8 +93,8 @@ pub fn base_tonumber(
     @core.arg_error(state, 2, "tonumber", "base out of range")
   }
   match str_to_int_base(text.data(), base.to_int()) {
-    Some(n) => [@core.VInt(n)]
-    None => [@core.VNil]
+    Some(n) => @core.One(@core.VInt(n))
+    None => @core.One(@core.VNil)
   }
 }
 

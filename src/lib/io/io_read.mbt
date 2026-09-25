@@ -190,9 +190,9 @@ fn read_outcome(
 pub fn read_from_file(
   state : @core.LuaState,
   f : @core.LFile,
-  formats : Array[@core.Value],
+  formats : ArrayView[@core.Value],
   first : Int,
-) -> Array[@core.Value] raise @core.LuaRaised {
+) -> @core.BuiltinResult raise @core.LuaRaised {
   // The error indicator belongs to the stream, not to this call: clearing it
   // first is what keeps an earlier failure from being reported again by a read
   // that succeeded (`clearerr` at the top of `g_read`).
@@ -200,7 +200,7 @@ pub fn read_from_file(
   let out : Array[@core.Value] = []
   if formats.length() == 0 {
     out.push(read_line_from(f, false))
-    return read_outcome(f, out)
+    return @core.Many(read_outcome(f, out))
   }
   let mut i = 0
   while i < formats.length() {
@@ -253,20 +253,20 @@ pub fn read_from_file(
     }
     let last = out[out.length() - 1]
     if last.is_nil() {
-      return read_outcome(f, out)
+      return @core.Many(read_outcome(f, out))
     }
     i = i + 1
   }
   let _ = state
-  read_outcome(f, out)
+  @core.Many(read_outcome(f, out))
 }
 
 ///|
 pub fn file_read(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let f = check_open_file(state, args, 1, "read")
   let rest : Array[@core.Value] = []
@@ -284,13 +284,13 @@ pub fn file_read(
 pub fn lines_iterator(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = args
   let filev = upvals[0]
   let f = match filev.as_file() {
     Some(f) => f
-    None => return [@core.VNil]
+    None => return @core.One(@core.VNil)
   }
   let formats : Array[@core.Value] = []
   let mut i = 1
@@ -299,12 +299,12 @@ pub fn lines_iterator(
     i = i + 1
   }
   let res = read_from_file(state, f, formats, 1)
-  if res.length() > 0 && res[0].is_nil() {
+  match res {
     // The file is done: `io_readline` answers with no values at all, not with
     // one nil, which `select("#", it())` can tell apart.
-    return []
+    @core.One(@core.VNil) => @core.Nothing
+    _ => res
   }
-  res
 }
 
 ///|
@@ -312,13 +312,13 @@ pub fn lines_iterator(
 pub fn io_lines_iterator(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = args
   let filev = upvals[0]
   let f = match filev.as_file() {
     Some(f) => f
-    None => return [@core.VNil]
+    None => return @core.One(@core.VNil)
   }
   let formats : Array[@core.Value] = []
   let mut i = 1
@@ -327,26 +327,28 @@ pub fn io_lines_iterator(
     i = i + 1
   }
   let res = read_from_file(state, f, formats, 1)
-  if res.length() > 0 && res[0].is_nil() {
-    if !f.closed && !f.standard {
-      let _ = @host.lua_mbt_fclose(f.handle)
-      f.closed = true
-      f.handle = 0L
+  match res {
+    @core.One(@core.VNil) => {
+      if !f.closed && !f.standard {
+        let _ = @host.lua_mbt_fclose(f.handle)
+        f.closed = true
+        f.handle = 0L
+      }
+      // No values, not one nil: the loop that owns this file closes it through
+      // the fourth value `io.lines` hands out, and `select("#", it())` sees the
+      // difference (`io_readline` answers the same way).
+      @core.Nothing
     }
-    // No values, not one nil: the loop that owns this file closes it through
-    // the fourth value `io.lines` hands out, and `select("#", it())` sees the
-    // difference (`io_readline` answers the same way).
-    return []
+    _ => res
   }
-  res
 }
 
 ///|
 pub fn file_lines(
   state : @core.LuaState,
   upvals : Array[@core.Value],
-  args : Array[@core.Value],
-) -> Array[@core.Value] raise @core.LuaRaised {
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let _ = check_open_file(state, args, 1, "lines")
   let up : Array[@core.Value] = [args[0]]
@@ -355,7 +357,7 @@ pub fn file_lines(
     up.push(args[i])
     i = i + 1
   }
-  [
+  @core.Many([
     @core.VBuiltin(
       @core.make_builtin(
         "lines_iterator",
@@ -365,5 +367,5 @@ pub fn file_lines(
         up,
       ),
     ),
-  ]
+  ])
 }
