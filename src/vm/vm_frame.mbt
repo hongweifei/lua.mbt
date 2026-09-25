@@ -225,7 +225,10 @@ pub fn push_frame(
           i = i + 1
         }
       }
-      let va : Array[@core.Value] = if cl.proto.is_vararg {
+      // Only a vararg function that was given more than its named parameters
+      // has anything to collect: an empty list is the shared one, so a call
+      // that passes exactly the named parameters allocates nothing.
+      let va : Array[@core.Value] = if cl.proto.is_vararg && nargs > np {
         let out : Array[@core.Value] = []
         let mut j = np
         while j < nargs {
