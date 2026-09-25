@@ -253,7 +253,7 @@ pub fn source_for_message(source : Bytes) -> String {
 /// empty string, which the reference reports as `[string ""]`, while a stripped
 /// one is reported as `?`.
 pub fn no_source() -> LStr {
-  LStr::of_bytes(b" ")
+  LStr::of_bytes(b"\x00")
 }
 
 ///|
