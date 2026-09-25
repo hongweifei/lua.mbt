@@ -182,7 +182,7 @@ pub fn ipairs_iterator(
   let t = @core.check_any(state, args, 1, "ipairs")
   let i = @core.check_int(state, args, 2, "ipairs")
   let next_i = i + 1L
-  let v = @vm.gettable(state, t, @core.VInt(next_i), -1)
+  let v = @vm.index_get(state, t, @core.VInt(next_i), -1)
   if v.is_nil() {
     [@core.VNil]
   } else {

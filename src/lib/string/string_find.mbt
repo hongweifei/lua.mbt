@@ -205,7 +205,7 @@ pub fn str_gsub(
                 // The table is consulted through `lua_gettable`, so an
                 // `__index` metamethod can supply the replacement.
                 @core.VTable(_) =>
-                  @vm.gettable(
+                  @vm.index_get(
                     state,
                     repl,
                     if captures.length() > 0 {

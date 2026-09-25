@@ -132,6 +132,12 @@ pub fn LTable::get_str(self : LTable, name : String) -> Value {
 }
 
 ///|
+/// Raw read with an interned string key, for a caller that already holds one.
+pub fn LTable::get_lstr(self : LTable, name : LStr) -> Value {
+  self.hash_get(KStr(name))
+}
+
+///|
 /// Raw read with an integer key.
 pub fn LTable::get_int_key(self : LTable, i : Int64) -> Value {
   self.get_int(i)

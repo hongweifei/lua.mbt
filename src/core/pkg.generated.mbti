@@ -654,6 +654,7 @@ pub fn LTable::count_entries(Self) -> Int
 pub fn LTable::get(Self, Value) -> Value
 pub fn LTable::get_int(Self, Int64) -> Value
 pub fn LTable::get_int_key(Self, Int64) -> Value
+pub fn LTable::get_lstr(Self, LStr) -> Value
 pub fn LTable::get_str(Self, String) -> Value
 pub fn LTable::hash_delete(Self, Key) -> Unit
 pub fn LTable::hash_find(Self, Key) -> Int

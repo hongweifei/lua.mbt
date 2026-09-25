@@ -192,18 +192,18 @@ pub fn execute(
           @core.OP_GETTABLE => {
             let t = thread.stack[base + inst.b]
             let k = rk_value(proto, thread, base, inst.c)
-            thread.stack[base + inst.a] = gettable(st, t, k, base + inst.b)
+            thread.stack[base + inst.a] = index_get(st, t, k, base + inst.b)
           }
           @core.OP_SETTABLE => {
             let t = thread.stack[base + inst.a]
             let k = rk_value(proto, thread, base, inst.b)
             let v = rk_value(proto, thread, base, inst.c)
-            settable(st, t, k, v, base + inst.a)
+            index_set(st, t, k, v, base + inst.a)
           }
           @core.OP_GETTABUP => {
             let t = cl.upvals[inst.b].get()
             let k = rk_value(proto, thread, base, inst.c)
-            thread.stack[base + inst.a] = gettable(
+            thread.stack[base + inst.a] = index_get(
               st,
               t,
               k,
@@ -214,7 +214,7 @@ pub fn execute(
             let t = cl.upvals[inst.a].get()
             let k = rk_value(proto, thread, base, inst.b)
             let v = rk_value(proto, thread, base, inst.c)
-            settable(st, t, k, v, @core.up_src(inst.a))
+            index_set(st, t, k, v, @core.up_src(inst.a))
           }
           @core.OP_NEWTABLE => {
             // The reference raises the live limit to the register it is about
@@ -231,7 +231,7 @@ pub fn execute(
             let t = thread.stack[base + inst.b]
             thread.stack[base + inst.a + 1] = t
             let k = rk_value(proto, thread, base, inst.c)
-            thread.stack[base + inst.a] = gettable(st, t, k, base + inst.b)
+            thread.stack[base + inst.a] = index_get(st, t, k, base + inst.b)
           }
           @core.OP_ADD
           | @core.OP_SUB

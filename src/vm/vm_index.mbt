@@ -196,6 +196,68 @@ fn charge_growth(
 }
 
 ///|
+/// `t[k]`, with the answer the table itself gives taken directly.  Two things
+/// are saved on the common path: an integer or a string key is read as it is,
+/// without being normalised into a `Key` first, and a key the table holds ends
+/// the matter right there -- a metatable only ever answers for a key it does
+/// not (the reference's `luaV_fastget`).
+pub fn index_get(
+  st : @core.LuaState,
+  t : @core.Value,
+  k : @core.Value,
+  src : Int,
+) -> @core.Value raise @core.LuaRaised {
+  match t {
+    @core.VTable(tbl) => {
+      let v = match k {
+        @core.VInt(i) => tbl.get_int(i)
+        @core.VStr(s) => tbl.get_lstr(s)
+        _ => @core.VNil
+      }
+      if v.is_nil() {
+        gettable(st, t, k, src)
+      } else {
+        v
+      }
+    }
+    _ => gettable(st, t, k, src)
+  }
+}
+
+///|
+/// `t[k] = v` for a table with no metatable, which is most stores: no
+/// `__newindex` can apply to it, so nothing has to be looked up before the store
+/// and nothing charged for it unless the table actually grew.  False means the
+/// general path has to run instead -- there is a metatable, which the reference
+/// consults for a key the table does not hold, or the key is one no table can
+/// hold.
+pub fn index_set(
+  st : @core.LuaState,
+  t : @core.Value,
+  k : @core.Value,
+  v : @core.Value,
+  src : Int,
+) -> Unit raise @core.LuaRaised {
+  match t {
+    @core.VTable(tbl) =>
+      if tbl.meta is None {
+        let before = @core.table_bytes(tbl)
+        match k {
+          @core.VInt(i) => tbl.set_int(i, v)
+          @core.VStr(s) => tbl.set_lstr(s, v)
+          _ => if !tbl.set(k, v) { invalid_key_error(st, k) }
+        }
+        if @core.table_bytes(tbl) > before {
+          charge_growth(st, tbl, before)
+        }
+      } else {
+        settable(st, t, k, v, src)
+      }
+    _ => settable(st, t, k, v, src)
+  }
+}
+
+///|
 /// Writes `t[k] = v`, following `__newindex` chains.
 pub fn settable(
   st : @core.LuaState,

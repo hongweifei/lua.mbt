@@ -98,7 +98,7 @@ fn geti(
   t : @core.Value,
   k : Int64,
 ) -> @core.Value raise @core.LuaRaised {
-  @vm.gettable(state, t, @core.VInt(k), @core.src_none)
+  @vm.index_get(state, t, @core.VInt(k), @core.src_none)
 }
 
 ///|
@@ -109,7 +109,7 @@ fn seti(
   k : Int64,
   v : @core.Value,
 ) -> Unit raise @core.LuaRaised {
-  @vm.settable(state, t, @core.VInt(k), v, @core.src_none)
+  @vm.index_set(state, t, @core.VInt(k), v, @core.src_none)
 }
 
 ///|

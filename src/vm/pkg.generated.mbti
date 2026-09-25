@@ -82,6 +82,10 @@ pub fn hook_return_event(@core.LuaState, @core.LThread, Int, Int) -> Unit raise 
 
 pub fn hook_tick(@core.LuaState, @core.LThread, @core.Frame, Int) -> Unit raise @core.LuaRaised
 
+pub fn index_get(@core.LuaState, @core.Value, @core.Value, Int) -> @core.Value raise @core.LuaRaised
+
+pub fn index_set(@core.LuaState, @core.Value, @core.Value, @core.Value, Int) -> Unit raise @core.LuaRaised
+
 pub fn int_floor_div(@core.LuaState, Int64, Int64) -> Int64 raise @core.LuaRaised
 
 pub fn int_mod(@core.LuaState, Int64, Int64) -> Int64 raise @core.LuaRaised
