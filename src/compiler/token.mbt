@@ -263,36 +263,45 @@ pub fn token_name(kind : Int) -> String {
 }
 
 ///|
-/// The reserved words, in the order the language defines them.
-pub let keywords : Array[(String, Int)] = [
-  ("and", TK_AND),
-  ("break", TK_BREAK),
-  ("do", TK_DO),
-  ("else", TK_ELSE),
-  ("elseif", TK_ELSEIF),
-  ("end", TK_END),
-  ("false", TK_FALSE),
-  ("for", TK_FOR),
-  ("function", TK_FUNCTION),
-  ("goto", TK_GOTO),
-  ("if", TK_IF),
-  ("in", TK_IN),
-  ("local", TK_LOCAL),
-  ("nil", TK_NIL),
-  ("not", TK_NOT),
-  ("or", TK_OR),
-  ("repeat", TK_REPEAT),
-  ("return", TK_RETURN),
-  ("then", TK_THEN),
-  ("true", TK_TRUE),
-  ("until", TK_UNTIL),
-  ("while", TK_WHILE),
+/// The reserved words, with their text already in the bytes the lexer compares
+/// against.  Converting a string literal on every comparison would allocate
+/// once per keyword per identifier -- twenty-odd allocations to recognise the
+/// name in front of it -- so the bytes are built once, here.
+let keywords : Array[(Bytes, Int)] = [
+  (@core.bytes_of("and"), TK_AND),
+  (@core.bytes_of("break"), TK_BREAK),
+  (@core.bytes_of("do"), TK_DO),
+  (@core.bytes_of("else"), TK_ELSE),
+  (@core.bytes_of("elseif"), TK_ELSEIF),
+  (@core.bytes_of("end"), TK_END),
+  (@core.bytes_of("false"), TK_FALSE),
+  (@core.bytes_of("for"), TK_FOR),
+  (@core.bytes_of("function"), TK_FUNCTION),
+  (@core.bytes_of("goto"), TK_GOTO),
+  (@core.bytes_of("if"), TK_IF),
+  (@core.bytes_of("in"), TK_IN),
+  (@core.bytes_of("local"), TK_LOCAL),
+  (@core.bytes_of("nil"), TK_NIL),
+  (@core.bytes_of("not"), TK_NOT),
+  (@core.bytes_of("or"), TK_OR),
+  (@core.bytes_of("repeat"), TK_REPEAT),
+  (@core.bytes_of("return"), TK_RETURN),
+  (@core.bytes_of("then"), TK_THEN),
+  (@core.bytes_of("true"), TK_TRUE),
+  (@core.bytes_of("until"), TK_UNTIL),
+  (@core.bytes_of("while"), TK_WHILE),
 ]
 
 ///|
 pub fn keyword_kind(text : Bytes) -> Int {
+  // Every keyword is between two and eight bytes, so comparing the length first
+  // leaves at most a few candidates for a name that is not a keyword.
+  let n = text.length()
+  if n < 2 || n > 8 {
+    return TK_NAME
+  }
   for pair in keywords {
-    if @core.bytes_of(pair.0) == text {
+    if pair.0.length() == n && pair.0 == text {
       return pair.1
     }
   }

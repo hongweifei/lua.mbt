@@ -217,34 +217,29 @@ pub fn Lexer::save_and_next(self : Lexer, buf : Buffer) -> Unit {
 /// first, then the text is converted; a numeral that does not convert is a
 /// lexical error, which is why `1..2` is rejected rather than read as `1 .. 2`.
 pub fn Lexer::read_numeral(self : Lexer) -> Bytes raise @core.LuaRaised {
-  let buf = Buffer::Buffer()
+  // As in `read_name`: the numeral is recognised by consuming bytes, and cut
+  // out of the source once at the end rather than copied as it goes.
+  let start = self.pos
   let first = self.current
   let mut hex = false
-  buf.write_byte(self.current.to_byte())
   self.next()
   if first == 48 && (self.current == 120 || self.current == 88) {
     hex = true
-    buf.write_byte(self.current.to_byte())
     self.next()
   }
   while true {
     let c = self.current
     if !hex && (c == 101 || c == 69) {
-      buf.write_byte(c.to_byte())
       self.next()
       if self.current == 43 || self.current == 45 {
-        buf.write_byte(self.current.to_byte())
         self.next()
       }
     } else if hex && (c == 112 || c == 80) {
-      buf.write_byte(c.to_byte())
       self.next()
       if self.current == 43 || self.current == 45 {
-        buf.write_byte(self.current.to_byte())
         self.next()
       }
     } else if @core.is_hex_digit_byte(c) || c == 46 {
-      buf.write_byte(c.to_byte())
       self.next()
     } else {
       break
@@ -253,19 +248,20 @@ pub fn Lexer::read_numeral(self : Lexer) -> Bytes raise @core.LuaRaised {
   // A numeral touching a letter absorbs one letter, forcing the malformed
   // number error, as `read_numeral` in the reference scanner does.
   if @core.is_alpha_byte(self.current) || self.current == 95 {
-    buf.write_byte(self.current.to_byte())
     self.next()
   }
-  buf.to_bytes()
+  self.slice(start, self.pos - start)
 }
 
 ///|
 pub fn Lexer::read_name(self : Lexer) -> Bytes {
-  let buf = Buffer::Buffer()
+  // The bytes are taken from the source once, at the end, instead of being
+  // copied a byte at a time into a buffer of their own.
+  let start = self.pos
   while @core.is_alnum_byte(self.current) || self.current == 95 {
-    self.save_and_next(buf)
+    self.next()
   }
-  buf.to_bytes()
+  self.slice(start, self.pos - start)
 }
 
 ///|----------------------------------------------------------------
@@ -495,17 +491,40 @@ pub fn Lexer::symbol_of(_self : Lexer, c : Int) -> Int {
 }
 
 ///|
+/// The spelling of every token kind, as bytes and as an interned string.  A
+/// symbol is scanned far more often than it is printed, so the two are built
+/// once here instead of once per token.
+fn build_symbol_spelling() -> Array[(Bytes, @core.LStr)] {
+  let out : Array[(Bytes, @core.LStr)] = Array::make(
+    TK_ELLIPSIS + 1,
+    (@core.bytes_of(""), @core.LStr::empty()),
+  )
+  for kind in 0..<=TK_ELLIPSIS {
+    let b = @core.bytes_of(token_name(kind))
+    out[kind] = (b, @core.LStr::of_bytes(b))
+  }
+  out
+}
+
+///|
+let symbol_spelling : Array[(Bytes, @core.LStr)] = build_symbol_spelling()
+
+///|
 pub fn Lexer::make_symbol(
   _self : Lexer,
   kind : Int,
   startline : Int,
   extra : Int,
 ) -> Token {
+  let spelling = symbol_spelling[kind]
   {
     kind,
-    text: @core.LStr::of_string(token_name(kind)),
-    raw: @core.bytes_of(token_name(kind)) +
-    (if extra >= 0 { @core.bytes_one(extra) } else { @core.bytes_of("") }),
+    text: spelling.1,
+    raw: if extra >= 0 {
+      @core.bytes_concat([spelling.0, @core.bytes_one(extra)])
+    } else {
+      spelling.0
+    },
     int_value: 0L,
     float_value: 0.0,
     line: startline,

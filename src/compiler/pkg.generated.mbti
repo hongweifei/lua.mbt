@@ -223,8 +223,6 @@ pub fn is_multi(Expr) -> Bool
 
 pub fn keyword_kind(Bytes) -> Int
 
-pub let keywords : Array[(String, Int)]
-
 pub fn line_of(Expr) -> Int
 
 pub fn parse_chunk(Bytes, String) -> FuncBody raise @core.LuaRaised
