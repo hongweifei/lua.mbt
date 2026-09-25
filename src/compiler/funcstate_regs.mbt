@@ -53,18 +53,35 @@ pub fn FuncState::free_all(self : FuncState) -> Unit {
 
 ///|
 /// Adds a constant to the pool, reusing an existing entry when the value is
-/// already there.
+/// already there.  The three kinds that dominate a real chunk each have a
+/// cache keyed by a value the map takes as it stands -- a string by its own
+/// interned object, an integer by itself, a float by its bit pattern, which is
+/// what `const_key` uses too -- so no `Key` is built per lookup.
 pub fn FuncState::add_constant(self : FuncState, v : @core.Value) -> Int {
-  let key = @core.const_key(v)
-  match self.kcache.get(key) {
-    Some(i) => i
-    None => {
-      let idx = self.constants.length()
-      self.constants.push(v)
-      self.kcache.set(key, idx)
-      idx
-    }
+  let cached : Int? = match v {
+    @core.VStr(s) => self.kcache_str.get(s)
+    @core.VInt(i) => self.kcache_int.get(i)
+    @core.VNum(d) => self.kcache_num.get(d.reinterpret_as_uint64())
+    _ => self.kcache.get(@core.const_key(v))
   }
+  match cached {
+    Some(idx) => idx
+    None => self.remember_constant(v)
+  }
+}
+
+///|
+/// Appends a constant that was not in the cache and remembers where it went.
+fn FuncState::remember_constant(self : FuncState, v : @core.Value) -> Int {
+  let idx = self.constants.length()
+  self.constants.push(v)
+  match v {
+    @core.VStr(s) => self.kcache_str[s] = idx
+    @core.VInt(i) => self.kcache_int[i] = idx
+    @core.VNum(d) => self.kcache_num[d.reinterpret_as_uint64()] = idx
+    _ => self.kcache.set(@core.const_key(v), idx)
+  }
+  idx
 }
 
 ///|

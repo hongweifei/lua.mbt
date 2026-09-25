@@ -43,7 +43,15 @@ pub(all) struct FuncState {
   code : Array[@core.Instr]
   lines : Array[Int]
   constants : Array[@core.Value]
+  /// The constant pool's index, by kind.  Strings, integers and floats are
+  /// what a program actually repeats, and keying them through a boxed `Key`
+  /// costs a collection per lookup in the middle of code generation, so each
+  /// of those kinds gets a table with a key of its own; anything else goes
+  /// through `kcache`.
   kcache : Map[@core.Key, Int]
+  kcache_str : Map[@core.LStr, Int]
+  kcache_int : Map[Int64, Int]
+  kcache_num : Map[UInt64, Int]
   protos : Array[@core.LProto]
   upvals : Array[@core.UpvalDesc]
   locvars : Array[@core.LocVar]
@@ -83,6 +91,9 @@ pub fn FuncState::new(
     lines: [],
     constants: [],
     kcache: Map([]),
+    kcache_str: Map([]),
+    kcache_int: Map([]),
+    kcache_num: Map([]),
     protos: [],
     upvals: [],
     locvars: [],
