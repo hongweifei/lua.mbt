@@ -52,8 +52,6 @@ pub fn concat_two(@core.LuaState, @core.Value, @core.Value) -> @core.Value raise
 
 pub fn concat_values(@core.LuaState, Array[@core.Value], Int) -> @core.Value raise @core.LuaRaised
 
-pub fn current_line(@core.LuaState) -> Int
-
 pub fn enter_protection(@core.LuaState, @core.LThread) -> Unit raise @core.LuaRaised
 
 pub fn equals(@core.LuaState, @core.Value, @core.Value) -> Bool raise @core.LuaRaised

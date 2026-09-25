@@ -106,7 +106,6 @@ pub fn push_frame(
   tm_depth : Int,
 ) -> Unit raise @core.LuaRaised {
   let f = thread.stack[func_slot]
-  let call_line = current_line(st)
   match f {
     @core.VBuiltin(b) => {
       let protect = if b.kind == @core.BK_PCALL {
@@ -187,7 +186,6 @@ pub fn push_frame(
         prots: @core.no_prots,
         tbc: @core.no_tbc,
         tailcalls: 0,
-        call_line,
         patched_builtin: 0,
         hook_frame: false,
         trap: false,
@@ -245,7 +243,6 @@ pub fn push_frame(
         prots: @core.no_prots,
         tbc: @core.no_tbc,
         tailcalls: 0,
-        call_line,
         patched_builtin: 0,
         hook_frame: false,
         trap: (thread.hook_mask & (@core.HOOK_LINE | @core.HOOK_COUNT)) != 0,
@@ -348,7 +345,6 @@ pub fn push_protection_frame(
     prots: @core.no_prots,
     tbc: @core.no_tbc,
     tailcalls: 0,
-    call_line: current_line(st),
     patched_builtin: 0,
     hook_frame: false,
     trap: false,
@@ -471,22 +467,6 @@ pub fn close_to_level(
     }
     fr.tbc.truncate(fr.tbc.length() - 1)
     close_value(st, thread.stack[reg], @core.VNil, report)
-  }
-}
-
-///|
-/// The source line the currently executing frame is on, used to annotate
-/// errors raised while a call is being set up.
-pub fn current_line(st : @core.LuaState) -> Int {
-  let thread = st.current_thread
-  let n = thread.frames.length()
-  if n == 0 {
-    return 0
-  }
-  let fr = thread.frames[n - 1]
-  match fr.closure {
-    Some(cl) => @core.line_at(cl.proto, fr.pc - 1)
-    None => 0
   }
 }
 

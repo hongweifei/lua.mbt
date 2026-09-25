@@ -42,7 +42,6 @@ pub(all) struct Frame {
   mut prots : Array[Cont]
   mut tbc : Array[Int]
   mut tailcalls : Int
-  mut call_line : Int
   patched_builtin : Int
   /// True for the frame running a debug hook function, so that `debug.getinfo`
   /// reports `namewhat == "hook"` for it.

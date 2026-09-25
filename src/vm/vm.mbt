@@ -443,7 +443,6 @@ pub fn execute(
             }
             push_frame(st, thread, slot, count, func_slot, want, func_slot, 0)
             let nf = thread.frames.length() - 1
-            thread.frames[nf].call_line = @core.line_at(proto, pc - 1)
             ci = nf
             fr = thread.frames[ci]
             pc = fr.pc
@@ -503,7 +502,6 @@ pub fn execute(
                 st, thread, func_slot, nargs, func_slot, -1, func_slot, 0,
               )
               ci = thread.frames.length() - 1
-              thread.frames[ci].call_line = @core.line_at(proto, pc - 1)
               fr = thread.frames[ci]
               pc = fr.pc
               base = fr.base
@@ -687,8 +685,6 @@ pub fn execute(
             thread.stack[slot + 1] = s
             thread.stack[slot + 2] = ctl
             push_frame(st, thread, slot, 2, a + 4, want, @core.src_iterator, 0)
-            let nf = thread.frames.length() - 1
-            thread.frames[nf].call_line = @core.line_at(proto, pc - 1)
             if (thread.hook_mask & @core.HOOK_CALL) != 0 && !thread.hook_running {
               hook_call_event(st, thread, 2, false)
               fr = thread.frames[ci]
