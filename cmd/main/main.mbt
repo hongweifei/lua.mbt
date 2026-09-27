@@ -229,12 +229,43 @@ fn require_module(state : @core.LuaState, spec : String) -> Bool {
 }
 
 ///|
+/// Runs a chunk the launcher read from a file or from standard input: the
+/// prefix such a chunk may carry is dropped and the arguments that followed the
+/// script name become the chunk's varargs, which is what `handle_script` gets
+/// from `pushargs`.
+fn run_chunk(
+  state : @core.LuaState,
+  data : Bytes,
+  name : String,
+  script_args : Array[String],
+) -> Bool {
+  let args : Array[@core.Value] = []
+  for a in script_args {
+    args.push(@lua.value_string(a))
+  }
+  let (status, msg) = @lua.run_protected_with_args(
+    state,
+    @load.strip_chunk_prefix(data),
+    name,
+    args,
+  )
+  if status != 0 {
+    report_message(msg)
+  }
+  status == 0
+}
+
+///|
 /// Loads and runs a file, passing the script arguments through `arg`.
-fn run_script(state : @core.LuaState, path : String) -> Bool {
+fn run_script(
+  state : @core.LuaState,
+  path : String,
+  script_args : Array[String],
+) -> Bool {
   let raw = if path == "-" {
     @core.read_stdin_all()
   } else {
-    match @core.read_whole_file(@core.bytes_of(path)) {
+    match @core.read_file_named(@core.bytes_of(path)) {
       Ok(d) => d
       Err(e) => {
         @core.write_stderr(
@@ -250,34 +281,8 @@ fn run_script(state : @core.LuaState, path : String) -> Bool {
       }
     }
   }
-  // A chunk loaded from a file may start with a `#!` shebang line; strip it,
-  // like luaL_loadfilex does in the reference implementation (a `#` first
-  // line stays an error for chunks loaded from strings).
-  let data = if raw.length() > 0 && raw.at(0) == 35 {
-    let mut i = 0
-    while i < raw.length() {
-      let b = raw.at(i)
-      i = i + 1
-      if b == 10 {
-        break
-      }
-      if b == 13 {
-        if i < raw.length() && raw.at(i) == 10 {
-          i = i + 1
-        }
-        break
-      }
-    }
-    @core.bytes_slice(raw, i, raw.length() - i)
-  } else {
-    raw
-  }
   let name = if path == "-" { "=stdin" } else { "@" + path }
-  let (status, msg) = @lua.run_protected_reporting(state, data, name)
-  if status != 0 {
-    report_message(msg)
-  }
-  status == 0
+  run_chunk(state, raw, name, script_args)
 }
 
 ///|
@@ -288,7 +293,11 @@ fn run_script(state : @core.LuaState, path : String) -> Bool {
 fn run_init(state : @core.LuaState) -> Bool {
   let chunk = fn(v : Bytes, name : String) -> Bool {
     if v.length() > 0 && v.at(0) == 64 {
-      run_script(state, @core.text_of(@core.bytes_slice(v, 1, v.length() - 1)))
+      run_script(
+        state,
+        @core.text_of(@core.bytes_slice(v, 1, v.length() - 1)),
+        [],
+      )
     } else {
       let (status, msg) = @lua.run_protected_reporting(state, v, name)
       if status != 0 {
@@ -455,7 +464,7 @@ fn main {
     ok = run_options(state, args, limit)
   }
   if ok && opts.script > 0 {
-    ok = run_script(state, args[opts.script])
+    ok = run_script(state, args[opts.script], args[opts.script + 1:].to_owned())
   }
   if !ok {
     @core.host_exit(1)
@@ -467,12 +476,10 @@ fn main {
       print_version()
       repl(state)
     } else {
-      let data = @core.read_stdin_all()
-      let (status, msg) = @lua.run_protected_reporting(state, data, "=stdin")
-      if status != 0 {
-        report_message(msg)
-        @core.host_exit(1)
-      }
+      // A chunk read from standard input is run the way `dofile(L, NULL)` runs
+      // it: a failure is reported, but it does not decide the exit status,
+      // because the reference's `pmain` signals "no errors" after this branch.
+      let _ = run_chunk(state, @core.read_stdin_all(), "=stdin", [])
     }
   }
 }

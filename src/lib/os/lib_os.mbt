@@ -129,30 +129,28 @@ pub fn os_date(
   if break_table {
     return @core.One(date_table(state, t, utc))
   }
-  check_date_format(state, fmt)
   let is_local = if utc { 0 } else { 1 }
-  // The host fills a fixed buffer and reports failure by returning nothing, so
-  // a long format (or a long rendering of it) is retried once with a large one.
-  // Nothing coming back at all is a legitimate empty result, which the
-  // reference appends as nothing rather than reporting.
-  let mut buf = Bytes::new(256)
-  let mut n = @host.lua_mbt_strftime_time(buf, 256, fmt, t, is_local)
-  if n == -2 {
-    @core.runtime_error(
-      state, "date result cannot be represented in this installation",
-    )
-  }
-  if n < 0 {
-    buf = Bytes::new(65536)
-    n = @host.lua_mbt_strftime_time(buf, 65536, fmt, t, is_local)
-    if n == -2 {
-      @core.runtime_error(
-        state, "date result cannot be represented in this installation",
-      )
+  // Every conversion specifier is formatted on its own and the rest of the
+  // format is copied through, which is what the reference's `os_date` does: a
+  // host `strftime` given the whole format would have to be trusted with
+  // everything between the specifiers -- and a byte of a multi byte character
+  // can look like a `%` to it, which turns the text around it into nothing.
+  let out = Buffer::Buffer(size_hint=fmt.length() + 16)
+  let n = fmt.length()
+  let mut i = 0
+  while i < n {
+    if @core.ubyte_at(fmt, i) != 37 {
+      out.write_bytes(@core.bytes_slice(fmt, i, 1).view())
+      i = i + 1
+      continue
     }
+    let oplen = date_specifier_len(state, fmt, i)
+    out.write_bytes(
+      strftime_piece(state, @core.bytes_slice(fmt, i, oplen + 1), t, is_local).view(),
+    )
+    i = i + 1 + oplen
   }
-  let len = if n < 0 { 0 } else { n }
-  @core.One(@core.VStr(@core.LStr::of_bytes(@core.bytes_slice(buf, 0, len))))
+  @core.One(@core.VStr(@core.LStr::of_bytes(out.to_bytes())))
 }
 
 ///|
@@ -169,52 +167,77 @@ let strftime_options : Bytes = @core.bytes_of(
 ///|
 /// Checks every conversion specifier of a `os.date` format, the way the
 /// reference's `checkoption` does: the longest listed specifier wins, and the
-/// error names the text from that `%` to the end of the format.
-fn check_date_format(
+/// error names the text from that `%` to the end of the format.  Returns the
+/// length of the specifier that starts at `i` (the `%`).
+fn date_specifier_len(
   state : @core.LuaState,
   fmt : Bytes,
-) -> Unit raise @core.LuaRaised {
+  i : Int,
+) -> Int raise @core.LuaRaised {
   let n = fmt.length()
-  let mut i = 0
-  while i < n {
-    if @core.ubyte_at(fmt, i) != 37 {
-      i = i + 1
-      continue
-    }
-    let rest = n - i - 1
-    let mut oplen = 1
-    let mut j = 0
-    let mut matched = 0
-    while j < strftime_options.length() && oplen <= rest {
-      if @core.ubyte_at(strftime_options, j) == 124 {
-        oplen = oplen + 1
-      } else {
-        let mut k = 0
-        let mut same = true
-        while k < oplen {
-          if @core.ubyte_at(fmt, i + 1 + k) !=
-            @core.ubyte_at(strftime_options, j + k) {
-            same = false
-          }
-          k = k + 1
+  let rest = n - i - 1
+  let mut oplen = 1
+  let mut j = 0
+  let mut matched = 0
+  while j < strftime_options.length() && oplen <= rest {
+    if @core.ubyte_at(strftime_options, j) == 124 {
+      oplen = oplen + 1
+    } else {
+      let mut k = 0
+      let mut same = true
+      while k < oplen {
+        if @core.ubyte_at(fmt, i + 1 + k) !=
+          @core.ubyte_at(strftime_options, j + k) {
+          same = false
         }
-        if same {
-          matched = oplen
-        }
+        k = k + 1
       }
-      j = j + oplen
+      if same {
+        matched = oplen
+      }
     }
-    if matched == 0 {
-      let text = @core.text_of(@core.bytes_slice(fmt, i + 1, rest))
-      @core.arg_error(
-        state,
-        1,
-        "date",
-        "invalid conversion specifier '%" + text + "'",
+    j = j + oplen
+  }
+  if matched == 0 {
+    let text = @core.text_of(@core.bytes_slice(fmt, i + 1, rest))
+    @core.arg_error(
+      state,
+      1,
+      "date",
+      "invalid conversion specifier '%" + text + "'",
+    )
+  }
+  matched
+}
+
+///|
+/// One `strftime` call, the reference's `SIZETIMEFMT` buffer grown once when the
+/// result does not fit.  A result that is empty and one that does not fit are
+/// not told apart by the host, so an empty answer stays empty.
+fn strftime_piece(
+  state : @core.LuaState,
+  spec : Bytes,
+  t : Int64,
+  is_local : Int,
+) -> Bytes raise @core.LuaRaised {
+  let mut buf = Bytes::new(256)
+  let mut n = @host.lua_mbt_strftime_time(buf, 256, spec, t, is_local)
+  if n == -2 {
+    @core.runtime_error(
+      state, "date result cannot be represented in this installation",
+    )
+  }
+  if n < 0 {
+    buf = Bytes::new(65536)
+    n = @host.lua_mbt_strftime_time(buf, 65536, spec, t, is_local)
+    if n == -2 {
+      @core.runtime_error(
+        state, "date result cannot be represented in this installation",
       )
     }
-    i = i + 1 + matched
   }
+  let len = if n < 0 { 0 } else { n }
+  @core.bytes_slice(buf, 0, len)
 }
 
 ///|

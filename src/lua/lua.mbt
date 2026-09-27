@@ -49,7 +49,7 @@ pub fn run_file(
   st : @core.LuaState,
   path : String,
 ) -> (Bool, Array[@core.Value]) {
-  let data = match @core.read_whole_file(@core.bytes_of(path)) {
+  let data = match @core.read_file_named(@core.bytes_of(path)) {
     Ok(d) => d
     Err(e) =>
       return (
@@ -206,10 +206,23 @@ pub fn run_protected_reporting(
   src : Bytes,
   name : String,
 ) -> (Int, Bytes) {
+  run_protected_with_args(st, src, name, [])
+}
+
+///|
+/// `run_protected_reporting` for a chunk that takes arguments, which is how the
+/// launcher hands a script the words that followed its name: they arrive as the
+/// chunk's varargs.
+pub fn run_protected_with_args(
+  st : @core.LuaState,
+  src : Bytes,
+  name : String,
+  args : Array[@core.Value],
+) -> (Int, Bytes) {
   match @load.compile_source(st, src, name, @core.VTable(st.globals)) {
     @core.LoadError(msg) => (1, msg)
     @core.LoadOk(f) => {
-      let (vals, msg) = call_with_handler(st, f, [])
+      let (vals, msg) = call_with_handler(st, f, args)
       let _ = vals
       if msg.length() == 0 {
         (0, msg)

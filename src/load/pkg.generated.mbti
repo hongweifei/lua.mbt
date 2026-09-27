@@ -30,6 +30,8 @@ pub fn package_table(@core.LuaState, String) -> @core.LTable
 
 pub fn pcall_here(@core.LuaState, @core.Value, Array[@core.Value]) -> (Bool, Array[@core.Value])
 
+pub fn strip_chunk_prefix(Bytes) -> Bytes
+
 // Errors
 
 // Types and methods

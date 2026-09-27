@@ -209,9 +209,64 @@ MBT_EXPORT int64_t lua_mbt_stderr(void) {
   return (int64_t)(intptr_t)stderr;
 }
 
+#if defined(_WIN32)
+/*
+ * A file name in a Lua string is a byte string, but a Windows file name is
+ * UTF-16.  A path that is valid UTF-8 is converted, which is what lets a name
+ * outside the ANSI code page -- a Chinese one, say -- be opened.  A path that
+ * is not valid UTF-8 (one in the ANSI code page) is left to the narrow API
+ * below, so nothing that used to open stops opening.
+ */
+static wchar_t *mbt_wide_path(moonbit_bytes_t path) {
+  int n;
+  wchar_t *w;
+  if (path == NULL) {
+    return NULL;
+  }
+  n = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, (const char *)path,
+                          -1, NULL, 0);
+  if (n <= 0) {
+    return NULL;
+  }
+  w = (wchar_t *)malloc((size_t)n * sizeof(wchar_t));
+  if (w == NULL) {
+    return NULL;
+  }
+  if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, (const char *)path,
+                          -1, w, n) <= 0) {
+    free(w);
+    return NULL;
+  }
+  return w;
+}
+
+/* A file mode is ASCII in every use here, so widening it is a copy. */
+static int mbt_wide_mode(moonbit_bytes_t mode, wchar_t *out, size_t n) {
+  size_t i = 0;
+  if (mode == NULL) {
+    return 0;
+  }
+  while (i + 1 < n && mode[i] != 0) {
+    out[i] = (wchar_t)mode[i];
+    i++;
+  }
+  out[i] = 0;
+  return i > 0;
+}
+#endif
+
 MBT_EXPORT int64_t lua_mbt_fopen(moonbit_bytes_t path, moonbit_bytes_t mode) {
-  FILE *f = fopen((const char *)path, (const char *)mode);
-  return (int64_t)(intptr_t)f;
+#if defined(_WIN32)
+  wchar_t wmode[8];
+  wchar_t *wp = mbt_wide_path(path);
+  if (wp != NULL && mbt_wide_mode(mode, wmode, 8)) {
+    FILE *f = _wfopen(wp, wmode);
+    free(wp);
+    return (int64_t)(intptr_t)f;
+  }
+  free(wp);
+#endif
+  return (int64_t)(intptr_t)fopen((const char *)path, (const char *)mode);
 }
 
 MBT_EXPORT int32_t lua_mbt_fclose(int64_t h) {
@@ -328,10 +383,30 @@ MBT_EXPORT int32_t lua_mbt_fgets(int64_t h, moonbit_bytes_t buf, int32_t len) {
 }
 
 MBT_EXPORT int32_t lua_mbt_remove(moonbit_bytes_t path) {
+#if defined(_WIN32)
+  wchar_t *wp = mbt_wide_path(path);
+  if (wp != NULL) {
+    int r = _wremove(wp);
+    free(wp);
+    return (int32_t)r;
+  }
+#endif
   return (int32_t)remove((const char *)path);
 }
 
 MBT_EXPORT int32_t lua_mbt_rename(moonbit_bytes_t from, moonbit_bytes_t to) {
+#if defined(_WIN32)
+  wchar_t *wf = mbt_wide_path(from);
+  wchar_t *wt = mbt_wide_path(to);
+  if (wf != NULL && wt != NULL) {
+    int r = _wrename(wf, wt);
+    free(wf);
+    free(wt);
+    return (int32_t)r;
+  }
+  free(wf);
+  free(wt);
+#endif
   return (int32_t)rename((const char *)from, (const char *)to);
 }
 

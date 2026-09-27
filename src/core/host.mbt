@@ -95,6 +95,18 @@ pub fn write_whole_file(path : Bytes, data : Bytes) -> Result[Unit, Bytes] {
 }
 
 ///|
+/// Reads a whole file, returning its contents together with an error message
+/// when it cannot be read.  A name that is not UTF-8 is refused before the host
+/// sees it: the host reads a file name as text, and the reference reports a
+/// name it cannot read that way as `EILSEQ`, which is the same message.
+pub fn read_file_named(path : Bytes) -> Result[Bytes, Bytes] {
+  if !is_utf8(path) {
+    return Err(bytes_of("Illegal byte sequence"))
+  }
+  read_whole_file(path)
+}
+
+///|
 /// The message for the current value of the host error indicator.
 pub fn errno_message() -> Bytes {
   let buf = Bytes::new(256)

@@ -653,6 +653,19 @@ do
   eq(#os.date(string.rep("x", 300), 0), 300, "and a long literal is not truncated")
 end
 
+-- `os.date` hands the host one conversion specifier at a time and copies the
+-- rest of the format through, as the reference's `os_date` does.  Formatting the
+-- whole thing in one call loses the text around a multi byte character, because
+-- a byte of it can look like a `%` to the host's `strftime`.
+do
+  eq(os.date("%Y年", 0), "1970年", "a literal after a specifier survives")
+  eq(os.date("年%Y", 0), "年1970", "and one before it")
+  eq(os.date("100%% %Y", 0), "100% 1970", "a percent is not a specifier")
+  eq(os.date("", 0), "", "an empty format is an empty result")
+  eq(os.date("!%Y-%m-%dT%H:%M:%S", 0), "1970-01-01T00:00:00",
+     "every specifier is formatted")
+end
+
 -- The edges of the library that only a diff against the reference finds: what
 -- `__tostring` may return, the type of `math.modf`'s integral part, which
 -- errors carry a position, how a file is read and closed, and the name an

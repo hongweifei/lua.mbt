@@ -35,6 +35,13 @@ test "module loading suite" {
 }
 
 ///|
+/// The one suite that is this implementation's own: names written in UTF-8 are
+/// an extension, so the reference refuses the chunks in it.
+test "utf8 identifier suite" {
+  run_suite("tests/utf8_identifiers.lua")
+}
+
+///|
 test "runnable examples" {
   run_suite("tests/examples.lua")
 }

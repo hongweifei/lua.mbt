@@ -880,4 +880,49 @@ do
      true, "and one with an unusable __close when the scope ends")
 end
 
+-- A chunk read from a file may carry a UTF-8 byte order mark and a first line
+-- starting with `#`: both are dropped, and the line is replaced by its newline
+-- so that the line numbers of the rest do not move.  That is what
+-- `luaL_loadfilex` does, and the official suite checks the same four cases.
+do
+  local name = os.tmpname()
+  local function chunk(text)
+    local f = assert(io.open(name, "wb"))
+    f:write(text)
+    f:close()
+    local loaded, err = loadfile(name)
+    assert(loaded, err)
+    return loaded()
+  end
+
+  eq(chunk("return 234"), 234, "a plain file")
+  eq(chunk("\xEF\xBB\xBFreturn 239"), 239, "a file with a byte order mark")
+  eq(chunk("\xEF\xBB\xBF# some comment\nreturn 234"), 234,
+     "a mark in front of a # line")
+  eq(chunk("\xEF\xBB\xBF"), nil, "a file that is only a mark")
+  eq(chunk("# a non-ending comment"), nil, "a # line with no newline")
+  eq(chunk("# a comment\nreturn debug.getinfo(1).currentline"), 2,
+     "the dropped line keeps the line numbers")
+  assert(os.remove(name))
+
+  -- A chunk given as a string is never stripped: there a `#` is the length
+  -- operator, and a mark is a syntax error, in the reference too.
+  eq(load("# a comment\nreturn 1"), nil, "a # line in a string chunk is not a comment")
+  eq(load("\xEF\xBB\xBFreturn 1"), nil, "and a mark in one is not a mark")
+end
+
+-- A file name is bytes rather than text: one that is not UTF-8 goes to the host
+-- as it is, and one that is cannot be read as a name is refused instead of
+-- being mangled into a name that is somewhere else.
+do
+  local bad = "\255\254\253"
+  local ok, err = io.open(bad)
+  eq(ok, nil, "a name that is not text opens nothing")
+  eq(err:find("Illegal byte sequence", 1, true) ~= nil, true, "and says why")
+  local ok2, err2 = loadfile(bad)
+  eq(ok2, nil, "and loadfile reports it too")
+  eq(err2:find("cannot open " .. bad .. ": Illegal byte sequence", 1, true) ~= nil,
+     true, "with the name it was given")
+end
+
 print("language: ok")

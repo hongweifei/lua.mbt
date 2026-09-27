@@ -78,6 +78,45 @@ fn chunk_to_source(
 }
 
 ///|
+/// Strips the prefix a chunk read from a *file* may carry: a UTF-8 byte order
+/// mark, and a first line starting with `#` (the `#!` line of an executable
+/// script).  This is what `luaL_loadfilex` does through `skipBOM` and
+/// `skipcomment`, and like it the dropped line is replaced by a newline rather
+/// than removed, so that the line numbers of everything after it stay the same.
+///
+/// A chunk given to `load` as a string is never stripped: a `#` there is the
+/// length operator and a BOM is a syntax error, in the reference too.
+pub fn strip_chunk_prefix(data : Bytes) -> Bytes {
+  let len = data.length()
+  // A BOM counts only when all three bytes are there; a lone 0xEF is left where
+  // it is and refuses to lex, as it does in the reference.
+  let start = if len >= 3 &&
+    @core.ubyte_at(data, 0) == 0xEF &&
+    @core.ubyte_at(data, 1) == 0xBB &&
+    @core.ubyte_at(data, 2) == 0xBF {
+    3
+  } else {
+    0
+  }
+  if start < len && @core.ubyte_at(data, start) == 0x23 {
+    let nl = @core.bytes_index_of(data, start, len - start, 0x0A)
+    // The line is replaced by a newline, not removed: that is what keeps the
+    // line numbers of the rest of the chunk where they were.  A comment that
+    // runs to the end of the file leaves just that newline: an empty chunk.
+    let rest = if nl < 0 {
+      Bytes::new(0)
+    } else {
+      @core.bytes_slice(data, nl + 1, len - nl - 1)
+    }
+    @core.bytes_concat([b"\n", rest])
+  } else if start == 0 {
+    data
+  } else {
+    @core.bytes_slice(data, start, len - start)
+  }
+}
+
+///|
 /// Loads a chunk from a file.
 pub fn base_loadfile(
   state : @core.LuaState,
@@ -100,36 +139,45 @@ fn do_loadfile(
   } else {
     @core.VTable(state.globals)
   }
+  // The name is kept as the bytes the caller passed: a file name is not text,
+  // and going through a string would replace the bytes of a name that is not
+  // UTF-8 before the host ever saw it.
   let name = if args.length() >= 1 && !args[0].is_nil() {
-    @core.text_of(@core.check_str(state, args, 1, "loadfile").data())
+    @core.check_str(state, args, 1, "loadfile").data()
   } else {
-    ""
+    Bytes::new(0)
   }
-  let data = if name == "" {
-    @core.read_stdin_all()
-  } else {
-    match @core.read_whole_file(@core.bytes_of(name)) {
-      Ok(d) => d
-      Err(e) =>
-        return [
-          @core.VNil,
-          @core.VStr(
-            @core.LStr::of_bytes(
-              @core.bytes_concat([
-                @core.bytes_of("cannot open "),
-                @core.bytes_of(name),
-                @core.bytes_of(": "),
-                e,
-              ]),
+  let data = strip_chunk_prefix(
+    if name.length() == 0 {
+      @core.read_stdin_all()
+    } else {
+      match @core.read_file_named(name) {
+        Ok(d) => d
+        Err(e) =>
+          return [
+            @core.VNil,
+            @core.VStr(
+              @core.LStr::of_bytes(
+                @core.bytes_concat([
+                  @core.bytes_of("cannot open "),
+                  name,
+                  @core.bytes_of(": "),
+                  e,
+                ]),
+              ),
             ),
-          ),
-        ]
-    }
-  }
+          ]
+      }
+    },
+  )
   // The reference names a file's chunk `@name` and standard input `=stdin`
   // (`luaL_loadfilex`); the distinction is visible in `debug.getinfo`'s source
   // and in how a long name is shortened.
-  let chunk_name = if name == "" { "=stdin" } else { "@" + name }
+  let chunk_name = if name.length() == 0 {
+    "=stdin"
+  } else {
+    @core.text_of(@core.bytes_concat([b"@", name]))
+  }
   match compile_source(state, data, chunk_name, env) {
     @core.LoadOk(f) => [f]
     @core.LoadError(msg) => [@core.VNil, @core.VStr(@core.LStr::of_bytes(msg))]

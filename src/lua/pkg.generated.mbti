@@ -42,6 +42,8 @@ pub fn run_file(@core.LuaState, String) -> (Bool, Array[@core.Value])
 
 pub fn run_protected_reporting(@core.LuaState, Bytes, String) -> (Int, Bytes)
 
+pub fn run_protected_with_args(@core.LuaState, Bytes, String, Array[@core.Value]) -> (Int, Bytes)
+
 pub fn run_string(@core.LuaState, String, String) -> (Bool, Array[@core.Value])
 
 pub fn search_path(String, String, String, String) -> (String?, String)

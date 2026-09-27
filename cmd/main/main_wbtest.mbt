@@ -61,3 +61,34 @@ test "an -l argument names the global and the module" {
   assert_eq(g4, "g")
   assert_eq(m4, "")
 }
+
+///|
+test "the words after a script name are its varargs" {
+  let state = @lua.create_ignoring_env(true)
+  let src =
+    #|local n = select('#', ...)
+    #|assert(n == 2, 'n = ' .. n)
+    #|assert((...) == 'a')
+    #|assert(select(2, ...) == 'b')
+  assert_true(run_chunk(state, @core.bytes_of(src), "=test", ["a", "b"]))
+  // With no words after the name there are no varargs to read.
+  assert_true(
+    run_chunk(state, @core.bytes_of("assert(select('#', ...) == 0)"), "=test", []),
+  )
+}
+
+///|
+test "a chunk from a file drops a byte order mark and a # line" {
+  let state = @lua.create_ignoring_env(true)
+  assert_true(run_chunk(state, b"\xEF\xBB\xBFassert(true)", "=test", []))
+  // The dropped line leaves its newline behind, so `return` is still on the
+  // second line of the file -- the official suite checks exactly this.
+  assert_true(
+    run_chunk(
+      state,
+      b"#!/usr/bin/lua\nassert(debug.getinfo(1).currentline == 2)",
+      "=test",
+      [],
+    ),
+  )
+}

@@ -60,3 +60,34 @@ test "host layer: files" {
   assert_eq(lua_mbt_fclose(g), 0)
   assert_eq(lua_mbt_remove(path), 0)
 }
+
+///|
+/// A name outside the host's single byte encoding, given as UTF-8: it is
+/// written, found again, renamed and removed, which is what makes a file whose
+/// name is not ASCII usable at all.  The name is built from its bytes so that
+/// the test does not depend on the encoding of this file.
+test "host layer: a UTF-8 file name" {
+  // "\u{4e2d}\u{6587}" -- 中文.
+  let name : Bytes = b"_build_host_test_\xE4\xB8\xAD\xE6\x96\x87.tmp"
+  let f = lua_mbt_fopen(name, b"wb")
+  assert_true(f != 0L)
+  assert_eq(lua_mbt_fwrite(f, b"x", 1), 1)
+  assert_eq(lua_mbt_fclose(f), 0)
+  // It is there under that name, and not under the bytes as they were typed in
+  // the host's own encoding (which is a different name, if a name at all).
+  let g = lua_mbt_fopen(name, b"rb")
+  assert_true(g != 0L)
+  assert_eq(lua_mbt_fclose(g), 0)
+  let renamed : Bytes = b"_build_host_test_\xE4\xB8\xAD\xE6\x96\x87_2.tmp"
+  assert_eq(lua_mbt_rename(name, renamed), 0)
+  assert_true(lua_mbt_fopen(name, b"rb") == 0L)
+  assert_eq(lua_mbt_remove(renamed), 0)
+  // A name that is not UTF-8 still goes to the host as it is, so a name written
+  // in the host's own encoding keeps working.  "\xD6\xD0\xCE\xC4" is 中文 in the
+  // Chinese ANSI code page, and is not a UTF-8 sequence.
+  let narrow : Bytes = b"_build_host_test_\xD6\xD0\xCE\xC4.tmp"
+  let h = lua_mbt_fopen(narrow, b"wb")
+  assert_true(h != 0L)
+  assert_eq(lua_mbt_fclose(h), 0)
+  assert_eq(lua_mbt_remove(narrow), 0)
+}

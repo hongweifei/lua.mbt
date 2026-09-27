@@ -255,3 +255,54 @@ test "printf conversions" {
     ),
   )
 }
+
+///|
+/// Which bytes may make up a name.  ASCII is the grammar's own set; a non-ASCII
+/// code point counts when the bytes are a well formed UTF-8 sequence, which is
+/// what lets a source file name things in its own language.  The arguments are
+/// the character's first four bytes, -1 for "not there".
+fn ident_size(c0 : Int, c1 : Int, c2 : Int, c3 : Int) -> Int {
+  utf8_ident_size(c0, c1, c2, c3)
+}
+
+///|
+test "a name character is ASCII or a whole UTF-8 code point" {
+  // ASCII: letters, digits and `_` continue a name; everything else ends it.
+  assert_eq(ident_size('a'.to_int(), 0, 0, 0), 1)
+  assert_eq(ident_size('Z'.to_int(), 0, 0, 0), 1)
+  assert_eq(ident_size('0'.to_int(), 0, 0, 0), 1)
+  assert_eq(ident_size('_'.to_int(), 0, 0, 0), 1)
+  assert_eq(ident_size(' '.to_int(), 0, 0, 0), 0)
+  assert_eq(ident_size('+'.to_int(), 0, 0, 0), 0)
+  assert_eq(ident_size(0x7F, 0, 0, 0), 0)
+  assert_eq(ident_size(-1, 0, 0, 0), 0)
+  // 中 is E4 B8 AD, 你 is E4 BD A0, an emoji is F0 9F 98 80, é is C3 A9.
+  assert_eq(ident_size(0xE4, 0xB8, 0xAD, 0), 3)
+  assert_eq(ident_size(0xE4, 0xBD, 0xA0, 0), 3)
+  assert_eq(ident_size(0xF0, 0x9F, 0x98, 0x80), 4)
+  assert_eq(ident_size(0xC3, 0xA9, 0, 0), 2)
+}
+
+///|
+test "bytes that are not a code point do not make a name character" {
+  // A lead byte with nothing after it, or with a byte that is not a
+  // continuation byte.
+  assert_eq(ident_size(0xE4, 0xB8, -1, 0), 0)
+  assert_eq(ident_size(0xE4, '-'.to_int(), 0, 0), 0)
+  assert_eq(ident_size(0xC3, 0xC3, 0, 0), 0)
+  // A lone continuation byte, and the two lead bytes UTF-8 never uses.
+  assert_eq(ident_size(0xB8, 0, 0, 0), 0)
+  assert_eq(ident_size(0xC0, 0x80, 0, 0), 0)
+  assert_eq(ident_size(0xC1, 0xBF, 0, 0), 0)
+  assert_eq(ident_size(0xF5, 0x80, 0x80, 0x80), 0)
+  assert_eq(ident_size(0xFF, 0, 0, 0), 0)
+  // Overlong: an ASCII byte spelled with two or three bytes is not UTF-8.
+  assert_eq(ident_size(0xC0, 0xAF, 0, 0), 0)
+  assert_eq(ident_size(0xE0, 0x80, 0xAF, 0), 0)
+  assert_eq(ident_size(0xF0, 0x80, 0x80, 0xAF), 0)
+  // Beyond Unicode, and the surrogate range.
+  assert_eq(ident_size(0xF4, 0x90, 0x80, 0x80), 0)
+  assert_eq(ident_size(0xED, 0xA0, 0x80, 0), 0)
+  // GBK's 你 is C4 E3: a two byte lead followed by another lead byte.
+  assert_eq(ident_size(0xC4, 0xE3, 0, 0), 0)
+}

@@ -408,6 +408,7 @@ pub fn[T] Lexer::error_near(Self, String, Bytes) -> T raise @core.LuaRaised
 pub fn[T] Lexer::error_raw(Self, String, Int, Bool) -> T raise @core.LuaRaised
 pub fn Lexer::finish_numeral(Self, Bytes, Int) -> Token raise @core.LuaRaised
 pub fn Lexer::from_feed(SourceFeed, String) -> Self
+pub fn Lexer::ident_char_size(Self) -> Int
 pub fn Lexer::intern(Self, Bytes) -> @core.LStr
 pub fn Lexer::is_newline(Self) -> Bool
 pub fn Lexer::make_symbol(Self, Int, Int, Int) -> Token

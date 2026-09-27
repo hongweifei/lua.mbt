@@ -252,12 +252,38 @@ pub fn Lexer::read_numeral(self : Lexer) -> Bytes raise @core.LuaRaised {
       break
     }
   }
-  // A numeral touching a letter absorbs one letter, forcing the malformed
-  // number error, as `read_numeral` in the reference scanner does.
+  // A numeral touching a name character absorbs one, forcing the malformed
+  // number error, as `read_numeral` in the reference scanner does with a
+  // letter.  A non-ASCII character is taken whole, so that the message names
+  // the character the writer typed rather than a byte of it.
   if @core.is_alpha_byte(self.current) || self.current == 95 {
     self.next()
+  } else if self.current >= 0x80 {
+    let size = self.ident_char_size()
+    let mut k = 0
+    while k < size {
+      self.next()
+      k = k + 1
+    }
   }
   self.slice(start, self.pos - start)
+}
+
+///|
+/// The size of the name character at the cursor, 0 when there is none.  A
+/// character that is not ASCII is taken whole, so a name may be written in the
+/// language the source file is in; ASCII takes the one compare it always did.
+pub fn Lexer::ident_char_size(self : Lexer) -> Int {
+  let c = self.current
+  if c < 0x80 {
+    return if c == 95 || @core.is_alnum_byte(c) { 1 } else { 0 }
+  }
+  @core.utf8_ident_size(
+    c,
+    self.byte_at(self.pos + 1),
+    self.byte_at(self.pos + 2),
+    self.byte_at(self.pos + 3),
+  )
 }
 
 ///|
@@ -265,8 +291,16 @@ pub fn Lexer::read_name(self : Lexer) -> Bytes {
   // The bytes are taken from the source once, at the end, instead of being
   // copied a byte at a time into a buffer of their own.
   let start = self.pos
-  while @core.is_alnum_byte(self.current) || self.current == 95 {
-    self.next()
+  while true {
+    let size = self.ident_char_size()
+    if size == 0 {
+      break
+    }
+    let mut k = 0
+    while k < size {
+      self.next()
+      k = k + 1
+    }
   }
   self.slice(start, self.pos - start)
 }
@@ -424,7 +458,9 @@ pub fn Lexer::next_token(self : Lexer) -> Token raise @core.LuaRaised {
           let text = self.read_numeral()
           return self.finish_numeral(text, startline)
         }
-        if self.current == 95 || @core.is_alpha_byte(self.current) {
+        if self.current == 95 ||
+          @core.is_alpha_byte(self.current) ||
+          (self.current >= 0x80 && self.ident_char_size() > 0) {
           let text = self.read_name()
           let kind = keyword_kind(text)
           return {

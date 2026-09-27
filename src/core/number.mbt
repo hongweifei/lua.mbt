@@ -33,6 +33,58 @@ pub fn hex_digit_value(c : Int) -> Int {
 }
 
 ///|
+/// The size in bytes of the name character whose code point starts at the bytes
+/// `c0`..`c3`, or 0 when no name character starts there.  A byte that is not
+/// there is -1.
+///
+/// ASCII letters, digits and `_` count, as they do in the reference
+/// implementation; so does every well formed non-ASCII code point, which is
+/// what lets a source file written in UTF-8 name things in its own language.
+/// That second clause is a deliberate extension: a chunk that uses it is not
+/// accepted by the reference's `lislalpha`, which knows only ASCII.
+pub fn utf8_ident_size(c0 : Int, c1 : Int, c2 : Int, c3 : Int) -> Int {
+  if c0 < 0 {
+    return 0
+  }
+  if c0 < 0x80 {
+    let ascii = (c0 >= 97 && c0 <= 122) ||
+      (c0 >= 65 && c0 <= 90) ||
+      (c0 >= 48 && c0 <= 57) ||
+      c0 == 95
+    return if ascii { 1 } else { 0 }
+  }
+  // `C0`/`C1` are never a lead byte: that reading can only be an overlong
+  // sequence, which is not UTF-8.  0xF5 and up cannot start a code point.
+  let (size, start) = if c0 >= 0xC2 && c0 <= 0xDF {
+    (2, c0 & 0x1F)
+  } else if c0 >= 0xE0 && c0 <= 0xEF {
+    (3, c0 & 0x0F)
+  } else if c0 >= 0xF0 && c0 <= 0xF4 {
+    (4, c0 & 0x07)
+  } else {
+    return 0
+  }
+  let mut cp = start
+  let mut k = 1
+  while k < size {
+    let b = if k == 1 { c1 } else if k == 2 { c2 } else { c3 }
+    if b < 0x80 || b > 0xBF {
+      return 0
+    }
+    cp = (cp << 6) | (b & 0x3F)
+    k = k + 1
+  }
+  if (size == 2 && cp < 0x80) ||
+    (size == 3 && cp < 0x800) ||
+    (size == 4 && cp < 0x10000) ||
+    cp > 0x10FFFF ||
+    (cp >= 0xD800 && cp <= 0xDFFF) {
+    return 0
+  }
+  size
+}
+
+///|
 pub fn is_alpha_byte(c : Int) -> Bool {
   (c >= 97 && c <= 122) || (c >= 65 && c <= 90)
 }
