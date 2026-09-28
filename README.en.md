@@ -306,15 +306,22 @@ What the interpreter does, in the areas the suite exercises hardest:
   **UTF-8 only** (GBK's 你 is `C4 E3`, two lead bytes in a row, and is still
   refused with `<name> expected`); the code point must be **valid** (a
   truncated sequence, an overlong one, a surrogate and anything past U+10FFFF
-  do not count, and fall back to the ASCII reading); and a non-ASCII character
+  do not count, and fall back to the ASCII reading); and an **invisible** code
+  point is not a name character either -- a byte order mark (U+FEFF), a zero
+  width joiner or space, a bidi control, a line separator, a C1 control and the
+  U+_FFFE/U+_FFFF noncharacters all stay out, so the mark in a chunk handed to
+  `load` as a string is refused with `unexpected symbol near '<\239>'` exactly
+  as the reference refuses it (only a chunk read from a *file* has it stripped,
+  by `luaL_loadfilex`).  A non-ASCII character
   right after a numeral **is** absorbed by it, giving the reference's
   `malformed number near '100万'` rather than `100` and a stray name (the old
   behaviour for an ASCII letter is byte for byte unchanged).  **No valid
   program changes meaning**: in real Lua a byte outside ASCII appearing outside
   a string or a comment is already a syntax error, so this only turns input that
-  used to be refused into something usable, and `load`/`require`/file names are
-  unaffected.  For the reference's strictness -- a portability check, say --
-  run the reference's own `lua`; there is no switch here that turns the
+  used to be refused into something usable -- and it does not quietly turn a
+  refused byte order mark into a legal identifier -- while `load`/`require`/file
+  names are unaffected.  For the reference's strictness -- a portability check,
+  say -- run the reference's own `lua`; there is no switch here that turns the
   extension off.  An ASCII name costs one extra compare on the lexer's hot path:
   an in-process A/B (a name-free control in the same process, so its own drift
   divides out) measured the ratio 0.431 -> 0.429, inside the noise.
@@ -325,12 +332,13 @@ What the interpreter does, in the areas the suite exercises hardest:
   and `require("模块")` written in a source file open the Chinese file names
   they name; a Windows build of the reference uses the narrow API and reports
   "No such file or directory" for the same code.  A name that is not valid
-  UTF-8 is still passed to the narrow API unchanged (the host's own encoding
-  keeps working), so this only opens names that did not open before and cannot
-  break one that did.  Bytes that cannot be read as a name at all are reported
-  as the reference's `EILSEQ`, `Illegal byte sequence`, rather than being
-  replaced by other bytes and used to open a different name.  Other platforms
-  have no such conversion.
+  UTF-8 is still passed to the narrow API **as it is** (the host's own encoding
+  keeps working: a file `io.open` creates under such a name is found by
+  `loadfile` under the same one), so this only opens names that did not open
+  before and cannot break one that did.  A name is carried as **bytes**
+  throughout and never rounded through a MoonBit `String`, so it cannot be
+  replaced by a lossily decoded one.  Other platforms have no such conversion --
+  there a file name is bytes to begin with.
 * **It is slower than the reference, by a factor that depends on the work.**  `tools/run_bench.mbtx` measures it on this machine: both sides run the same cases and have to agree on every checksum, `--repeat=N` decides how many times each case runs (three by default) and the fastest run is the one reported -- the absolute seconds of one and the same binary can differ by a factor of two between runs, so **only the ratios are trustworthy** and the absolute figures come as a range.  The figures below come from `--repeat=5`.  The ratios now: coroutines and plain pattern searching ~1x (0.9-1.2x), allocation-heavy work (`table-small`, `string-build`) 3-7x, table operations 7-13x, and strings, arithmetic and dispatch 12-30x (worst: `calls`).  Measured **back to back** against the previous state (one run, one machine, fastest run), this round made arithmetic 2.2-4.7x faster (`arith-float` 4.7x), `calls` 2.5x and the table cases 1.1-1.6x by taking the heap allocations out of every operation and every call: `Value` is a `#valtype` now (the native backend compiles it to a real tagged C union, 16 bytes, unboxed, so a slot read or write no longer allocates), arithmetic and comparison read their operands directly instead of going through a conversion helper that answers with an `Option` (an `Option` boxes its payload on this backend), an ordinary return no longer builds a list for its results (`Results` says "the values are already in the registers"), and a frame no longer allocates the two lists it will not use (protections and to-be-closed variables).  A round after that took `string.gsub` from the worst case (25-36x) to 16x: the replacement is written straight into the result buffer (which is the shape of the reference's `add_s`) instead of a string being built per match, and no capture list is built where the replacement cannot name one -- **2x** measured back to back.  Taking a substring became one allocation and one `memcpy`, where it used to go through a `Buffer` and allocate three times and copy twice.  The round before that gave table access a fast path (the shape of the reference's `luaV_fastget`/`luaV_fastset`): an integer or a string key is read and written as it is instead of being normalised into a `Key` first, and a table with no metatable is written directly -- nothing is looked up before the store, and nothing is charged for it unless the table grew.  Storing and reading the array part is 1.6-3x faster for it (the benchmark's `table-array` went from ~16x to 7.5x), and the shifting part of `table.insert`/`remove` about 3.5x.  The latest round replaced the builtin-call ABI -- the "argument list" and "result list" mentioned just above *were* the shape of it: the arguments are no longer copied into a list (the body is handed an `ArrayView` of its register window, and the frame only records how many there were), and the results are no longer a list built per call (`BuiltinResult`'s `Nothing`/`One`/`Two` are written into the frame's own registers -- the slots the arguments occupied, which is where the reference's C functions push their results -- and only a many-valued answer carries a list).  One builtin call is **39%** faster for it (`math.abs`), **44%** (`next`, two results) and **14%** (`string.sub`, three arguments); end to end that is 0-10% on these benchmarks, most of whose time is the loop and the bytecode rather than such a call.  What is left is still structural, and still not the allocator: the backend is a one-pass C compiler that neither inlines nor allocates registers, so every helper call and every slot move is a real call.
 * **How deep a recursion through host callbacks may go is set by the host stack that is left, not by a fixed count of levels.**  The reference stops such a recursion (a `string.gsub` replacement function, an `__index` that calls back) with a fixed count of C levels (`LUAI_MAXCCALLS` = 200), assuming a level costs a few hundred bytes.  Here a level costs about 5 KB -- the same backend reason -- so that count sits exactly on the edge of the 1 MB stack, and `cstack.lua`'s metatable case runs the real stack out (a segfault, not an error).  So besides the reference's level count (190), `call_value` measures how much host stack is left (`MIN_HOST_STACK` = 256 KB, from `lua_mbt_stack_left` in `stub.c`: the thread's stack bounds on Windows, `pthread_getattr_np`/`pthread_get_stackaddr_np` on POSIX) and refuses with the reference's own "C stack overflow".  The cost is that **a recursion gets less deep than in the reference** (about 140-190 levels on a 1 MB stack here, where the reference gets about 197), and that the figure depends on the host's stack and on how deep the call site already is; the reference's own test file says the same about `LUAI_MAXCCALLS` and the stack reserved for the program.
 * **Cycles are not freed.**  Memory is reclaimed by the host runtime's reference

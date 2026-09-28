@@ -911,18 +911,35 @@ do
   eq(load("\xEF\xBB\xBFreturn 1"), nil, "and a mark in one is not a mark")
 end
 
--- A file name is bytes rather than text: one that is not UTF-8 goes to the host
--- as it is, and one that is cannot be read as a name is refused instead of
--- being mangled into a name that is somewhere else.
+-- A file name is bytes, not text: a name that is not UTF-8 is handed to the host
+-- as it is, without being rounded through a string on the way.  What the host
+-- says about such a name is the host's own wording -- the Windows CRT refuses it
+-- with `Illegal byte sequence`, while where a name is any byte string it is
+-- simply "no such file" -- so only what is the same everywhere is checked here.
+-- The message must carry the *bytes* that were given: a name rounded through a
+-- string would come back as a different name.
 do
   local bad = "\255\254\253"
   local ok, err = io.open(bad)
   eq(ok, nil, "a name that is not text opens nothing")
-  eq(err:find("Illegal byte sequence", 1, true) ~= nil, true, "and says why")
+  eq(type(err), "string", "and something is reported")
   local ok2, err2 = loadfile(bad)
   eq(ok2, nil, "and loadfile reports it too")
-  eq(err2:find("cannot open " .. bad .. ": Illegal byte sequence", 1, true) ~= nil,
-     true, "with the name it was given")
+  eq(err2:find("cannot open " .. bad .. ":", 1, true) ~= nil, true,
+     "naming the bytes it was given")
+
+  -- A name whose bytes are not UTF-8 is still a name the host can use: what
+  -- `io.open` creates under such a name, `loadfile` finds under the same one.
+  local other = "\214\208.lua"     -- 你 in the Chinese ANSI code page
+  local h = io.open(other, "wb")
+  if h then
+    h:write("return 7\n")
+    h:close()
+    local loaded = loadfile(other)
+    eq(type(loaded), "function", "a name outside UTF-8 still names a file")
+    eq(loaded(), 7, "and the chunk in it loads")
+    eq(os.remove(other), true, "and it can be removed by that name")
+  end
 end
 
 print("language: ok")

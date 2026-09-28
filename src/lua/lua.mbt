@@ -49,7 +49,7 @@ pub fn run_file(
   st : @core.LuaState,
   path : String,
 ) -> (Bool, Array[@core.Value]) {
-  let data = match @core.read_file_named(@core.bytes_of(path)) {
+  let data = match @core.read_whole_file(@core.bytes_of(path)) {
     Ok(d) => d
     Err(e) =>
       return (

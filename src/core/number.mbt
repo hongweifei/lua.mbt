@@ -33,25 +33,49 @@ pub fn hex_digit_value(c : Int) -> Int {
 }
 
 ///|
+/// Whether a code point may be part of a name: an ASCII letter, digit or `_`, or
+/// a non-ASCII code point that is not one of the invisible ones.  The second
+/// clause is what lets a source file name things in its own language (see
+/// `utf8_ident_size`); leaving the invisible ones out is what keeps a stray
+/// byte order mark, zero width joiner, bidi control or noncharacter from
+/// silently becoming part of a name.
+fn is_name_codepoint(cp : Int) -> Bool {
+  if cp < 0x80 {
+    (cp >= 97 && cp <= 122) ||
+    (cp >= 65 && cp <= 90) ||
+    (cp >= 48 && cp <= 57) ||
+    cp == 95
+  } else if (cp >= 0x80 && cp <= 0x9F) || // C1 controls
+    (cp >= 0x2000 && cp <= 0x200F) || // en quad .. right-to-left mark
+    (cp >= 0x2028 && cp <= 0x202E) || // line separator .. right-to-left override
+    (cp >= 0x2060 && cp <= 0x206F) || // word joiner, invisible operators
+    cp == 0xFEFF || // byte order mark / zero width no-break space
+    (cp >= 0xFFF9 && cp <= 0xFFFB) || // interlinear annotation
+    (cp >= 0xFDD0 && cp <= 0xFDEF) || // noncharacters
+    (cp & 0xFFFF) >= 0xFFFE { // the noncharacter pair of every plane
+    false
+  } else {
+    true
+  }
+}
+
+///|
 /// The size in bytes of the name character whose code point starts at the bytes
 /// `c0`..`c3`, or 0 when no name character starts there.  A byte that is not
 /// there is -1.
 ///
 /// ASCII letters, digits and `_` count, as they do in the reference
-/// implementation; so does every well formed non-ASCII code point, which is
-/// what lets a source file written in UTF-8 name things in its own language.
-/// That second clause is a deliberate extension: a chunk that uses it is not
-/// accepted by the reference's `lislalpha`, which knows only ASCII.
+/// implementation; so does a well formed non-ASCII code point that is not one of
+/// the invisible ones, which is what lets a source file written in UTF-8 name
+/// things in its own language.  That second clause is a deliberate extension: a
+/// chunk that uses it is not accepted by the reference's `lislalpha`, which knows
+/// only ASCII.
 pub fn utf8_ident_size(c0 : Int, c1 : Int, c2 : Int, c3 : Int) -> Int {
   if c0 < 0 {
     return 0
   }
   if c0 < 0x80 {
-    let ascii = (c0 >= 97 && c0 <= 122) ||
-      (c0 >= 65 && c0 <= 90) ||
-      (c0 >= 48 && c0 <= 57) ||
-      c0 == 95
-    return if ascii { 1 } else { 0 }
+    return if is_name_codepoint(c0) { 1 } else { 0 }
   }
   // `C0`/`C1` are never a lead byte: that reading can only be an overlong
   // sequence, which is not UTF-8.  0xF5 and up cannot start a code point.
@@ -78,7 +102,8 @@ pub fn utf8_ident_size(c0 : Int, c1 : Int, c2 : Int, c3 : Int) -> Int {
     (size == 3 && cp < 0x800) ||
     (size == 4 && cp < 0x10000) ||
     cp > 0x10FFFF ||
-    (cp >= 0xD800 && cp <= 0xDFFF) {
+    (cp >= 0xD800 && cp <= 0xDFFF) ||
+    !is_name_codepoint(cp) {
     return 0
   }
   size

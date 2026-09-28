@@ -96,6 +96,37 @@ do
   eq(次数, 3, "a goto label named in Chinese")
 end
 
+-- A file name written in the source is UTF-8, and that is the name the host is
+-- asked for -- on Windows through the wide character API, because the narrow one
+-- cannot name such a file at all.
+do
+  local name = os.tmpname() .. "-中文名字.lua"
+  local f = assert(io.open(name, "wb"))
+  f:write("return 42\n")
+  f:close()
+  local loaded, err = loadfile(name)
+  eq(type(loaded), "function", "a file named in Chinese loads: " .. tostring(err))
+  eq(loaded(), 42, "and the chunk in it runs")
+  eq(dofile(name), 42, "dofile finds it too")
+  local g = assert(io.open(name, "rb"))
+  eq(#g:read("a"), 10, "and it can be read by that name")
+  g:close()
+  eq(os.rename(name, name .. ".moved"), true, "and renamed by that name")
+  eq(os.remove(name .. ".moved"), true, "and removed by that name")
+
+  -- A name that is not UTF-8 is handed to the host as it is rather than being
+  -- refused or rounded into another name, so a name in the host's own encoding
+  -- keeps working: what is created under it is found under it.
+  local other = os.tmpname() .. "\214\208.lua"
+  local h = io.open(other, "wb")
+  if h then
+    h:write("return 8\n")
+    h:close()
+    eq(type(loadfile(other)), "function", "a name outside UTF-8 still names a file")
+    eq(os.remove(other), true, "and is removed by that name")
+  end
+end
+
 -- ------------------------------------------------------------ what did not change
 eq(msg("return 1a"):find("malformed number", 1, true) ~= nil, true,
    "a numeral touching an ASCII letter is still a malformed number")
@@ -108,8 +139,17 @@ eq(msg("return 100万"):find("malformed number near '100万'", 1, true) ~= nil, 
 -- which is two lead bytes in a row.
 eq(msg("local \xE4\xB8"):find("<name> expected", 1, true) ~= nil, true,
    "a truncated sequence is not a name")
-eq(msg("local \xC4\xE3"):find("<name> expected", 1, true) ~= nil, true,
+eq(select(2, load("local \xC4\xE3")):find("<name> expected", 1, true) ~= nil, true,
    "and neither is a byte string in another encoding")
+-- A code point that is invisible rather than a letter does not join a name, so a
+-- chunk given as a string is refused exactly as the reference refuses it: a byte
+-- order mark is the file loader's business (it strips one), not the lexer's.
+eq(msg("\xEF\xBB\xBFreturn 1"):find("unexpected symbol near '<\\239>'", 1, true) ~= nil,
+   true, "a mark in a string chunk is not a name character")
+eq(msg("local \xE2\x80\x8D = 1"):find("<name> expected", 1, true) ~= nil, true,
+   "nor is a zero width joiner")
+eq(msg("local \xEF\xBF\xBE = 1"):find("<name> expected", 1, true) ~= nil, true,
+   "nor a noncharacter")
 
 -- Chinese in the places that always accepted it.
 local 文本 = "中文"

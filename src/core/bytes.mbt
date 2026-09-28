@@ -13,19 +13,6 @@ pub fn text_of(b : Bytes) -> String {
 }
 
 ///|
-/// Whether the bytes are a well formed UTF-8 sequence, which is what decides
-/// whether they can be handed to the host as text.  Bytes that are not -- a name
-/// in the host's own single byte encoding -- are left alone.
-pub fn is_utf8(b : Bytes) -> Bool {
-  try {
-    let _ = @utf8.decode(b)
-    true
-  } catch {
-    _ => false
-  }
-}
-
-///|
 /// The empty byte sequence.  Slicing nothing is common enough (`string.sub` of
 /// an empty range, `string.rep` with a count of 0) that it is worth not
 /// allocating for it; nothing writes into a byte sequence it did not make.

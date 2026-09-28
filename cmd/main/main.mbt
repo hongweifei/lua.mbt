@@ -265,7 +265,7 @@ fn run_script(
   let raw = if path == "-" {
     @core.read_stdin_all()
   } else {
-    match @core.read_file_named(@core.bytes_of(path)) {
+    match @core.read_whole_file(@core.bytes_of(path)) {
       Ok(d) => d
       Err(e) => {
         @core.write_stderr(

@@ -151,7 +151,7 @@ fn do_loadfile(
     if name.length() == 0 {
       @core.read_stdin_all()
     } else {
-      match @core.read_file_named(name) {
+      match @core.read_whole_file(name) {
         Ok(d) => d
         Err(e) =>
           return [

@@ -306,3 +306,27 @@ test "bytes that are not a code point do not make a name character" {
   // GBK's 你 is C4 E3: a two byte lead followed by another lead byte.
   assert_eq(ident_size(0xC4, 0xE3, 0, 0), 0)
 }
+
+///|
+test "an invisible code point is not a name character" {
+  // A code point that is there but is not a letter: it must not join a name.
+  // U+FEFF (the mark a file loader strips, `EF BB BF`), U+200D (zero width
+  // joiner), U+202E (right-to-left override), U+2028 (line separator),
+  // U+2060 (word joiner), U+0080 (a C1 control), U+FFFE and U+FDD0 and
+  // U+1FFFE (noncharacters).
+  assert_eq(ident_size(0xEF, 0xBB, 0xBF, 0), 0)
+  assert_eq(ident_size(0xE2, 0x80, 0x8D, 0), 0)
+  assert_eq(ident_size(0xE2, 0x80, 0xAE, 0), 0)
+  assert_eq(ident_size(0xE2, 0x80, 0xA8, 0), 0)
+  assert_eq(ident_size(0xE2, 0x81, 0xA0, 0), 0)
+  assert_eq(ident_size(0xC2, 0x80, 0, 0), 0)
+  assert_eq(ident_size(0xEF, 0xBF, 0xBE, 0), 0)
+  assert_eq(ident_size(0xEF, 0xB7, 0x90, 0), 0)
+  assert_eq(ident_size(0xF0, 0x9F, 0xBF, 0xBE), 0)
+  // What is left is everything else non-ASCII: a CJK character, an emoji, an
+  // accented letter, a combining mark.
+  assert_eq(ident_size(0xE4, 0xB8, 0xAD, 0), 3)
+  assert_eq(ident_size(0xF0, 0x9F, 0x98, 0x80), 4)
+  assert_eq(ident_size(0xC3, 0xA9, 0, 0), 2)
+  assert_eq(ident_size(0xCC, 0x81, 0, 0), 2)
+}

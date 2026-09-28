@@ -160,14 +160,10 @@ pub fn search_path(
 }
 
 ///|
-/// Whether a path names an existing file.  A name that is not UTF-8 cannot be
-/// read as a name, so it is reported as missing rather than handed to the host.
+/// Whether a path names an existing file.  The name is handed to the host as it
+/// is: whether it can be a name at all is the host's business.
 pub fn file_exists(path : String) -> Bool {
-  let p = @core.bytes_of(path)
-  if !@core.is_utf8(p) {
-    return false
-  }
-  let h = @host.lua_mbt_fopen(p, @core.bytes_of("rb"))
+  let h = @host.lua_mbt_fopen(@core.bytes_of(path), @core.bytes_of("rb"))
   if h == 0L {
     false
   } else {
@@ -262,7 +258,7 @@ pub fn searcher_lua(
   match found {
     None => @core.One(@core.VStr(@core.LStr::of_string(msg)))
     Some(file) => {
-      let data = match @core.read_file_named(@core.bytes_of(file)) {
+      let data = match @core.read_whole_file(@core.bytes_of(file)) {
         Ok(d) => d
         Err(e) =>
           return @core.Many([

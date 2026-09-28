@@ -374,8 +374,6 @@ pub fn is_space_byte(Int) -> Bool
 
 pub fn is_truthy_arg(LuaState, ArrayView[Value], Int) -> Bool
 
-pub fn is_utf8(Bytes) -> Bool
-
 pub fn key_hash(Key) -> Int
 
 pub fn key_of_value(Value) -> Key?
@@ -439,8 +437,6 @@ pub fn opt_number(LuaState, ArrayView[Value], Int, String, Double) -> Double rai
 pub fn position_at_level(LuaState, Int) -> Bytes
 
 pub fn[T] raise_fresh(LuaState, Value) -> T raise LuaRaised
-
-pub fn read_file_named(Bytes) -> Result[Bytes, Bytes]
 
 pub fn read_stdin_all() -> Bytes
 
