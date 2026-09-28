@@ -44,7 +44,10 @@ pub fn run_bytes(
 }
 
 ///|
-/// Runs a file as a chunk.
+/// Runs a file as a chunk.  The prefix a file may carry -- a UTF-8 byte order
+/// mark, a first line starting with `#` -- is dropped here too, because that is
+/// what `loadfile` and the launcher do with a file; a chunk given as a string
+/// keeps them and fails, as it does in the reference.
 pub fn run_file(
   st : @core.LuaState,
   path : String,
@@ -68,7 +71,7 @@ pub fn run_file(
         ],
       )
   }
-  run_bytes(st, data, "@" + path)
+  run_bytes(st, @load.strip_chunk_prefix(data), "@" + path)
 }
 
 ///|
@@ -82,6 +85,60 @@ fn error_object_message(st : @core.LuaState, e : @core.Value) -> String {
     "(error object is a " + e.type_name() + " value)",
     1,
   )
+}
+
+///|
+/// The text a value's own `__tostring` answers with, or `None` when it has no
+/// metamethod, the metamethod fails, or it answers with something that is not a
+/// string -- which is exactly when `luaL_callmeta` reports nothing and the
+/// reference falls back to naming the value's type.
+fn to_string_of(
+  st : @core.LuaState,
+  e : @core.Value,
+) -> Bytes? raise @core.LuaRaised {
+  let h = @vm.metafield(st, e, "__tostring")
+  if @vm.is_callable(h) {
+    let called = Some(@vm.call_metamethod(st, h, [e], 1, "")) catch {
+      @core.LuaRaised(_) => None
+      @core.LuaYield(v) => raise @core.LuaYield(v)
+    }
+    match called {
+      Some(res) =>
+        match @vm.nth_or_nil(res, 0) {
+          @core.VStr(s) => Some(s.data())
+          _ => None
+        }
+      None => None
+    }
+  } else {
+    None
+  }
+}
+
+///|
+/// How an error object is reported: a string answers with itself, anything else
+/// through its own `__tostring`, and failing that with the reference's
+/// "(error object is a <type> value)".  This is the text the launcher's message
+/// handler produces; the traceback it adds around one is not part of it.
+pub fn error_message(st : @core.LuaState, e : @core.Value) -> Bytes {
+  match e {
+    @core.VStr(s) => s.data()
+    _ => {
+      // A metamethod that fails -- or tries to yield, which it cannot do from
+      // here -- leaves nothing, which is what the fallback is for.  Swallowing
+      // it here is also why this answers with bytes rather than raising: a host
+      // formatting an error should not have to guard the formatter.
+      let rendered = to_string_of(st, e) catch {
+        @core.LuaRaised(_) => None
+        @core.LuaYield(_) => None
+      }
+      match rendered {
+        Some(b) => b
+        None =>
+          @core.bytes_of("(error object is a " + e.type_name() + " value)")
+      }
+    }
+  }
 }
 
 ///|
@@ -111,33 +168,17 @@ fn script_msghandler(
           ),
         ),
       ])
-    _ => {
-      let h = @vm.metafield(st, e, "__tostring")
-      if @vm.is_callable(h) {
-        let called = Some(@vm.call_metamethod(st, h, [e], 1, "")) catch {
-          @core.LuaRaised(_) => None
-          @core.LuaYield(v) => raise @core.LuaYield(v)
-        }
-        match called {
-          Some(res) =>
-            match @vm.nth_or_nil(res, 0) {
-              @core.VStr(s) => @core.One(@core.VStr(s))
-              _ =>
-                @core.One(
-                  @core.VStr(@core.LStr::of_string(error_object_message(st, e))),
-                )
-            }
-          None =>
-            @core.One(
-              @core.VStr(@core.LStr::of_string(error_object_message(st, e))),
-            )
-        }
-      } else {
-        @core.One(
-          @core.VStr(@core.LStr::of_string(error_object_message(st, e))),
-        )
-      }
-    }
+    _ =>
+      @core.One(
+        @core.VStr(
+          @core.LStr::of_bytes(
+            match to_string_of(st, e) {
+              Some(b) => b
+              None => @core.bytes_of(error_object_message(st, e))
+            },
+          ),
+        ),
+      )
   }
 }
 

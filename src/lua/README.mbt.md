@@ -46,4 +46,6 @@ test "reporting a failure" {
 }
 ```
 
-更下面一层是 `try_load`（把源码或二进制 chunk 编译成可调用的值）、`pcall_value`（在保护下调用一个值）、`call_printed`（以零参数调用并把结果交给 Lua 的 `print`——交互式循环就是这么做的）和 `disassemble`（打印代码生成器的产物）。`open_libraries` 由 `create` 调用，也可以用于一个未曾打开标准库的状态。
+再下面是这一层的各个零件：`try_load`（把源码或二进制 chunk 编译成可调用的值）、`pcall_value`（在保护下调用一个值）、`call_printed`（以零参数调用并把结果交给 Lua 的 `print`——交互式循环就是这么做的）、`error_message`（一个错误对象按语言规则报成什么文本）。打印代码生成器产物的是 `@core.disassemble`。
+
+**给 MoonBit 使用者的建议**：嵌入请用模块根包的 `hongweifei/lua`（`Lua::new`、`run`、`set_function`、`Result` 化的错误），那一层就是用本包搭起来的，但不要求你 import 本包或 `src/core`。本包是命令行界面与嵌入者共用的底层，也是 `lua` 命令行的全部依赖。

@@ -18,9 +18,9 @@ pub fn create_ignoring_env(Bool) -> @core.LuaState
 
 pub fn dirsep() -> String
 
-pub fn error_text(@core.LuaState, @core.Value) -> Bytes
+pub fn error_message(@core.LuaState, @core.Value) -> Bytes
 
-pub fn file_exists(String) -> Bool
+pub fn error_text(@core.LuaState, @core.Value) -> Bytes
 
 pub fn global_field(@core.LuaState, String) -> @core.Value
 
@@ -28,13 +28,7 @@ pub fn last_load_error(@core.LuaState) -> Bytes?
 
 pub fn open_libraries(@core.LuaState) -> Unit
 
-pub fn open_package_library(@core.LuaState) -> Unit
-
 pub fn pcall_value(@core.LuaState, @core.Value, Array[@core.Value]) -> (Bool, Array[@core.Value])
-
-pub fn pkg_loadlib(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
-
-pub fn pkg_searchpath(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
 pub fn run_bytes(@core.LuaState, Bytes, String) -> (Bool, Array[@core.Value])
 
@@ -45,14 +39,6 @@ pub fn run_protected_reporting(@core.LuaState, Bytes, String) -> (Int, Bytes)
 pub fn run_protected_with_args(@core.LuaState, Bytes, String, Array[@core.Value]) -> (Int, Bytes)
 
 pub fn run_string(@core.LuaState, String, String) -> (Bool, Array[@core.Value])
-
-pub fn search_path(String, String, String, String) -> (String?, String)
-
-pub fn searcher_c(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
-
-pub fn searcher_lua(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
-
-pub fn searcher_preload(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised
 
 pub fn set_global(@core.LuaState, String, @core.Value) -> Unit
 

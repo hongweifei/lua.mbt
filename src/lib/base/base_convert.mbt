@@ -55,20 +55,16 @@ pub fn base_tonumber(
 ) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   if args.length() < 2 || args[1].is_nil() {
+    // A number answers itself and a string answers as the number it spells --
+    // the same coercion `math.tointeger` starts from.
     let v = @core.check_any(state, args, 1, "tonumber")
-    match v {
-      @core.VInt(_) | @core.VNum(_) => return @core.One(v)
-      @core.VStr(s) =>
-        match @core.lua_str2num(s.data()) {
-          Some(@core.NInt(i)) => return @core.One(@core.VInt(i))
-          Some(@core.NFloat(d)) => return @core.One(@core.VNum(d))
-          None => return @core.One(@core.VNil)
-        }
-      _ => {
-        let _ = @core.check_any(state, args, 1, "tonumber")
-        return @core.One(@core.VNil)
-      }
-    }
+    return @core.One(
+      match v.as_number() {
+        Some(@core.NInt(i)) => @core.VInt(i)
+        Some(@core.NFloat(d)) => @core.VNum(d)
+        None => @core.VNil
+      },
+    )
   }
   let text = match @core.check_any(state, args, 1, "tonumber") {
     @core.VStr(s) => s

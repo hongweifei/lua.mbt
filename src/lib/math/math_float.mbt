@@ -205,26 +205,9 @@ pub fn math_tointeger(
   let _ = upvals
   let v = @core.check_any(state, args, 1, "tointeger")
   // A numeral spelled in a string converts the same way a number does.
-  let num : @core.Value = match v {
-    @core.VInt(i) => @core.VInt(i)
-    @core.VNum(d) => @core.VNum(d)
-    @core.VStr(s) =>
-      match @core.lua_str2num(s.data()) {
-        Some(@core.NInt(i)) => @core.VInt(i)
-        Some(@core.NFloat(d)) => @core.VNum(d)
-        None => @core.VNil
-      }
-    _ => @core.VNil
-  }
-  match num {
-    @core.VInt(i) => @core.One(@core.VInt(i))
-    @core.VNum(d) =>
-      if @core.float_is_int64(d) {
-        @core.One(@core.VInt(@core.float_to_int64(d)))
-      } else {
-        @core.One(@core.VNil)
-      }
-    _ => @core.One(@core.VNil)
+  match v.as_integer() {
+    Some(i) => @core.One(@core.VInt(i))
+    None => @core.One(@core.VNil)
   }
 }
 

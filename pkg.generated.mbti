@@ -1,12 +1,66 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "hongweifei/lua"
 
+import {
+  "hongweifei/lua/src/core",
+}
+
 // Values
+pub fn host_function(String, (Array[@core.Value]) -> Result[Array[@core.Value], @core.Value]) -> @core.Value
+
+pub fn new_table() -> @core.LTable
 
 // Errors
 
 // Types and methods
+pub struct Lua {
+  // private fields
+}
+pub fn Lua::call(Self, @core.Value, args? : Array[@core.Value]) -> Result[Array[@core.Value], LuaError]
+pub fn Lua::call_global(Self, String, args? : Array[@core.Value]) -> Result[Array[@core.Value], LuaError]
+pub fn Lua::eval(Self, String, args? : Array[@core.Value]) -> Result[@core.Value, LuaError]
+pub fn Lua::eval_bool(Self, String, args? : Array[@core.Value]) -> Result[Bool, LuaError]
+pub fn Lua::eval_bytes(Self, String, args? : Array[@core.Value]) -> Result[Bytes, LuaError]
+pub fn Lua::eval_int(Self, String, args? : Array[@core.Value]) -> Result[Int64, LuaError]
+pub fn Lua::eval_number(Self, String, args? : Array[@core.Value]) -> Result[Double, LuaError]
+pub fn Lua::eval_text(Self, String, args? : Array[@core.Value]) -> Result[String, LuaError]
+pub fn Lua::get(Self, String) -> @core.Value
+pub fn Lua::globals(Self) -> @core.LTable
+pub fn Lua::load(Self, String, name? : String) -> Result[@core.Value, LuaError]
+pub fn Lua::load_file(Self, String) -> Result[@core.Value, LuaError]
+pub fn Lua::new(ignore_env? : Bool) -> Self
+pub fn Lua::run(Self, String, name? : String, args? : Array[@core.Value]) -> Result[Array[@core.Value], LuaError]
+pub fn Lua::run_file(Self, String, args? : Array[@core.Value]) -> Result[Array[@core.Value], LuaError]
+pub fn[T : ToLua] Lua::set(Self, String, T) -> Unit
+pub fn Lua::set_function(Self, String, (Array[@core.Value]) -> Result[Array[@core.Value], @core.Value]) -> Unit
+pub fn Lua::show(Self, @core.Value) -> String
+pub fn Lua::state(Self) -> @core.LuaState
+
+pub struct LuaError {
+  value : @core.Value
+  message : String
+}
+pub impl Show for LuaError
 
 // Type aliases
+pub type HostFunction = (Array[@core.Value]) -> Result[Array[@core.Value], @core.Value]
+
+pub using @core {type LTable as Table}
+
+pub using @core {type Value}
 
 // Traits
+pub trait ToLua {
+  fn to_lua(Self) -> @core.Value
+}
+pub impl ToLua for Bool
+pub impl ToLua for Int
+pub impl ToLua for Int64
+pub impl ToLua for Double
+pub impl ToLua for String
+pub impl[T : ToLua] ToLua for T?
+pub impl ToLua for Bytes
+pub impl ToLua for @core.LTable
+pub impl ToLua for @core.Value
+pub impl[T : ToLua] ToLua for Array[T]
+pub impl[K : ToLua, V : ToLua] ToLua for Map[K, V]

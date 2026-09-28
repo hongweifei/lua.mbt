@@ -1,1 +1,6 @@
-
+import {
+  "hongweifei/lua/src/core",
+  // The root package is itself named `lua`, so the library layer it builds on
+  // is given its own name rather than colliding with it.
+  "hongweifei/lua/src/lua" @lualib,
+}

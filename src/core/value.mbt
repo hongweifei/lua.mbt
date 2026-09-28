@@ -336,6 +336,89 @@ pub fn Value::raw_equal(self : Value, other : Value) -> Bool {
 }
 
 ///|----------------------------------------------------------------
+/// Reading a value from outside the interpreter
+///
+/// These are the rules the language already applies to a coercion, gathered on
+/// the value itself so a host program and the library cannot drift apart:
+/// `tonumber` and `math.tointeger` ask the same questions with the same answers.
+
+///|
+/// The number a value stands for when Lua coerces it: a number answers itself, a
+/// string answers as the number it spells, and nothing else is a number.  This
+/// is `tonumber`'s rule (`lua_tonumberx` on a string).
+pub fn Value::as_number(self : Value) -> NumValue? {
+  match self {
+    VInt(i) => Some(NInt(i))
+    VNum(d) => Some(NFloat(d))
+    VStr(s) => lua_str2num(s.data())
+    _ => None
+  }
+}
+
+///|
+/// The integer a value stands for: an integer answers itself, a float only while
+/// it holds an integral value, and a string that spells one of those does too.
+/// This is `math.tointeger`'s rule, and `lua_tointegerx`'s.
+pub fn Value::as_integer(self : Value) -> Int64? {
+  match self.as_number() {
+    Some(NInt(i)) => Some(i)
+    Some(NFloat(d)) =>
+      if float_is_int64(d) {
+        Some(float_to_int64(d))
+      } else {
+        None
+      }
+    None => None
+  }
+}
+
+///|
+/// The value as a float.  An integer widens, and so does a string that spells a
+/// number; a value outside 2^53 loses precision in the widening, as it does in
+/// the reference.
+pub fn Value::as_double(self : Value) -> Double? {
+  match self.as_number() {
+    Some(NInt(i)) => Some(i.to_double())
+    Some(NFloat(d)) => Some(d)
+    None => None
+  }
+}
+
+///|
+/// The bytes of a string value, with no coercion at all.  `lua_tostring` also
+/// turns a number into a string, but it *rewrites the stack* while doing so;
+/// reading a value here must not change what Lua sees, so a number answers
+/// `None`.
+pub fn Value::as_bytes(self : Value) -> Bytes? {
+  match self {
+    VStr(s) => Some(s.data())
+    _ => None
+  }
+}
+
+///|
+/// A string value as MoonBit text.  Lua strings are bytes, so bytes that are not
+/// UTF-8 come back replaced; `as_bytes` is the exact reader.
+pub fn Value::as_text(self : Value) -> String? {
+  match self {
+    VStr(s) => Some(text_of(s.data()))
+    _ => None
+  }
+}
+
+///|
+/// A string value holding MoonBit text, encoded as UTF-8 as Lua would store it.
+pub fn Value::text(s : String) -> Value {
+  VStr(LStr::of_string(s))
+}
+
+///|
+/// A fresh, empty table.
+pub fn Value::table() -> Value {
+  VTable(LTable::new())
+}
+
+///|----------------------------------------------------------------
 /// Numeric conversions.
 ///
 /// These mirror the coercions Lua performs: an integer and a float are equal

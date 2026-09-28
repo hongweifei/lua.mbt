@@ -121,3 +121,27 @@ test "package.config names the host directory separator" {
   let state = create()
   assert_true(package_field(state, "config").has_prefix(dirsep() + "\n"))
 }
+
+///|
+/// A file run as a chunk has the prefix a file may carry dropped: a UTF-8 byte
+/// order mark and a first line starting with `#`.  The line is replaced by its
+/// newline, so the line numbers after it do not move -- the same rule
+/// `loadfile`, the launcher and the `Lua` façade follow.
+test "run_file drops a file's mark and # line, and keeps the line numbers" {
+  let path = "_build_run_file_test.lua"
+  let body = @core.bytes_concat([
+    b"\xEF\xBB\xBF", b"#!/usr/bin/lua\n", b"return require'debug'.getinfo(1).currentline",
+  ])
+  match @core.write_whole_file(@core.bytes_of(path), body) {
+    Err(e) => fail("cannot write " + path + ": " + @core.text_of(e))
+    Ok(_) => ()
+  }
+  let state = create()
+  let (ok, vals) = run_file(state, path)
+  assert_true(ok)
+  match vals {
+    [v, ..] => assert_eq(v.as_integer(), Some(2L))
+    _ => fail("the chunk should answer with its line number")
+  }
+  assert_eq(@host.lua_mbt_remove(@core.bytes_of(path)), 0)
+}

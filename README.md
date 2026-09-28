@@ -55,10 +55,11 @@ moon run examples/embed
 
 ## 目录结构
 
-每个含 `moon.pkg` 的目录就是一个包。模块根目录只放元数据；可执行程序在 `cmd/main`，实现分布在 `src` 下的十七个包里。
+每个含 `moon.pkg` 的目录就是一个包。模块根目录既是元数据，也是**面向 MoonBit 嵌入者的公开包**（`hongweifei/lua`）；可执行程序在 `cmd/main`，实现分布在 `src` 下的十七个包里。
 
 | 包 | 内容 |
 | --- | --- |
+| `hongweifei/lua`（根包） | 嵌入用的公开接口：`Lua` 句柄、`Value`/`Table` 别名、`ToLua`、`host_function`、`LuaError`（`embed.mbt`、`values.mbt`、`host_functions.mbt`、`errors.mbt`） |
 | `src/host` | 宿主边界：`ffi.mbt` 里的 `extern "c"` 声明，以及实现它们的 `stub.c` |
 | `src/core` | 值模型与状态：`value`、`objects`、`table`、`table_hash`、`thread`、`userdata`、`state`；数字（`number`、`number_format`）、`opcode`、`bytes`、core 直接调用的宿主服务、`names`（错误消息从运行中的代码借用的名字）以及 `binop` / `load_outcome` |
 | `src/vm` | 解释器循环及其派发：`vm`、`vm_frame`、`vm_call`、`vm_instr`、`vm_index`、`vm_arith`、`vm_compare`、`vm_convert`、`vm_hook` |
@@ -82,6 +83,7 @@ host
          ├─ load  ← chunk, compiler, vm
          ├─ lib/* ← load, vm, pattern, chunk
          └─ lua   ← lib/*, load, vm
+            └ (根包) ← core, lua
 ```
 
 宿主边界只有 `host` 一个包，直接依赖它的只有五处：`core`（解释器自己要用到的宿主服务，其余包经它的包装使用）、`src/lua`（启动器与 `package` 的搜索路径）、以及三个本身就是宿主服务包装的标准库——`lib/io`、`lib/os`，和 `lib/math` 的随机数（参考实现里 `liolib.c`/`loslib.c`/`lmathlib.c` 同样是直接调 C 库的薄包装）。
@@ -92,19 +94,23 @@ host
 
 ## 作为库使用
 
-```mbt check
-///|
-test "embedding" {
-  let state = create()
-  let (ok, results) = run_string(state, "return 6 * 7", "=example")
-  assert_true(ok)
-  assert_eq(results.length(), 1)
-}
+从 MoonBit 程序里嵌入它只需要 `import { "hongweifei/lua" }`：不必 import 解释器的内部包，也不必碰 `Bytes` 或 C 风格的签名。
+
+```moonbit
+let lua = Lua::new()
+lua.set("上限", 100)                          // MoonBit 的值直接写进 globals
+lua.set_function("平方", fn(args) {           // MoonBit 闭包就是 Lua 函数
+  match args[0].as_integer() {
+    Some(x) => Ok([Value::VInt(x * x)])
+    None => Err(Value::text("integer expected"))
+  }
+})
+let total = lua.eval_int("return 平方(3) + 上限")   // Ok(109)
 ```
 
-`create` 构造一个已打开全部标准库的状态。`run_string`、`run_bytes` 和 `run_file` 从不抛异常：它们返回 chunk 是否成功，以及结果或错误对象。更下面一层是 `try_load`（把源码或二进制 chunk 编译成可调用的值）、`pcall_here`（在保护下调用一个值）和 `disassemble`（打印代码生成器的产物）。命令行界面就是用这三个搭起来的。
+`Lua::new` 打开全部标准库。`run`、`run_file`、`call` 都返回 `Result[Array[Value], LuaError]`：脚本失败不会抛 MoonBit 异常，`LuaError` 同时带着**错误对象本身**（`error({code=42})` 里那个表可以逐字段读）和按语言规则渲染出的文本。`Value` 是解释器自己的值的别名，所以它的读法与语言用的是同一套规则——`as_integer` 就是 `math.tointeger`，`raw_equal` 就是 `==`，`as_bytes` 给的是字符串的原始字节。`ToLua` 负责把 MoonBit 数据搬进 Lua：标量、`Array`（1 起的序列）、`Map`、`Option`（`None` 就是 `nil`）。再下面一层（`src/lua` 与 `src/core`）也直接可用：命令行界面就是用它们搭起来的。
 
-`src/lua/README.mbt.md` 是这个包的文档，其中的 `mbt check` 代码块由 `moon test` 实际执行。
+可运行的完整版本是 `examples/embed/main.mbt`（`moon run examples/embed`，它自己用 `assert` 校验结果）；上面那段代码也在根包的 `embed_test.mbt` 里跑着，那个文件只用公开接口——这正是它要验证的事。
 
 ## 实现要点
 

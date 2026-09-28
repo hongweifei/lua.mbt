@@ -839,7 +839,12 @@ pub(all) enum Value {
   VUserData(LUserData)
 }
 pub fn Value::as_builtin(Self) -> LBuiltin?
+pub fn Value::as_bytes(Self) -> Bytes?
+pub fn Value::as_double(Self) -> Double?
 pub fn Value::as_file(Self) -> LFile?
+pub fn Value::as_integer(Self) -> Int64?
+pub fn Value::as_number(Self) -> NumValue?
+pub fn Value::as_text(Self) -> String?
 pub fn Value::is_nil(Self) -> Bool
 pub fn Value::is_number(Self) -> Bool
 pub fn Value::is_truthy(Self) -> Bool
@@ -847,6 +852,8 @@ pub fn Value::meta_slot(Self) -> Int
 pub fn Value::obj_id(Self) -> Int
 pub fn Value::object_id(Self) -> Int
 pub fn Value::raw_equal(Self, Self) -> Bool
+pub fn Value::table() -> Self
+pub fn Value::text(String) -> Self
 pub fn Value::type_name(Self) -> String
 
 // Type aliases

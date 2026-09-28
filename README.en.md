@@ -76,6 +76,7 @@ seventeen packages under `src`.
 
 | Package | Contents |
 | --- | --- |
+| `hongweifei/lua` (root) | The embedding interface: the `Lua` handle, the `Value`/`Table` aliases, `ToLua`, `host_function`, `LuaError` (`embed.mbt`, `values.mbt`, `host_functions.mbt`, `errors.mbt`) |
 | `src/host` | The host boundary: `extern "c"` declarations in `ffi.mbt` and the `stub.c` that implements them |
 | `src/core` | Value model and state: `value`, `objects`, `table`, `table_hash`, `thread`, `userdata`, `state`; numbers (`number`, `number_format`), `opcode`, `bytes`, the `host` services core calls directly, `names` (the names error messages borrow from the running code) and `binop` / `load_outcome` |
 | `src/vm` | The interpreter loop and what it dispatches to: `vm`, `vm_frame`, `vm_call`, `vm_instr`, `vm_index`, `vm_arith`, `vm_compare`, `vm_convert`, `vm_hook` |
@@ -99,6 +100,7 @@ host
          ├─ load  ← chunk, compiler, vm
          ├─ lib/* ← load, vm, pattern, chunk
          └─ lua   ← lib/*, load, vm
+            └ (root) ← core, lua
 ```
 
 The host boundary is one package, and only five places depend on it directly:
@@ -122,23 +124,37 @@ particular function raises.
 
 ## Using it as a library
 
-```mbt check
-///|
-test "embedding" {
-  let state = create()
-  let (ok, results) = run_string(state, "return 6 * 7", "=example")
-  assert_true(ok)
-  assert_eq(results.length(), 1)
-}
+Embedding it from MoonBit needs one import, `{ "hongweifei/lua" }`: no internal
+packages, no `Bytes`, no C-shaped signatures.
+
+```moonbit
+let lua = Lua::new()
+lua.set("上限", 100)                          // a MoonBit value becomes a global
+lua.set_function("平方", fn(args) {           // a MoonBit closure is a Lua function
+  match args[0].as_integer() {
+    Some(x) => Ok([Value::VInt(x * x)])
+    None => Err(Value::text("integer expected"))
+  }
+})
+let total = lua.eval_int("return 平方(3) + 上限")   // Ok(109)
 ```
 
-`create` builds a state with every standard library open. `run_string`,
-`run_bytes` and `run_file` never raise: they return whether the chunk succeeded
-and either its results or the error object. Below that sit
-`try_load`, which compiles source or a binary chunk into a callable value,
-`pcall_here`, which calls a value under protection, and `disassemble`, which
-prints what the code generator produced. The command line interface is built
-from those three.
+`Lua::new` opens every standard library. `run`, `run_file` and `call` answer with
+`Result[Array[Value], LuaError]`: a script that fails does not raise a MoonBit
+error, and a `LuaError` carries both the **error object itself** (a table raised
+by `error({code=42})` can be read field by field) and the text the language
+would report for it. `Value` is an alias of the interpreter's own value, so
+reading one follows the same rules as the language: `as_integer` is
+`math.tointeger`, `raw_equal` is `==`, `as_bytes` gives a string's exact bytes.
+`ToLua` moves MoonBit data in the other way: the scalars, `Array` (a sequence
+numbered from 1), `Map` and `Option` (`None` is `nil`). The layers underneath --
+`src/lua` and `src/core` -- stay available; the command line interface is built
+from them.
+
+The runnable version of the snippet above is `examples/embed/main.mbt`
+(`moon run examples/embed`, which asserts its own results), and the same code
+runs as a test in `embed_test.mbt` -- a file that uses nothing but this
+package's public interface, which is the point of it.
 
 ## Implementation notes
 

@@ -138,7 +138,7 @@ fn set_path(
 /// template's `?` replaced by the name and its separators turned into the lines
 /// that name them, so an empty template is reported as an empty name
 /// (`searchpath`/`pusherrornotfound` in the reference).
-pub fn search_path(
+fn search_path(
   name : String,
   path : String,
   sep : String,
@@ -162,7 +162,7 @@ pub fn search_path(
 ///|
 /// Whether a path names an existing file.  The name is handed to the host as it
 /// is: whether it can be a name at all is the host's business.
-pub fn file_exists(path : String) -> Bool {
+fn file_exists(path : String) -> Bool {
   let h = @host.lua_mbt_fopen(@core.bytes_of(path), @core.bytes_of("rb"))
   if h == 0L {
     false
@@ -174,7 +174,7 @@ pub fn file_exists(path : String) -> Bool {
 
 ///|
 /// `package.searchpath`.
-pub fn pkg_searchpath(
+fn pkg_searchpath(
   state : @core.LuaState,
   upvals : Array[@core.Value],
   args : ArrayView[@core.Value],
@@ -206,7 +206,7 @@ pub fn pkg_searchpath(
 
 ///|
 /// The searcher that consults `package.preload`.
-pub fn searcher_preload(
+fn searcher_preload(
   state : @core.LuaState,
   upvals : Array[@core.Value],
   args : ArrayView[@core.Value],
@@ -235,7 +235,7 @@ pub fn searcher_preload(
 
 ///|
 /// The searcher that looks for a Lua source file.
-pub fn searcher_lua(
+fn searcher_lua(
   state : @core.LuaState,
   upvals : Array[@core.Value],
   args : ArrayView[@core.Value],
@@ -305,7 +305,7 @@ pub fn searcher_lua(
 /// reference's `DLMSG` gives, and `"absent"` for the step that failed
 /// (`LIB_FAIL` on the fallback path).  A program that calls it gets that answer
 /// instead of an attempt to call a missing function.
-pub fn pkg_loadlib(
+fn pkg_loadlib(
   state : @core.LuaState,
   upvals : Array[@core.Value],
   args : ArrayView[@core.Value],
@@ -330,7 +330,7 @@ pub fn pkg_loadlib(
 /// makes `require`'s message name the files it tried; this implementation has no
 /// loader for a shared library, so a file that *is* found is reported as one it
 /// cannot load.
-pub fn searcher_c(
+fn searcher_c(
   state : @core.LuaState,
   upvals : Array[@core.Value],
   args : ArrayView[@core.Value],
@@ -358,7 +358,7 @@ pub fn searcher_c(
 }
 
 ///|
-pub fn open_package_library(state : @core.LuaState) -> Unit {
+fn open_package_library(state : @core.LuaState) -> Unit {
   let pkg = @load.package_self(state)
   let loaded = @load.package_table(state, "loaded")
   let preload = @load.package_table(state, "preload")
