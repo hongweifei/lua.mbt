@@ -175,33 +175,39 @@ pub fn execute(
         }
         match inst.op {
           @core.OP_MOVE =>
-            thread.stack[base + inst.a] = thread.stack[base + inst.b]
+            thread.stack.unsafe_set(
+              base + inst.a,
+              thread.stack.unsafe_get(base + inst.b),
+            )
           @core.OP_LOADK =>
-            thread.stack[base + inst.a] = proto.constants[inst.b]
+            thread.stack.unsafe_set(base + inst.a, proto.constants[inst.b])
           @core.OP_LOADNIL => {
             let mut i = 0
             while i < inst.b {
-              thread.stack[base + inst.a + i] = @core.VNil
+              thread.stack.unsafe_set(base + inst.a + i, @core.VNil)
               i = i + 1
             }
           }
           @core.OP_LOADBOOL => {
-            thread.stack[base + inst.a] = @core.VBool(inst.b != 0)
+            thread.stack.unsafe_set(base + inst.a, @core.VBool(inst.b != 0))
             if inst.c != 0 {
               pc = pc + 1
             }
           }
           @core.OP_GETUPVAL =>
-            thread.stack[base + inst.a] = cl.upvals[inst.b].get()
+            thread.stack.unsafe_set(base + inst.a, cl.upvals[inst.b].get())
           @core.OP_SETUPVAL =>
-            cl.upvals[inst.b].set(thread.stack[base + inst.a])
+            cl.upvals[inst.b].set(thread.stack.unsafe_get(base + inst.a))
           @core.OP_GETTABLE => {
-            let t = thread.stack[base + inst.b]
+            let t = thread.stack.unsafe_get(base + inst.b)
             let k = rk_value(proto, thread, base, inst.c)
-            thread.stack[base + inst.a] = index_get(st, t, k, base + inst.b)
+            // The value is computed first: `index_get` may run a metamethod,
+            // which can grow the stack, so the store re-reads it.
+            let v = index_get(st, t, k, base + inst.b)
+            thread.stack.unsafe_set(base + inst.a, v)
           }
           @core.OP_SETTABLE => {
-            let t = thread.stack[base + inst.a]
+            let t = thread.stack.unsafe_get(base + inst.a)
             let k = rk_value(proto, thread, base, inst.b)
             let v = rk_value(proto, thread, base, inst.c)
             index_set(st, t, k, v, base + inst.a)
@@ -209,12 +215,8 @@ pub fn execute(
           @core.OP_GETTABUP => {
             let t = cl.upvals[inst.b].get()
             let k = rk_value(proto, thread, base, inst.c)
-            thread.stack[base + inst.a] = index_get(
-              st,
-              t,
-              k,
-              @core.up_src(inst.b),
-            )
+            let v = index_get(st, t, k, @core.up_src(inst.b))
+            thread.stack.unsafe_set(base + inst.a, v)
           }
           @core.OP_SETTABUP => {
             let t = cl.upvals[inst.a].get()
@@ -228,16 +230,20 @@ pub fn execute(
             // triggers still sees everything the frame holds (`OP_NEWTABLE`'s
             // `L->top.p = ra + 1`).
             fr.top = base + inst.a + 1
-            thread.stack[base + inst.a] = @core.VTable(@core.LTable::new())
+            thread.stack.unsafe_set(
+              base + inst.a,
+              @core.VTable(@core.LTable::new()),
+            )
             // The table's own cost is charged where it is made
             // (`LTable::new`), so that a table a library function builds counts
             // the same way.
           }
           @core.OP_SELF => {
-            let t = thread.stack[base + inst.b]
-            thread.stack[base + inst.a + 1] = t
+            let t = thread.stack.unsafe_get(base + inst.b)
+            thread.stack.unsafe_set(base + inst.a + 1, t)
             let k = rk_value(proto, thread, base, inst.c)
-            thread.stack[base + inst.a] = index_get(st, t, k, base + inst.b)
+            let v = index_get(st, t, k, base + inst.b)
+            thread.stack.unsafe_set(base + inst.a, v)
           }
           @core.OP_ADD | @core.OP_SUB | @core.OP_MUL => {
             // The integer and float cases of `+`, `-` and `*` are written out
@@ -260,32 +266,38 @@ pub fn execute(
             }
             // The two numeric cases are matched on the operands themselves: an
             // `Option[Value]` would box its payload on this backend, which costs
-            // more than the whole instruction.
+            // more than the whole instruction.  The stack accesses are unchecked
+            // because `inst.a`/`inst.b`/`inst.c` are inside the frame's window,
+            // which `push_frame` reserved for the whole prototype.
             match (x, y) {
               (@core.VInt(a), @core.VInt(d)) =>
-                thread.stack[base + inst.a] = @core.VInt(
-                  match inst.op {
-                    @core.OP_ADD => a + d
-                    @core.OP_SUB => a - d
-                    _ => a * d
-                  },
+                thread.stack.unsafe_set(
+                  base + inst.a,
+                  @core.VInt(
+                    match inst.op {
+                      @core.OP_ADD => a + d
+                      @core.OP_SUB => a - d
+                      _ => a * d
+                    },
+                  ),
                 )
               (@core.VNum(a), @core.VNum(d)) =>
-                thread.stack[base + inst.a] = @core.VNum(
-                  match inst.op {
-                    @core.OP_ADD => a + d
-                    @core.OP_SUB => a - d
-                    _ => a * d
-                  },
+                thread.stack.unsafe_set(
+                  base + inst.a,
+                  @core.VNum(
+                    match inst.op {
+                      @core.OP_ADD => a + d
+                      @core.OP_SUB => a - d
+                      _ => a * d
+                    },
+                  ),
                 )
               _ => {
                 st.slot_x = rk_slot(b, base)
                 st.slot_y = rk_slot(c, base)
-                thread.stack[base + inst.a] = arith(
-                  st,
-                  inst.op - @core.OP_ADD,
-                  x,
-                  y,
+                thread.stack.unsafe_set(
+                  base + inst.a,
+                  arith(st, inst.op - @core.OP_ADD, x, y),
                 )
               }
             }
@@ -303,7 +315,7 @@ pub fn execute(
             let y = rk_value(proto, thread, base, inst.c)
             st.slot_x = rk_slot(inst.b, base)
             st.slot_y = rk_slot(inst.c, base)
-            thread.stack[base + inst.a] = arith(
+            let v = arith(
               st,
               // `OP_ADD`..`OP_SHR` stand in the same order as
               // `BINOP_ADD`..`BINOP_SHR`, so the opcode is already the operator
@@ -312,12 +324,14 @@ pub fn execute(
               x,
               y,
             )
+            thread.stack.unsafe_set(base + inst.a, v)
           }
           @core.OP_UNM | @core.OP_BNOT | @core.OP_NOT | @core.OP_LEN => {
             let x = rk_value(proto, thread, base, inst.b)
             st.slot_x = rk_slot(inst.b, base)
             st.slot_y = st.slot_x
-            thread.stack[base + inst.a] = unop(st, opcode_to_unop(inst.op), x)
+            let v = unop(st, opcode_to_unop(inst.op), x)
+            thread.stack.unsafe_set(base + inst.a, v)
           }
           @core.OP_CONCAT => {
             let first = base + inst.a
@@ -325,15 +339,16 @@ pub fn execute(
             // `L->top.p = ra + n` marks the end of the operands, which is the
             // live limit a collection inside the fold has to see.
             fr.top = first + n
-            thread.stack[first] = concat_fold(
+            let folded = concat_fold(
               st,
               thread,
               fr,
               pc - 1,
               first,
               n - 1,
-              thread.stack[first + n - 1],
+              thread.stack.unsafe_get(first + n - 1),
             )
+            thread.stack.unsafe_set(first, folded)
           }
           @core.OP_JMP => {
             // A jump carries the level it has to close down to: a `goto` or a
@@ -369,15 +384,15 @@ pub fn execute(
             }
           }
           @core.OP_TEST => {
-            let v = thread.stack[base + inst.a]
+            let v = thread.stack.unsafe_get(base + inst.a)
             if v.is_truthy() != (inst.c != 0) {
               pc = pc + 1
             }
           }
           @core.OP_TESTSET => {
-            let v = thread.stack[base + inst.b]
+            let v = thread.stack.unsafe_get(base + inst.b)
             if v.is_truthy() == (inst.c != 0) {
-              thread.stack[base + inst.a] = v
+              thread.stack.unsafe_set(base + inst.a, v)
             } else {
               pc = pc + 1
             }
@@ -634,7 +649,7 @@ pub fn execute(
             base = fr.base
           }
           @core.OP_FORPREP => {
-            let step = thread.stack[base + inst.a + 2]
+            let step = thread.stack.unsafe_get(base + inst.a + 2)
             if is_zero_step(step) {
               @core.vm_error(st, "'for' step is zero")
             }
@@ -795,12 +810,15 @@ pub fn execute(
               }
               i = i + 1
             }
-            thread.stack[base + inst.a] = @core.VFunc({
-              proto: sub,
-              upvals,
-              id: @core.next_object_id(),
-              mark_epoch: 0,
-            })
+            thread.stack.unsafe_set(
+              base + inst.a,
+              @core.VFunc({
+                proto: sub,
+                upvals,
+                id: @core.next_object_id(),
+                mark_epoch: 0,
+              }),
+            )
           }
           @core.OP_VARARG => {
             let va = fr.varargs
