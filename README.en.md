@@ -146,10 +146,34 @@ by `error({code=42})` can be read field by field) and the text the language
 would report for it. `Value` is an alias of the interpreter's own value, so
 reading one follows the same rules as the language: `as_integer` is
 `math.tointeger`, `raw_equal` is `==`, `as_bytes` gives a string's exact bytes.
-`ToLua` moves MoonBit data in the other way: the scalars, `Array` (a sequence
-numbered from 1), `Map` and `Option` (`None` is `nil`). The layers underneath --
-`src/lua` and `src/core` -- stay available; the command line interface is built
-from them.
+
+Data goes both ways through a pair of traits: `ToLua` moves MoonBit data in (the
+scalars, `Array` (a sequence numbered from 1), `Map`, and `Option`, where `None`
+is `nil`), and `FromLua` reads it back out -- a table can be taken as a whole as
+a `Map[String, T]` or as an `Array[T]` (a sequence, read up to its first absent
+field).  **A read names its type in the annotation**, because this language has
+no way to write a type argument at a call site; the `eval_*` shorthands below
+need none, being the `FromLua` of the types a host asks for most:
+
+```moonbit
+let size : Map[String, Int]? = read_lua(lua.get("配置"))     // a table as a map
+let items : Array[Int64]? = read_lua(lua.get("清单"))        // a table as a sequence
+let limit : Result[Int64, LuaError] = lua.get_as("上限")     // Err says what the language would
+let vs = lua.run("return '一', '二'").unwrap()
+let words : Result[Array[String], LuaError] = lua.values_as(vs)
+```
+
+A failed read complains the way a library function does, and names the value that
+is actually wrong: reading `{7, 'x'}` as an `Array[Int64]` says
+`number expected, got string` -- about that item, not about the table holding it.
+The other direction is one call too: `lua.preload("设置", fn(_) { ... })` makes a
+MoonBit module findable by a script's `require("设置")`, whose cache applies as
+usual, and the host's own `lua.require("设置")` answers with the same value.
+A table's own fields and its sequence can also be taken without any conversion,
+through `table_entries` and `table_sequence`.
+
+The layers underneath -- `src/lua` and `src/core` -- stay available; the command
+line interface is built from them.
 
 The runnable version of the snippet above is `examples/embed/main.mbt`
 (`moon run examples/embed`, which asserts its own results), and the same code

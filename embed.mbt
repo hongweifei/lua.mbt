@@ -165,6 +165,102 @@ pub fn Lua::get(self : Lua, name : String) -> Value {
 }
 
 ///|
+/// Reads a global as the type the host asked for.  The type comes from an
+/// annotation, since a call site cannot name it:
+///
+/// ```mbt check
+/// test "reading a global as a MoonBit type" {
+///   let lua = Lua::new()
+///   let missing : Result[String, LuaError] = lua.get_as("非")
+///   assert_true(missing is Err(_))
+///   lua.set("问候", "你好")
+///   let got : Result[String, LuaError] = lua.get_as("问候")
+///   assert_eq(got.unwrap(), "你好")
+/// }
+/// ```
+pub fn[T : FromLua] Lua::get_as(
+  self : Lua,
+  name : String,
+) -> Result[T, LuaError] {
+  self.value_as(self.get(name))
+}
+
+///|
+/// The kind of conversion `FromLua` does, with a failure reported as a
+/// `LuaError` naming what was asked for ("number expected, got string", the
+/// wording the libraries use in an argument error).
+///
+/// ```mbt check
+/// test "reading one value" {
+///   let lua = Lua::new()
+///   let items : Result[Array[Int64], LuaError] = lua.value_as(
+///     lua.eval("return {7, 8, 9}").unwrap(),
+///   )
+///   assert_eq(items.unwrap(), [7L, 8L, 9L])
+///   let wrong : Result[Array[Int64], LuaError] = lua.value_as(
+///     lua.eval("return {7, 'x'}").unwrap(),
+///   )
+///   // A failure inside a table names the *entry*, not the table that held it.
+///   assert_eq(wrong.unwrap_err().message, "number expected, got string")
+/// }
+/// ```
+pub fn[T : FromLua] Lua::value_as(self : Lua, v : Value) -> Result[T, LuaError] {
+  match T::from_lua(v) {
+    Some(x) => Ok(x)
+    None => {
+      let (wanted, got) = T::expected_and_got(v)
+      Err(LuaError::expected(self.st, wanted, got))
+    }
+  }
+}
+
+///|
+/// Converts a whole result list, each value to the same type -- a chunk that
+/// answers `return "a", "b", "c"`.  This reads the *list of results*, not a Lua
+/// table; `Array[T]` in `FromLua` is the one that reads a table as a sequence.
+pub fn[T : FromLua] Lua::values_as(
+  self : Lua,
+  vs : Array[Value],
+) -> Result[Array[T], LuaError] {
+  let out : Array[T] = []
+  for v in vs {
+    match self.value_as(v) {
+      Ok(x) => out.push(x)
+      Err(e) => return Err(e)
+    }
+  }
+  Ok(out)
+}
+
+///|
+/// Runs a chunk and reads its first result as the type the host asked for.
+/// Shorthands for the common ones are `eval_int`, `eval_number`, `eval_text`,
+/// `eval_bytes` and `eval_bool`, which need no annotation.
+///
+/// ```mbt check
+/// test "a chunk's first result, typed" {
+///   let lua = Lua::new()
+///   let rows : Result[Array[Int64], LuaError] = lua.eval_as("return {1, 2, 3}")
+///   assert_eq(rows.unwrap(), [1L, 2L, 3L])
+///   let not_a_number : Result[Int64, LuaError] = lua.eval_as("return nil")
+///   assert_eq(not_a_number.unwrap_err().message, "number expected, got nil")
+///   // `{}` is an empty table, not a missing value.
+///   let empty_table : Result[Int64, LuaError] = lua.eval_as("return {}")
+///   assert_eq(empty_table.unwrap_err().message, "number expected, got table")
+/// }
+/// ```
+pub fn[T : FromLua] Lua::eval_as(
+  self : Lua,
+  source : String,
+  args? : Array[Value] = [],
+) -> Result[T, LuaError] {
+  match self.eval(source, args~) {
+    Err(e) => Err(e)
+    Ok(v) => self.value_as(v)
+  }
+}
+
+///|
 /// Writes a global, converting whatever the host has: `set("limit", 3)`,
 /// `set("name", "hi")`, `set("items", [1, 2, 3])`, `set("on", true)`.
 pub fn[T : ToLua] Lua::set(self : Lua, name : String, v : T) -> Unit {
@@ -188,20 +284,15 @@ pub fn Lua::eval(
 ///|
 /// Runs a chunk answering with a number and reads the integer in it: an integer,
 /// a float holding one, or a string spelling one -- the rule `math.tointeger`
-/// uses, so a config file's `"42"` and its `42` both work.
+/// uses, so a config file's `"42"` and its `42` both work.  A name for
+/// `eval_as[Int64]`, which a call site cannot write.
 pub fn Lua::eval_int(
   self : Lua,
   source : String,
   args? : Array[Value] = [],
 ) -> Result[Int64, LuaError] {
-  match self.eval(source, args~) {
-    Err(e) => Err(e)
-    Ok(v) =>
-      match v.as_integer() {
-        Some(i) => Ok(i)
-        None => Err(LuaError::expected(self.st, "number", v))
-      }
-  }
+  let read : Result[Int64, LuaError] = self.eval_as(source, args~)
+  read
 }
 
 ///|
@@ -211,14 +302,8 @@ pub fn Lua::eval_number(
   source : String,
   args? : Array[Value] = [],
 ) -> Result[Double, LuaError] {
-  match self.eval(source, args~) {
-    Err(e) => Err(e)
-    Ok(v) =>
-      match v.as_double() {
-        Some(d) => Ok(d)
-        None => Err(LuaError::expected(self.st, "number", v))
-      }
-  }
+  let read : Result[Double, LuaError] = self.eval_as(source, args~)
+  read
 }
 
 ///|
@@ -229,14 +314,8 @@ pub fn Lua::eval_bytes(
   source : String,
   args? : Array[Value] = [],
 ) -> Result[Bytes, LuaError] {
-  match self.eval(source, args~) {
-    Err(e) => Err(e)
-    Ok(v) =>
-      match v.as_bytes() {
-        Some(b) => Ok(b)
-        None => Err(LuaError::expected(self.st, "string", v))
-      }
-  }
+  let read : Result[Bytes, LuaError] = self.eval_as(source, args~)
+  read
 }
 
 ///|
@@ -246,19 +325,15 @@ pub fn Lua::eval_text(
   source : String,
   args? : Array[Value] = [],
 ) -> Result[String, LuaError] {
-  match self.eval(source, args~) {
-    Err(e) => Err(e)
-    Ok(v) =>
-      match v.as_text() {
-        Some(s) => Ok(s)
-        None => Err(LuaError::expected(self.st, "string", v))
-      }
-  }
+  let read : Result[String, LuaError] = self.eval_as(source, args~)
+  read
 }
 
 ///|
 /// Runs a chunk and answers with the truthiness of its first result, which is
-/// Lua's: only `nil` and `false` are not true, so `0` and `""` are.
+/// Lua's: only `nil` and `false` are not true, so `0` and `""` are.  Reading a
+/// `boolean` *value* is the strict one (`Bool::from_lua`); this is the question
+/// Lua itself asks of a condition.
 pub fn Lua::eval_bool(
   self : Lua,
   source : String,
@@ -276,4 +351,67 @@ pub fn Lua::eval_bool(
 /// metamethod is missing or fails.
 pub fn Lua::show(self : Lua, v : Value) -> String {
   @core.text_of(@lualib.error_text(self.st, v))
+}
+
+///|
+/// Loads a module the way `require` does, and answers with what it returned --
+/// the table a module file ends with, or the value a loader handed back.  The
+/// name goes through the searchers, so `package.path`, `package.preload` and
+/// `package.loaded` all apply, and a second call gets the cached module.
+///
+/// ```mbt check
+/// test "require from the host" {
+///   let lua = Lua::new()
+///   lua.preload("配置", fn(args) {
+///     let _ = args
+///     let t = new_table()
+///     t.set_str("上限", Value::VInt(42L))
+///     Ok([t.as_value()])
+///   })
+///   let m = lua.require("配置").unwrap()
+///   assert_eq(m.type_name(), "table")
+///   // The loader ran once: `require` caches, so the two handles are one table.
+///   assert_true(m.raw_equal(lua.require("配置").unwrap()))
+/// }
+/// ```
+pub fn Lua::require(self : Lua, name : String) -> Result[Value, LuaError] {
+  match self.call_global("require", args=[Value::text(name)]) {
+    Err(e) => Err(e)
+    Ok([v, ..]) => Ok(v)
+    // `require` answers with at least one value -- a loader that returns nothing
+    // gets the reference's dummy `true` -- so nothing reaches this arm.
+    Ok([]) => Ok(@core.VNil)
+  }
+}
+
+///|
+/// Registers a host function as a module, so a script's `require("名字")` finds
+/// it: the function runs as the loader and answers with the module's value.  This
+/// is `package.preload` under the name -- which also means a script can overwrite
+/// it, and `package.loaded` keeps the usual cache.
+///
+/// ```mbt check
+/// test "a MoonBit module a script can require" {
+///   let lua = Lua::new()
+///   lua.preload("配置", fn(args) {
+///     let _ = args
+///     let t = new_table()
+///     t.set_str("上限", Value::VInt(42L))
+///     Ok([t.as_value()])
+///   })
+///   assert_eq(lua.eval_int("return require('配置').上限").unwrap(), 42L)
+/// }
+/// ```
+pub fn Lua::preload(self : Lua, name : String, f : HostFunction) -> Unit {
+  let pkg : Table? = read_lua(self.globals().get_str("package"))
+  let preload : Table? = match pkg {
+    Some(p) => read_lua(p.get_str("preload"))
+    None => None
+  }
+  match preload {
+    Some(t) => t.set_str(name, host_function(name, f))
+    // `Lua::new` opens the `package` library, so there is nowhere to install the
+    // loader only on a state built without it.
+    None => ()
+  }
 }

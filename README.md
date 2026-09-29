@@ -108,7 +108,21 @@ lua.set_function("平方", fn(args) {           // MoonBit 闭包就是 Lua 函�
 let total = lua.eval_int("return 平方(3) + 上限")   // Ok(109)
 ```
 
-`Lua::new` 打开全部标准库。`run`、`run_file`、`call` 都返回 `Result[Array[Value], LuaError]`：脚本失败不会抛 MoonBit 异常，`LuaError` 同时带着**错误对象本身**（`error({code=42})` 里那个表可以逐字段读）和按语言规则渲染出的文本。`Value` 是解释器自己的值的别名，所以它的读法与语言用的是同一套规则——`as_integer` 就是 `math.tointeger`，`raw_equal` 就是 `==`，`as_bytes` 给的是字符串的原始字节。`ToLua` 负责把 MoonBit 数据搬进 Lua：标量、`Array`（1 起的序列）、`Map`、`Option`（`None` 就是 `nil`）。再下面一层（`src/lua` 与 `src/core`）也直接可用：命令行界面就是用它们搭起来的。
+`Lua::new` 打开全部标准库。`run`、`run_file`、`call` 都返回 `Result[Array[Value], LuaError]`：脚本失败不会抛 MoonBit 异常，`LuaError` 同时带着**错误对象本身**（`error({code=42})` 里那个表可以逐字段读）和按语言规则渲染出的文本。`Value` 是解释器自己的值的别名，所以它的读法与语言用的是同一套规则——`as_integer` 就是 `math.tointeger`，`raw_equal` 就是 `==`，`as_bytes` 给的是字符串的原始字节。
+
+数据两个方向都成对：`ToLua` 把 MoonBit 数据搬进 Lua（标量、`Array`（1 起的序列）、`Map`、`Option`（`None` 就是 `nil`）），`FromLua` 搬回来——表可以整个读成 `Map[String, T]` 或 `Array[T]`（序列读到第一个空位为止）。**读取时类型写在注解上**，因为这门语言没有「在调用处写出类型参数」的语法；下面这几个 `eval_*` 的近路不必写，它们就是常用类型的 `FromLua`：
+
+```moonbit
+let size : Map[String, Int]? = read_lua(lua.get("配置"))     // 表 → Map
+let items : Array[Int64]? = read_lua(lua.get("清单"))        // 表 → 序列
+let limit : Result[Int64, LuaError] = lua.get_as("上限")     // Err 里是语言那种话
+let vs = lua.run("return '一', '二'").unwrap()
+let words : Result[Array[String], LuaError] = lua.values_as(vs)
+```
+
+读法的失败说得和库函数一样具体，而且指向真正出错的那个值：把 `{7, 'x'}` 读成 `Array[Int64]` 会说 `number expected, got string`（说的是那一项，不是那个表）。反过来一个 MoonBit 模块可以直接交给脚本：`lua.preload("设置", fn(_) { ... })` 之后脚本里的 `require("设置")` 就能拿到它，宿主这边 `lua.require("设置")` 也拿得到同一个值（`package.loaded` 的缓存照常生效）。表的自身字段与序列也可以不经过转换直接取：`table_entries` / `table_sequence`。
+
+再下面一层（`src/lua` 与 `src/core`）也直接可用：命令行界面就是用它们搭起来的。
 
 可运行的完整版本是 `examples/embed/main.mbt`（`moon run examples/embed`，它自己用 `assert` 校验结果）；上面那段代码也在根包的 `embed_test.mbt` 里跑着，那个文件只用公开接口——这正是它要验证的事。
 

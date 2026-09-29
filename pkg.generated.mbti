@@ -10,6 +10,12 @@ pub fn host_function(String, (Array[@core.Value]) -> Result[Array[@core.Value], 
 
 pub fn new_table() -> @core.LTable
 
+pub fn[T : FromLua] read_lua(@core.Value) -> T?
+
+pub fn table_entries(@core.LTable) -> Array[(@core.Value, @core.Value)]
+
+pub fn table_sequence(@core.LTable) -> Array[@core.Value]
+
 // Errors
 
 // Types and methods
@@ -19,22 +25,28 @@ pub struct Lua {
 pub fn Lua::call(Self, @core.Value, args? : Array[@core.Value]) -> Result[Array[@core.Value], LuaError]
 pub fn Lua::call_global(Self, String, args? : Array[@core.Value]) -> Result[Array[@core.Value], LuaError]
 pub fn Lua::eval(Self, String, args? : Array[@core.Value]) -> Result[@core.Value, LuaError]
+pub fn[T : FromLua] Lua::eval_as(Self, String, args? : Array[@core.Value]) -> Result[T, LuaError]
 pub fn Lua::eval_bool(Self, String, args? : Array[@core.Value]) -> Result[Bool, LuaError]
 pub fn Lua::eval_bytes(Self, String, args? : Array[@core.Value]) -> Result[Bytes, LuaError]
 pub fn Lua::eval_int(Self, String, args? : Array[@core.Value]) -> Result[Int64, LuaError]
 pub fn Lua::eval_number(Self, String, args? : Array[@core.Value]) -> Result[Double, LuaError]
 pub fn Lua::eval_text(Self, String, args? : Array[@core.Value]) -> Result[String, LuaError]
 pub fn Lua::get(Self, String) -> @core.Value
+pub fn[T : FromLua] Lua::get_as(Self, String) -> Result[T, LuaError]
 pub fn Lua::globals(Self) -> @core.LTable
 pub fn Lua::load(Self, String, name? : String) -> Result[@core.Value, LuaError]
 pub fn Lua::load_file(Self, String) -> Result[@core.Value, LuaError]
 pub fn Lua::new(ignore_env? : Bool) -> Self
+pub fn Lua::preload(Self, String, (Array[@core.Value]) -> Result[Array[@core.Value], @core.Value]) -> Unit
+pub fn Lua::require(Self, String) -> Result[@core.Value, LuaError]
 pub fn Lua::run(Self, String, name? : String, args? : Array[@core.Value]) -> Result[Array[@core.Value], LuaError]
 pub fn Lua::run_file(Self, String, args? : Array[@core.Value]) -> Result[Array[@core.Value], LuaError]
 pub fn[T : ToLua] Lua::set(Self, String, T) -> Unit
 pub fn Lua::set_function(Self, String, (Array[@core.Value]) -> Result[Array[@core.Value], @core.Value]) -> Unit
 pub fn Lua::show(Self, @core.Value) -> String
 pub fn Lua::state(Self) -> @core.LuaState
+pub fn[T : FromLua] Lua::value_as(Self, @core.Value) -> Result[T, LuaError]
+pub fn[T : FromLua] Lua::values_as(Self, Array[@core.Value]) -> Result[Array[T], LuaError]
 
 pub struct LuaError {
   value : @core.Value
@@ -50,6 +62,22 @@ pub using @core {type LTable as Table}
 pub using @core {type Value}
 
 // Traits
+pub trait FromLua {
+  fn from_lua(@core.Value) -> Self?
+  fn expected_and_got(@core.Value) -> (String, @core.Value)
+}
+pub impl FromLua for Bool
+pub impl FromLua for Int
+pub impl FromLua for Int64
+pub impl FromLua for Double
+pub impl FromLua for String
+pub impl[T : FromLua] FromLua for T?
+pub impl FromLua for Bytes
+pub impl FromLua for @core.LTable
+pub impl FromLua for @core.Value
+pub impl[T : FromLua] FromLua for Array[T]
+pub impl[V : FromLua] FromLua for Map[String, V]
+
 pub trait ToLua {
   fn to_lua(Self) -> @core.Value
 }

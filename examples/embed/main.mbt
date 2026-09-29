@@ -101,6 +101,46 @@ fn main raise {
   assert_eq(lua.show(lua.get("masked")), "被改写")
   println("a script's function returned \{sum[0].as_integer().unwrap_or(0L)}")
 
+  // What a host set as MoonBit data reads back as MoonBit data: the typed
+  // readers take the type from the annotation, and `get_as` adds the language's
+  // complaint ("table expected, got nil") when the shape is wrong.
+  let round_trip : Map[String, Int]? = lua.get_as("config").unwrap_or(None)
+  assert_eq(round_trip, Some(config))
+  let numbered : Array[Int64]? = lua.get_as("items").unwrap_or(None)
+  assert_eq(numbered, Some([10L, 20L, 30L]))
+  let wrong : Result[Array[String], @lua.LuaError] = lua.get_as("items")
+  match wrong {
+    Err(err) =>
+      // The entry is named, not the table that held it.
+      assert_eq(err.message, "string expected, got number")
+    Ok(_) => fail("the items are numbers, not text")
+  }
+  // A result list converts as a whole, so a chunk answering several strings is
+  // one call.
+  let words = lua.values_as(
+    lua.run("return '一', '二'", name="=embed").unwrap(),
+  )
+  assert_eq((words : Result[Array[String], @lua.LuaError]).unwrap(), [
+    "一", "二",
+  ])
+  println("MoonBit data survived the round trip through Lua")
+
+  // A MoonBit module a script can `require`: the loader runs once, and what it
+  // answers is what `require` hands back and caches.
+  let loads = Ref(0)
+  lua.preload("设置", fn(args) {
+    let _ = args
+    loads.val = loads.val + 1
+    let loaded = @lua.new_table()
+    loaded.set_str("版本", @lua.Value::VInt(2L))
+    Ok([loaded.as_value()])
+  })
+  assert_eq(lua.eval_int("return require('设置').版本").unwrap_or(-1L), 2L)
+  assert_eq(lua.eval_int("return require('设置').版本").unwrap_or(-1L), 2L)
+  assert_eq(loads.val, 1)
+  assert_eq(lua.require("设置").unwrap().type_name(), "table")
+  println("a script required a MoonBit module \{loads.val} time")
+
   // The portable spelling: ASCII names, bytes exact, and a second state that
   // shares nothing with the first.
   lua.set_function("slug", fn(args) {

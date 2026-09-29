@@ -378,3 +378,79 @@ test "the README's example" {
   })
   assert_eq(or_missing(lua.eval_int("return 平方(3) + 上限")), 109L)
 }
+
+///|
+/// The typed reads, on the values a script actually produces: a result list, a
+/// table's own fields, a sequence with a hole in it.
+test "reading a result list and a table's shape" {
+  let lua = Lua::new()
+  let vs = lua.run("return 'a', 'b', 'c'").unwrap()
+  let texts : Result[Array[String], LuaError] = lua.values_as(vs)
+  assert_eq(texts.unwrap(), ["a", "b", "c"])
+  // One value of the wrong kind fails the whole list, and names that value.
+  let mixed : Result[Array[String], LuaError] = lua.values_as(
+    lua.run("return 'a', 2").unwrap(),
+  )
+  assert_true(mixed is Err(_))
+  assert_eq(mixed.unwrap_err().message, "string expected, got number")
+
+  // `get_as` is `get` with the conversion's error attached.
+  lua.set("配置", Map([("宽", 800), ("高", 600)]))
+  let size : Result[Map[String, Int], LuaError] = lua.get_as("配置")
+  assert_eq(size.unwrap(), Map([("宽", 800), ("高", 600)]))
+  let absent : Result[Map[String, Int], LuaError] = lua.get_as("没有")
+  assert_eq(absent.unwrap_err().message, "table expected, got nil")
+
+  // A table's own fields, in `next`'s order: two array-part slots and one key.
+  let first : Table? = read_lua(lua.eval("return {10, 20, x = 'y'}").unwrap())
+  let entries = table_entries(first.unwrap())
+  assert_eq(entries.length(), 3)
+  let kinds = entries.map(e => e.0.type_name())
+  kinds.sort()
+  assert_eq(kinds, ["number", "number", "string"])
+  // The sequence reading stops at the first absent field, so a hole ends it.
+  let hole : Table? = read_lua(lua.eval("return {1, nil, 3}").unwrap())
+  let head = table_sequence(hole.unwrap())
+  assert_eq(head.length(), 1)
+  assert_eq(head[0].as_integer(), Some(1L))
+  let packed : Table? = read_lua(lua.eval("return {7, 8}").unwrap())
+  assert_eq(table_sequence(packed.unwrap()).length(), 2)
+}
+
+///|
+/// A host module a script can `require`: `preload` installs the loader Lua's
+/// searchers find, `require` runs it once and caches what it answered.
+test "a module a script can require" {
+  let lua = Lua::new()
+  let runs = Ref(0)
+  lua.preload("模块", fn(args) {
+    let _ = args
+    runs.val = runs.val + 1
+    let t = new_table()
+    t.set_str("值", Value::VInt(7L))
+    Ok([t.as_value()])
+  })
+  assert_eq(or_missing(lua.eval_int("return require('模块').值")), 7L)
+  assert_eq(or_missing(lua.eval_int("return require('模块').值")), 7L)
+  // The loader ran once: the second `require` got `package.loaded`'s answer.
+  assert_eq(runs.val, 1)
+  // The host's own `require` sees the table the script got.
+  let m = lua.require("模块").unwrap()
+  assert_eq(m.type_name(), "table")
+  assert_true(m.raw_equal(lua.eval("return package.loaded['模块']").unwrap()))
+  // A name nothing can load fails the way `require` does in Lua.
+  let missing = lua.require("没有这个模块")
+  assert_true(missing is Err(_))
+  assert_true(
+    missing.unwrap_err().message.contains(
+      "module '没有这个模块' not found",
+    ),
+  )
+  // A loader that answers with nothing gets the reference's dummy `true`, which
+  // is what `require` hands back and caches.
+  lua.preload("空", fn(args) {
+    let _ = args
+    Ok([])
+  })
+  assert_eq(lua.require("空").unwrap().type_name(), "boolean")
+}
