@@ -239,10 +239,58 @@ pub fn execute(
             let k = rk_value(proto, thread, base, inst.c)
             thread.stack[base + inst.a] = index_get(st, t, k, base + inst.b)
           }
-          @core.OP_ADD
-          | @core.OP_SUB
-          | @core.OP_MUL
-          | @core.OP_DIV
+          @core.OP_ADD | @core.OP_SUB | @core.OP_MUL => {
+            // The integer and float cases of `+`, `-` and `*` are written out
+            // here rather than left to `arith`: these three are the operators a
+            // loop actually runs, and on this backend a helper call costs more
+            // than the work it does.  Everything else -- a string operand that
+            // has to be coerced, a metamethod, the error -- goes to `arith`,
+            // which stays the one definition of what these operators mean.
+            let b = inst.b
+            let c = inst.c
+            let x = if b >= @core.RK_OFFSET {
+              proto.constants[b - @core.RK_OFFSET]
+            } else {
+              thread.stack[base + b]
+            }
+            let y = if c >= @core.RK_OFFSET {
+              proto.constants[c - @core.RK_OFFSET]
+            } else {
+              thread.stack[base + c]
+            }
+            // The two numeric cases are matched on the operands themselves: an
+            // `Option[Value]` would box its payload on this backend, which costs
+            // more than the whole instruction.
+            match (x, y) {
+              (@core.VInt(a), @core.VInt(d)) =>
+                thread.stack[base + inst.a] = @core.VInt(
+                  match inst.op {
+                    @core.OP_ADD => a + d
+                    @core.OP_SUB => a - d
+                    _ => a * d
+                  },
+                )
+              (@core.VNum(a), @core.VNum(d)) =>
+                thread.stack[base + inst.a] = @core.VNum(
+                  match inst.op {
+                    @core.OP_ADD => a + d
+                    @core.OP_SUB => a - d
+                    _ => a * d
+                  },
+                )
+              _ => {
+                st.slot_x = rk_slot(b, base)
+                st.slot_y = rk_slot(c, base)
+                thread.stack[base + inst.a] = arith(
+                  st,
+                  inst.op - @core.OP_ADD,
+                  x,
+                  y,
+                )
+              }
+            }
+          }
+          @core.OP_DIV
           | @core.OP_MOD
           | @core.OP_POW
           | @core.OP_IDIV
