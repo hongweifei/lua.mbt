@@ -13,7 +13,11 @@ keywords = [ "lua", "interpreter", "vm", "script" ]
 
 description = "A complete Lua 5.4 interpreter written in MoonBit"
 
+repository = "https://github.com/hongweifei/lua.mbt"
+
 preferred_target = "native"
+
+supported_targets = [ "native" ]
 
 import {
   "moonbitlang/async@0.22.1",
