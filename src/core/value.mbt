@@ -211,10 +211,19 @@ pub impl Eq for Key with fn equal(self, other) {
 }
 
 ///|
+/// The hash a key is stored under.  A string answers with its own content hash --
+/// `LStr` computes one when it is made -- so a lookup for a name it already holds
+/// never builds a `Hasher`, which is a mutable object and so an allocation.  Every
+/// table goes through here, which is what keeps one notion of a string key's slot.
 pub fn key_hash(k : Key) -> Int {
-  let h = Hasher::Hasher()
-  h.combine(k)
-  h.finalize()
+  match k {
+    KStr(s) => s.hash
+    _ => {
+      let h = Hasher::Hasher()
+      h.combine(k)
+      h.finalize()
+    }
+  }
 }
 
 ///|
