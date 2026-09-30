@@ -356,6 +356,8 @@ pub fn int_equals_float(Int64, Double) -> Bool
 
 pub fn int_fits_double(Int64) -> Bool
 
+pub fn int_key_hash(Int64) -> Int
+
 pub fn int_le_float(Int64, Double) -> Bool
 
 pub fn int_lt_float(Int64, Double) -> Bool
@@ -668,17 +670,21 @@ pub fn LTable::get_int_key(Self, Int64) -> Value
 pub fn LTable::get_lstr(Self, LStr) -> Value
 pub fn LTable::get_str(Self, String) -> Value
 pub fn LTable::hash_delete(Self, Key) -> Unit
+pub fn LTable::hash_delete_int(Self, Int64) -> Unit
 pub fn LTable::hash_find(Self, Key) -> Int
 pub fn LTable::hash_find_key(Self, Key) -> Int
 pub fn LTable::hash_get(Self, Key) -> Value
+pub fn LTable::hash_get_int(Self, Int64) -> Value
 pub fn LTable::hash_next_from(Self, Int) -> NextResult
 pub fn LTable::hash_put(Self, Key, Value) -> Unit
 pub fn LTable::hash_rehash(Self, Int) -> Unit
 pub fn LTable::hash_set(Self, Key, Value) -> Unit
+pub fn LTable::hash_set_int(Self, Int64, Value) -> Unit
 pub fn LTable::metatable(Self) -> Self?
 pub fn LTable::migrate_following(Self) -> Unit
 pub fn LTable::new() -> Self
 pub fn LTable::next(Self, Value) -> NextResult
+pub fn LTable::probe_int(Self, Int64, Bool) -> (Int, Int)
 pub fn LTable::raw_len(Self) -> Int64
 pub fn LTable::set(Self, Value, Value) -> Bool
 pub fn LTable::set_int(Self, Int64, Value) -> Unit

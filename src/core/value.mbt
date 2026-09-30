@@ -211,18 +211,29 @@ pub impl Eq for Key with fn equal(self, other) {
 }
 
 ///|
-/// The hash a key is stored under.  A string answers with its own content hash --
-/// `LStr` computes one when it is made -- so a lookup for a name it already holds
-/// never builds a `Hasher`, which is a mutable object and so an allocation.  Every
-/// table goes through here, which is what keeps one notion of a string key's slot.
+/// The hash part's hash for an integer key, without building the key.  The hash
+/// part asks for it directly so that a lookup of an index the array part cannot
+/// answer builds no `Key` at all; `key_hash` answers the same thing for a `KInt`,
+/// which is what keeps one notion of a key's slot.
+pub fn int_key_hash(i : Int64) -> Int {
+  Hash::hash(i.reinterpret_as_uint64())
+}
+
+///|
+/// The hash a key is stored under.  No key builds a `Hasher`: a string answers
+/// with the content hash `LStr` computes when it is made, and every other key
+/// hashes with the same arithmetic the `Hasher` would run, but with the
+/// accumulator on the stack instead of in a boxed mutable object.  Every table
+/// goes through here, which is what keeps one notion of a key's slot.
 pub fn key_hash(k : Key) -> Int {
   match k {
     KStr(s) => s.hash
-    _ => {
-      let h = Hasher::Hasher()
-      h.combine(k)
-      h.finalize()
-    }
+    KInt(i) => int_key_hash(i)
+    KNum(bits) => Hash::hash(bits)
+    KBool(b) => Hash::hash(if b { 1U } else { 0U })
+    KObj(v) => Hash::hash(v.obj_id())
+    KNil => Hash::hash(0x5EED_0000)
+    KEmpty => Hash::hash(0x5EED_0001)
   }
 }
 

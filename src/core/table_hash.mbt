@@ -54,6 +54,82 @@ pub fn LTable::hash_find(self : LTable, key : Key) -> Int {
 }
 
 ///|
+/// `probe` for an integer key, which never builds the key.  An index the array
+/// part cannot answer is the common case for the hash part, and building the
+/// `Key` to search for it was an allocation per lookup.  The search itself is
+/// the one `probe` does, including the treatment of a cleared slot.
+pub fn LTable::probe_int(
+  self : LTable,
+  i : Int64,
+  for_next : Bool,
+) -> (Int, Int) {
+  let cap = self.hkeys.length()
+  if cap == 0 {
+    return (-1, -1)
+  }
+  let mask = cap - 1
+  let mut slot = int_key_hash(i) & mask
+  let mut insert = -1
+  let mut probes = 0
+  while probes <= mask {
+    match self.hkeys[slot] {
+      KEmpty => return (-1, if insert >= 0 { insert } else { slot })
+      KInt(j) =>
+        if self.hvals[slot].is_nil() {
+          if j == i && for_next {
+            return (slot, slot)
+          }
+          if insert < 0 {
+            insert = slot
+          }
+        } else if j == i {
+          return (slot, slot)
+        }
+      _ => if self.hvals[slot].is_nil() && insert < 0 { insert = slot }
+    }
+    slot = (slot + 1) & mask
+    probes = probes + 1
+  }
+  (-1, insert)
+}
+
+///|
+pub fn LTable::hash_get_int(self : LTable, i : Int64) -> Value {
+  let slot = self.probe_int(i, false).0
+  if slot < 0 {
+    VNil
+  } else {
+    self.hvals[slot]
+  }
+}
+
+///|
+pub fn LTable::hash_delete_int(self : LTable, i : Int64) -> Unit {
+  let slot = self.probe_int(i, false).0
+  if slot >= 0 {
+    self.hvals[slot] = VNil
+    self.hlive = self.hlive - 1
+    self.hdead = self.hdead + 1
+  }
+}
+
+///|
+pub fn LTable::hash_set_int(self : LTable, i : Int64, value : Value) -> Unit {
+  if self.hkeys.length() == 0 {
+    self.hash_rehash(4)
+  }
+  let slot = self.probe_int(i, false).0
+  if slot >= 0 {
+    self.hvals[slot] = value
+    return
+  }
+  if (self.hlive + self.hdead + 1) * 4 >= self.hkeys.length() * 3 {
+    self.hash_rehash(4)
+  }
+  self.hash_put(KInt(i), value)
+}
+
+///|
 /// The lookup `next` uses: a key whose value has been cleared is still a place
 /// to continue from.
 pub fn LTable::hash_find_key(self : LTable, key : Key) -> Int {

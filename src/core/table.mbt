@@ -87,8 +87,7 @@ pub fn const_key(v : Value) -> Key {
 pub fn LTable::migrate_following(self : LTable) -> Unit {
   let mut n = self.arr.length()
   while true {
-    let key = KInt((n + 1).to_int64())
-    let i = self.hash_find(key)
+    let i = self.probe_int((n + 1).to_int64(), false).0
     if i < 0 {
       return
     }
@@ -105,7 +104,7 @@ pub fn LTable::get_int(self : LTable, i : Int64) -> Value {
   if i >= 1L && i <= self.arr.length().to_int64() {
     self.arr[(i - 1L).to_int()]
   } else {
-    self.hash_get(KInt(i))
+    self.hash_get_int(i)
   }
 }
 
@@ -179,11 +178,10 @@ pub fn LTable::set_int(self : LTable, i : Int64, value : Value) -> Unit {
     self.migrate_following()
     return
   }
-  let key = KInt(i)
   if value.is_nil() {
-    self.hash_delete(key)
+    self.hash_delete_int(i)
   } else {
-    self.hash_set(key, value)
+    self.hash_set_int(i, value)
   }
 }
 
@@ -232,12 +230,12 @@ pub fn LTable::raw_len(self : LTable) -> Int64 {
   // The array part is full: probe the hash part for the border, doubling the
   // * step until a nil is found, then binary searching the last interval.
   let mut i = n.to_int64()
-  if self.hash_get(KInt(i + 1L)).is_nil() {
+  if self.hash_get_int(i + 1L).is_nil() {
     return i
   }
   let mut step = 1L
   let mut j = i + 2L
-  while !self.hash_get(KInt(j)).is_nil() {
+  while !self.hash_get_int(j).is_nil() {
     i = j
     if j > 0x4000000000000000L {
       break
@@ -247,7 +245,7 @@ pub fn LTable::raw_len(self : LTable) -> Int64 {
   }
   while j - i > 1L {
     let m = i + (j - i) / 2L
-    if self.hash_get(KInt(m)).is_nil() {
+    if self.hash_get_int(m).is_nil() {
       j = m
     } else {
       i = m
@@ -294,7 +292,7 @@ pub fn LTable::next(self : LTable, key : Value) -> NextResult {
         }
         return self.hash_next_from(0)
       }
-      match self.hash_find_key(KInt(k)) {
+      match self.probe_int(k, true).0 {
         -1 => NextBadKey
         slot => self.hash_next_from(slot + 1)
       }
