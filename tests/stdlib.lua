@@ -1186,4 +1186,40 @@ do
   os.remove(oname)
 end
 
+-- `io.popen`'s mode is not `io.open`'s: `l_checkmodep` allows only what the host's
+-- `popen` allows, which on Windows is `r`/`w` with at most one `b` or `t` after
+-- it, and elsewhere the bare letter.  The check has to happen before the call,
+-- because a mode the C library dislikes is not a wrong answer but a dead process:
+-- the Windows CRT answers an invalid parameter by terminating the program.
+do
+  -- A command that runs and says nothing, so the test's own output stays clean.
+  local quiet = package.config:sub(1, 1) == "\\" and "cd" or "true"
+  local function popen_refused(m)
+    local ok, v = pcall(io.popen, quiet, m)
+    if ok then
+      if v ~= nil then
+        v:close()
+      end
+      return false
+    end
+    -- The refusal is an argument error, and the only one the reference's
+    -- `l_checkmodep` can give.
+    return v == "bad argument #2 to 'io.popen' (invalid mode)"
+  end
+  local windows = package.config:sub(1, 1) == "\\"
+  -- Only the read side is opened for real: a `popen`ed command inherits this
+  -- process's standard output, so a write pipe would let the child talk over the
+  -- test's own answers.
+  eq(popen_refused("r"), false, "the bare r opens")
+  eq(popen_refused(nil), false, "and no mode at all means r")
+  eq(popen_refused("rb"), not windows, "a b after the letter is the host's rule")
+  eq(popen_refused("rt"), not windows, "and so is a t")
+  eq(popen_refused("r+"), true, "the `+' of io.open is not this grammar")
+  eq(popen_refused("rw"), true, "nor is a second letter")
+  eq(popen_refused("a+"), true, "append belongs to io.open")
+  eq(popen_refused("br"), true, "the letter has to come first")
+  eq(popen_refused(""), true, "and there has to be one")
+  eq(popen_refused("rbt"), true, "at most one may follow it")
+end
+
 print("stdlib: ok")

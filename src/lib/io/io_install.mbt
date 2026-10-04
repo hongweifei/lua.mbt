@@ -24,6 +24,35 @@ pub fn check_mode(mode : Bytes) -> Bool {
 }
 
 ///|
+/// `l_checkmodep`: the modes `popen` will take, which is *not* the grammar
+/// `io.open` accepts above (`a`, `+` and `b` are the file call's).  The rule is
+/// the C library's rather than the language's -- Windows takes an optional `b`
+/// or `t` after `r`/`w`, POSIX only the bare letter -- so it is read from the
+/// host this build runs on, exactly as the reference reads it from the platform
+/// macro that picks `l_popen`.  Handing the host anything looser is not a wrong
+/// answer but a dead process: the Windows CRT refuses a bad mode by terminating
+/// the program.
+fn check_popen_mode(mode : Bytes) -> Bool {
+  let len = mode.length()
+  if len == 0 {
+    return false
+  }
+  let first = @core.ubyte_at(mode, 0)
+  if first != 114 && first != 119 {
+    return false
+  }
+  if @host.lua_mbt_is_windows() == 0 {
+    len == 1
+  } else {
+    len == 1 ||
+    (
+      len == 2 &&
+      (@core.ubyte_at(mode, 1) == 98 || @core.ubyte_at(mode, 1) == 116)
+    )
+  }
+}
+
+///|
 pub fn io_open(
   state : @core.LuaState,
   upvals : Array[@core.Value],
@@ -364,7 +393,7 @@ pub fn io_popen(
   } else {
     @core.bytes_of("r")
   }
-  if !check_mode(mode) {
+  if !check_popen_mode(mode) {
     @core.arg_error(state, 2, "popen", "invalid mode")
   }
   let h = @host.lua_mbt_popen(cmd.data(), mode)

@@ -966,6 +966,49 @@ do
   -- operator, and a mark is a syntax error, in the reference too.
   eq(load("# a comment\nreturn 1"), nil, "a # line in a string chunk is not a comment")
   eq(load("\xEF\xBB\xBFreturn 1"), nil, "and a mark in one is not a mark")
+
+  -- The prefix is stripped *before* the file's kind is decided, and a first byte
+  -- of 27 after it means the newline that replaced the comment is dropped again:
+  -- a header has to be the first byte of the stream.  So a dumped chunk behind a
+  -- `#` line loads as what it is, and `loadfile`'s second argument is the mode
+  -- it is checked against -- which `dofile` has none of.
+  local function load_parts(parts, mode)
+    local f = assert(io.open(name, "wb"))
+    for i = 1, #parts do
+      f:write(parts[i])
+    end
+    f:close()
+    return loadfile(name, mode)
+  end
+  local dumped = string.dump(function() return 20, "\0\0\0" end)
+
+  local loaded = load_parts({ "#a comment over a binary file\0\n", dumped })
+  eq(type(loaded), "function", "a dumped chunk behind a # line loads")
+  local one, two = loaded()
+  eq(one, 20, "and runs as the chunk it is")
+  eq(two == "\0\0\0", true, "with its own values intact")
+
+  loaded = load_parts({ "\xEF\xBB\xBF#c\n", dumped })
+  eq(loaded(), 20, "and one behind a mark as well")
+
+  eq(select(2, load_parts({ dumped }, "t")),
+     "attempt to load a binary chunk (mode is 't')",
+     "the mode is checked against what the file is, past the prefix")
+  loaded = load_parts({ "#c\n", dumped }, "b")
+  eq(loaded(), 20, "which also lets a binary file through")
+  eq(select(2, load_parts({ "#c\n", "return 1\n" }, "b")),
+     "attempt to load a text chunk (mode is 'b')",
+     "and refuses a text one")
+  eq((load_parts({ "#c\n", "return 1\n" }, "bt"))(), 1,
+     "a mode naming both letters takes both")
+  local broken = select(2, load_parts({ "#c\n", "\27LuaX rest" }))
+  eq(broken:match("bad binary format %(.*%)"),
+     "bad binary format (version mismatch)",
+     "a header that is broken past the comment is the header's own error")
+  eq(select(2, load_parts({ "#c\n", "return 1\n" }, 7)),
+     "attempt to load a text chunk (mode is '7')",
+     "a number as a mode is taken as the text of a number")
+  assert(os.remove(name))
 end
 
 -- A file name is bytes, not text: a name that is not UTF-8 is handed to the host

@@ -84,6 +84,12 @@ fn chunk_to_source(
 /// `skipcomment`, and like it the dropped line is replaced by a newline rather
 /// than removed, so that the line numbers of everything after it stay the same.
 ///
+/// The two steps are not independent: `luaL_loadfilex` looks at the first
+/// character *after* the prefix before it decides what to do with that newline.
+/// A character of 27 is the start of a precompiled chunk, and the file is then
+/// read again from there as binary -- `lf.n = 0` drops the newline it had just
+/// added, because a header has to be the first byte of the stream.
+///
 /// A chunk given to `load` as a string is never stripped: a `#` there is the
 /// length operator and a BOM is a syntax error, in the reference too.
 pub fn strip_chunk_prefix(data : Bytes) -> Bytes {
@@ -108,7 +114,11 @@ pub fn strip_chunk_prefix(data : Bytes) -> Bytes {
     } else {
       @core.bytes_slice(data, nl + 1, len - nl - 1)
     }
-    @core.bytes_concat([b"\n", rest])
+    if @chunk.is_binary_chunk(rest) {
+      rest
+    } else {
+      @core.bytes_concat([b"\n", rest])
+    }
   } else if start == 0 {
     data
   } else {
@@ -124,15 +134,26 @@ pub fn base_loadfile(
   args : ArrayView[@core.Value],
 ) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
-  @core.Many(do_loadfile(state, args))
+  // `luaB_loadfile`: the mode is the second parameter, and a nil one is the
+  // absence of it rather than an empty string.
+  let mode = if args.length() >= 2 && !args[1].is_nil() {
+    @core.text_of(@core.check_str(state, args, 2, "loadfile").data())
+  } else {
+    "bt"
+  }
+  @core.Many(do_loadfile(state, args, mode~))
 }
 
 ///|
 /// The work of `loadfile`, which `dofile` also runs.  It answers with a list
-/// rather than a `BuiltinResult`: both callers hand the same values on.
+/// rather than a `BuiltinResult`: both callers hand the same values on.  The
+/// `mode` is `luaL_loadfilex`'s last argument -- `loadfile` takes it from its
+/// second parameter, while `dofile` never does (`luaB_dofile` calls
+/// `luaL_loadfile`, which is the same call with no mode).
 fn do_loadfile(
   state : @core.LuaState,
   args : ArrayView[@core.Value],
+  mode? : String = "bt",
 ) -> Array[@core.Value] raise @core.LuaRaised {
   let env = if args.length() >= 3 {
     args[2]
@@ -178,9 +199,19 @@ fn do_loadfile(
   } else {
     @core.text_of(@core.bytes_concat([b"@", name]))
   }
-  match compile_source(state, data, chunk_name, env) {
-    @core.LoadOk(f) => [f]
-    @core.LoadError(msg) => [@core.VNil, @core.VStr(@core.LStr::of_bytes(msg))]
+  // `f_parser` decides text-or-binary from the first byte of the stream and asks
+  // `checkmode` against that, before the chunk is read further: a file that
+  // begins with a `#` line and then the signature is a *binary* chunk as far as
+  // the mode goes, and a refusal says so without compiling anything.
+  let binary = @chunk.is_binary_chunk(data)
+  match mode_refusal(mode, binary) {
+    Some(msg) => [@core.VNil, @core.VStr(@core.LStr::of_string(msg))]
+    None =>
+      match compile_source(state, data, chunk_name, env) {
+        @core.LoadOk(f) => [f]
+        @core.LoadError(msg) =>
+          [@core.VNil, @core.VStr(@core.LStr::of_bytes(msg))]
+      }
   }
 }
 
