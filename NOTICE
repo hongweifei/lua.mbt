@@ -6,8 +6,8 @@ Copyright 2026 hongweifei
 xoshiro256** 随机数发生器、字符串转数字、排序）。Lua 以 MIT 许可分发，其许可原文
 见下；本作品中派生自它的部分按该许可使用。
 
-命令行界面、代码生成器和虚拟机遵循 Lua 5.4 自身 `lua.c`、`lparser.c`/`lcode.c` 和
-`lvm.c` 的设计。
+命令行界面、编译驱动程序、代码生成器和虚拟机遵循 Lua 5.4 自身 `lua.c`、`luac.c`、
+`lparser.c`/`lcode.c` 和 `lvm.c` 的设计。
 
 ---
 

@@ -82,14 +82,32 @@ pub fn read_stdin_all() -> Bytes {
 ///|
 /// Writes a whole file.
 pub fn write_whole_file(path : Bytes, data : Bytes) -> Result[Unit, Bytes] {
+  let r = write_file_staged(path, data)
+  match r {
+    Ok(_) => Ok(())
+    Err((_, msg)) => Err(msg)
+  }
+}
+
+///|
+/// The same, but naming which stage failed: `"open"`, `"write"` or `"close"`.
+/// A buffered write can only be seen to fail at the close, which is why the
+/// reference's `luac` reports three separate reasons here.
+pub fn write_file_staged(
+  path : Bytes,
+  data : Bytes,
+) -> Result[Unit, (String, Bytes)] {
   let f = @host.lua_mbt_fopen(path, b"wb")
   if f == 0L {
-    return Err(errno_message())
+    return Err(("open", errno_message()))
   }
   let n = @host.lua_mbt_fwrite(f, data, data.length())
-  let _ = @host.lua_mbt_fclose(f)
+  let closed = @host.lua_mbt_fclose(f)
   if n != data.length() {
-    return Err(errno_message())
+    return Err(("write", errno_message()))
+  }
+  if closed != 0 {
+    return Err(("close", errno_message()))
   }
   Ok(())
 }

@@ -25,6 +25,8 @@ pub let chunk_data : Bytes
 
 pub let chunk_signature : Bytes
 
+pub fn dump_proto(@core.LProto, Bool) -> Bytes
+
 pub fn is_binary_chunk(Bytes) -> Bool
 
 pub fn str_dump(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised

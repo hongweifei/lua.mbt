@@ -1,0 +1,22 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "hongweifei/lua/cmd/luac"
+
+import {
+  "hongweifei/lua/src/core",
+}
+
+// Values
+pub fn listing_bytes(@core.LProto, Bool) -> Bytes
+
+// Errors
+
+// Types and methods
+type Flags
+
+type Input
+
+type Outcome
+
+// Type aliases
+
+// Traits

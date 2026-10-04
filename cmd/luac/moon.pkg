@@ -1,0 +1,9 @@
+import {
+  "hongweifei/lua/src/core",
+  "hongweifei/lua/src/chunk",
+  "hongweifei/lua/src/load",
+  "hongweifei/lua/src/lua",
+  "moonbitlang/core/env",
+}
+
+pkgtype(kind: "executable")

@@ -502,6 +502,8 @@ pub fn vm_position(LuaState) -> String
 
 pub fn with_position(LuaState, Value, Int) -> Value
 
+pub fn write_file_staged(Bytes, Bytes) -> Result[Unit, (String, Bytes)]
+
 pub fn write_stderr(Bytes) -> Unit
 
 pub fn write_stdout(Bytes) -> Unit

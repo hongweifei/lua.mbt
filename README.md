@@ -33,6 +33,21 @@ $ moon run cmd/main -- -e 'local 名字 = "世界"; print("你好，" .. 名字)
 
 细节与限制见下面[与参考实现的差异](#与参考实现的差异)里的标识符那一条。
 
+## 预编译好的 chunk
+
+`cmd/luac` 是本项目的 `luac`：把一个或几个 Lua 文件编译成一个预编译 chunk 写到文件里。选项表、默认的 `luac.out`、`-o -` 表示标准输出、`--` 与 `-`、以及每一句报错的话术都照参考实现的 `luac.c`；几个输入会被放进同一个外壳里，按给出的顺序依次运行。
+
+```
+moon run cmd/luac -- -o script.luac script.lua   # 编译
+moon run cmd/luac -- -l -l script.lua           # 列出原型；两个 -l 再附上常量/局部/上值表
+moon run cmd/luac -- -s -p a.lua b.lua          # 去掉调试信息；只解析、不写出
+moon run cmd/main -- script.luac                # 运行它
+```
+
+写出的 chunk 有整整 31 字节的头部与参考实现逐字节相同（签名、版本、格式、字长和那两个测试常量），**其后是本实现自己的原型编码**，所以两边互不通用——这是实测的：我们写的被参考实现拒为 `bad binary format (integer overflow)`，参考实现写的被我们拒为 `bad binary format (truncated chunk)`，两边的退出码都是 1。`-l` 的排版照 `luac.c`，但指令是本实现的 47 个、操作数是具名的 `a`/`b`/`c`，所以列出的名字与数字是这里的；参考实现用 `%p` 打印每个原型的地址，而这里没有地址可打印，于是 `CLOSURE` 直接点名它构造的那个函数，全列示的三张表也在自己的标题里说明是谁的。
+
+`-o -`（写到标准输出）在 Windows 上拿不到完整的字节：宿主把标准输出当文本流，chunk 里的 `0x0A` 出去时成了 `0D 0A`（实测 222 字节的 chunk 到达时 225 字节，再读就是 `bad binary format (corrupted chunk)`）。参考实现也只用 `"wb"` 打开**文件**，所以这是同一条坑，不是本实现独有的；要正确的字节，就写到文件。
+
 ## 示例
 
 `examples/` 里是可运行的程序。每个示例都用 `assert` 校验自己的结果，而不是打印一份期望输出，所以**跑一遍就是测试**；它们都是普通的 Lua 5.4 代码，因此用参考版 `lua` 二进制跑也同样通过。
@@ -55,7 +70,7 @@ moon run examples/embed
 
 ## 目录结构
 
-每个含 `moon.pkg` 的目录就是一个包。模块根目录既是元数据，也是**面向 MoonBit 嵌入者的公开包**（`hongweifei/lua`）；可执行程序在 `cmd/main`，实现分布在 `src` 下的十七个包里。
+每个含 `moon.pkg` 的目录就是一个包。模块根目录既是元数据，也是**面向 MoonBit 嵌入者的公开包**（`hongweifei/lua`）；可执行程序有两个，`cmd/main`（`lua` 命令行界面）与 `cmd/luac`（`luac`），实现分布在 `src` 下的十七个包里。
 
 | 包 | 内容 |
 | --- | --- |
@@ -70,6 +85,7 @@ moon run examples/embed
 | `src/lib/base`、`string`、`math`、`io`、`os`、`table`、`utf8`、`coroutine`、`debug` | 每个标准库一个包 |
 | `src/lua` | 对外入口：`lua`、`api`、`stdlib`、`lib_package`，以及 Lua 测试套件（`*_test.mbt`） |
 | `cmd/main` | 命令行界面 |
+| `cmd/luac` | 把源文件编译成预编译 chunk 的 `luac` |
 | `examples/embed` | 嵌入解释器的示例程序；与它并列的 Lua 示例是数据文件，不是包 |
 
 依赖图无环：
@@ -171,7 +187,7 @@ let words : Result[Array[String], LuaError] = lua.values_as(vs)
 
 * **`collectgarbage("step")` 的答复照参考实现的规则给。** 参考实现答的不是"一轮结束了"，而是"债务付清了，**并且**收集器正停在暂停态"。这句话有两个后果，都实测过：其一，有尺寸的一步只经由 `luaC_checkGC` 进入收集器，而它只看债务是否为正，所以上一轮留下的信用没还清之前一步**什么都不做**；其二，**分代模式下答复一律是 `false`**，因为分代的一轮不停在暂停态——而分代就是默认模式。"模式 × 收集器开/关"四格与参考实现逐一相同（修好之前，分代那两格我们答 `true`）。账本本身仍是本实现自己的：上面那个形状里 2 KB 一步这里要 11 次、参考实现要 1403 次，因为"一轮值多少工作"是估的（对象数 + 字节/16），不是参考实现那种逐对象计的代价。`count` 报告收集器测出的活集字节，并计入**自上一轮以来库函数创建的对象**，因此随分配上升、随回收下降；绝对数字不同，因为参考的数字是它分配器自己的账。
 
-* **二进制 chunk 与参考实现不通用。** 头部逐字节相同——签名、版本、格式、机器字长和两个测试常量——因为那决定了 chunk 是源码还是预编译、以及损坏时如何报错。其后的原型编码是本实现自己的，所以这里写出的 chunk 不能被 `lua` 读取，反之亦然。
+* **二进制 chunk 与参考实现不通用。** 头部逐字节相同——整整 31 字节：签名、版本、格式、机器字长和两个测试常量——因为那决定了 chunk 是源码还是预编译、以及损坏时如何报错。其后的原型编码是本实现自己的，所以这里写出的 chunk 不能被 `lua` 读取，反之亦然；两边现在都是实测的：同一个程序，本实现写出 222 字节、参考实现写出 113 字节，把任一边交给另一边都报 `bad binary format (...)` 并以退出码 1 结束（我们写的被判为 `integer overflow`，参考写的被判为 `truncated chunk`；两个程序上都量过，相同的部分正好是那 31 字节的头部，第 32 字节起就各读各自的）。
 * **特殊浮点值的拼写** 在 `tostring` 中固定为 `nan`、`inf` 和 `-inf`，而不跟随宿主 `printf`（各 C 库拼写不同）。`string.format` 的 `%f`、`%g`、`%e`、`%a`、`%A` 原样交给宿主格式化器，所以它们长成 C 库打印的样子：参考实现的 Windows 构建会打印与本实现相同的结果（`-nan(ind)`、`0x1.0000000000000p+0`），而链接另一个 C 库的构建会打印 `nan` 和 `0x1p+0`。
 * **有洞的表的长度可以是另一个边界。** 手册把 `#t` 定义为*任意*满足 `t[b] ~= nil` 且 `t[b+1] == nil` 的 `b`，本解释器给出的数永远是其中之一。参考实现选哪一个，是其数组/散列划分的副产品（它的 `rehash` 会在两部分之间搬移整数键），所以 `{1, nil, 3}` 在那边是 3、这里是 1。建立在 `#` 之上的一切都会继承这点。真正的序列——手册所定义的情形——两者一致。
 * **无法取名的参数错误说 `?`**，与参考实现一致：名字来自调用点或对 `package.loaded` 的查找，绝不来自函数注册时用的名字。所以以值的形式拿到的文件方法 `pcall(f.read, f, "x")` 报 `bad argument #2 to '?' (invalid format)`。
@@ -202,7 +218,7 @@ moon test
 ```
 
 * `tests/language.lua`、`tests/stdlib.lua`、`tests/require_test.lua`、`tests/examples.lua`、`tests/utf8_identifiers.lua` 和 `tests/native_libs.lua` 是由 `src/lua/suite_test.mbt` 通过解释器执行的 Lua 程序——和嵌入者使用的方式同形（黑盒），所以失败会带着出错的 Lua 行号报出来。前四个在参考实现下也通过（这次是实测：用 `zig cc` 现建的 5.4.9 参考二进制，四个文件当脚本各跑一遍）；**后两个不会**，它们跑的正是上面那两条本实现独有的扩展（`local 中 = 1` 参考实现就拒绝，`package.loadc` 它根本没有），分开成文件就是为了让「一致性套件」与「扩展套件」互不污染。这条「前四个也通过」的说法此前已经不成立了，是这一轮才修回去的三处：`language.lua` 里 `repeat ... until collectgarbage("step", n)` 那个循环在参考实现下永不结束（默认是**分代**模式，那里的 step 从不报告「一轮收集结束」），现在那段显式在增量模式下跑并给循环加了上限；`stdlib.lua` 断言 `load` 的 reader 报错原文的那条，在命令行下会多带一段 traceback（`lua` 为脚本装了消息处理器，`load` 读文件时它还在），现在只比第一行；`require_test.lua` 里「库开到了、入口也找到了、但不能进去」那一格是本实现独有的答案（参考实现此处交回一个可调用的函数），已搬进 `native_libs.lua`。
-* 其余测试就放在它们所钉住的代码旁边：代码生成器产出的寄存器布局（`src/compiler/codegen_wbtest.mbt`）、`printf` 各转换、数字解析与名字字符的码点判定（`src/core/number_wbtest.mbt`）、chunk 前缀（BOM 与 `#` 首行）的剥离（`src/load/load_test.mbt`）、命令行的选项表、`-l name=module` 拆分与脚本 varargs（`cmd/main/main_wbtest.mbt`）、被启动的脚本看到的报错形态（`src/lua/launcher_test.mbt`）、以及宿主边界（`src/host/ffi_wbtest.mbt`）。
+* 其余测试就放在它们所钉住的代码旁边：代码生成器产出的寄存器布局（`src/compiler/codegen_wbtest.mbt`）、`printf` 各转换、数字解析与名字字符的码点判定（`src/core/number_wbtest.mbt`）、chunk 前缀（BOM 与 `#` 首行）的剥离（`src/load/load_test.mbt`）、命令行的选项表、`-l name=module` 拆分与脚本 varargs（`cmd/main/main_wbtest.mbt`）、`luac` 的选项表与组合外壳和它的列示（`cmd/luac/main_wbtest.mbt`）、被启动的脚本看到的报错形态（`src/lua/launcher_test.mbt`）、以及宿主边界（`src/host/ffi_wbtest.mbt`）。
 * 官方 Lua 5.4 测试套件是一致性的裁判。它不在本仓库分发——`tools/run_official_tests.mbtx` 需要 `lua-5.4.9-tests/` 下有一份拷贝；当前数字见上面 `## 状态`。
 * 性能由 `bench/` 与 `tools/run_bench.mbtx` 度量：每个用例自带断言，打印一行 `bench <名字> <秒> <校验和>`；传入第二个解释器即可得到比值，`--repeat=N` 决定每个用例重复几次（默认 3，取最快一次）。改动前后要背靠背跑、比较**比值**，不要与上一轮的旧数字比较。
 
@@ -216,7 +232,7 @@ Apache-2.0，见 `LICENSE`。`NOTICE` 载有随之而来的署名，因为这里
 
 移植是依照以下来源写成的：
 
-* **Lua 5.4.9**（参考实现），一切可观察行为都以它为准：`lparser.c`/`lcode.c`（单遍编译器的形态与语法错误消息）、`lvm.c`/`ldo.c`（指令语义、保护调用与 yield 的排布、展开时关闭变量的顺序）、`lgc.c`（收集规则及其执行顺序）、`lauxlib.c` 与 `l*baselib.c`/`lstrlib.c`/`ltablib.c`/`lmathlib.c`/`loslib.c`/`liolib.c`/`lcorolib.c`/`ldblib.c`/`lutf8lib.c`（参数检查与消息），以及 `lua.c`/`loadlib.c`/`luaconf.h`（启动器、搜索路径与 `package`）。
+* **Lua 5.4.9**（参考实现），一切可观察行为都以它为准：`lparser.c`/`lcode.c`（单遍编译器的形态与语法错误消息）、`lvm.c`/`ldo.c`（指令语义、保护调用与 yield 的排布、展开时关闭变量的顺序）、`lgc.c`（收集规则及其执行顺序）、`lauxlib.c` 与 `l*baselib.c`/`lstrlib.c`/`ltablib.c`/`lmathlib.c`/`loslib.c`/`liolib.c`/`lcorolib.c`/`ldblib.c`/`lutf8lib.c`（参数检查与消息），以及 `lua.c`/`luac.c`/`loadlib.c`/`luaconf.h`（启动器、编译驱动程序、搜索路径与 `package`）。
 * **Lua 5.4 参考手册**，用于明确语言承诺——当手册与实现不一致时，以实现为准。
 * **官方测试套件**，作为裁判（见 `## 测试`）。
 * **在本机用上述源码构建的 Lua 5.4.9 二进制**，用作差分对照：每一条被移植的行为，都是把同一个文件在两种实现下各跑一遍、比对整份日志得出的，而不是只读源码。

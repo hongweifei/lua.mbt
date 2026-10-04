@@ -44,6 +44,40 @@ The details and the limits are in the identifier entry under
 [differences from the reference](#differences-from-the-reference-implementation)
 below.
 
+## A precompiled chunk
+
+`cmd/luac` is this project's `luac`: it compiles one or more Lua files into a
+single precompiled chunk written to a file.  The option table, the default
+`luac.out`, `-o -` for standard output, `--` and `-`, and the wording of every
+complaint follow the reference's `luac.c`; several inputs are placed in one
+wrapper and run in the order they were named.
+
+```
+moon run cmd/luac -- -o script.luac script.lua   # compile
+moon run cmd/luac -- -l -l script.lua            # list; a second -l adds the constant, local and upvalue tables
+moon run cmd/luac -- -s -p a.lua b.lua           # strip debug information; parse without writing
+moon run cmd/main -- script.luac                 # run it
+```
+
+The whole 31-byte header of what it writes is byte-identical to the reference's
+(signature, version, format, word sizes and the two test constants), and
+**what follows is this implementation's own encoding of a prototype**, so the
+two directions of reading are refused -- measured: the reference rejects a
+chunk written here with `bad binary format (integer overflow)` and this build
+rejects one written there with `bad binary format (truncated chunk)`, both with
+exit status 1.  The `-l` listing keeps `luac.c`'s layout, but the instructions
+are this interpreter's 47 with named `a`/`b`/`c` operands rather than packed
+`RK`/`sBx`/`k`, so the names and numbers are ours; where the reference prints
+the address of each prototype (`%p`), there is no address here, so a `CLOSURE`
+names the function it builds and each table says whose it is in its own heading.
+
+`-o -` (write to standard output) does not deliver the bytes on Windows: the
+host treats standard output as a text stream, so each `0A` of the chunk leaves as
+`0D 0A` — measured, a 222-byte chunk arrives 225 bytes long and then reads back
+as `bad binary format (corrupted chunk)`.  The reference opens only the *file*
+with `"wb"` either, so this is the same trap rather than one of ours; write to a
+file to get the bytes.
+
 ## Examples
 
 `examples/` holds runnable programs. Each one asserts its own results instead of
@@ -71,8 +105,9 @@ moon run examples/embed
 ## Layout
 
 Every directory with a `moon.pkg` is one package. The module root holds only
-metadata; the executable is in `cmd/main` and the implementation is spread over
-seventeen packages under `src`.
+metadata; the executables are `cmd/main` (the `lua` command line) and `cmd/luac`
+(the `luac`), and the implementation is spread over seventeen packages under
+`src`.
 
 | Package | Contents |
 | --- | --- |
@@ -87,6 +122,7 @@ seventeen packages under `src`.
 | `src/lib/base`, `string`, `math`, `io`, `os`, `table`, `utf8`, `coroutine`, `debug` | One package per standard library |
 | `src/lua` | Public entry points: `lua`, `api`, `stdlib`, `lib_package`, and the Lua test suites (`*_test.mbt`) |
 | `cmd/main` | The command line interface |
+| `cmd/luac` | The `luac` that compiles source files into a precompiled chunk |
 | `examples/embed` | A program that embeds the interpreter; the Lua examples beside it are data files, not a package |
 
 The dependency graph is acyclic:
@@ -343,7 +379,13 @@ What the interpreter does, in the areas the suite exercises hardest:
   two test constants — because that is what decides whether a chunk is source or
   precompiled and how a corrupted one is reported.  The prototype encoding that
   follows is this interpreter's own, so a chunk written here is not readable by
-  `lua`, and vice versa.
+  `lua`, and vice versa; both directions are now measured: for the same program
+  this build writes 222 bytes where the reference writes 113, and handing either
+  one to the other ends with exit status 1 and a `bad binary format (...)`
+  message — ours is rejected there as `integer overflow`, the reference's is
+  rejected here as `truncated chunk`.  What is shared is exactly the header: 31
+  bytes, measured on two different programs; the next byte is already the other
+  side's own encoding, which is where each of them gives up.
 * **The spelling of the special float values** is fixed to `nan`, `inf` and
   `-inf` for `tostring` rather than following the host `printf`, whose spelling
   differs between C libraries.  `string.format` with `%f`, `%g`, `%e`, `%a` and
@@ -497,7 +539,9 @@ moon test
   stripping of a chunk's prefix (a BOM and a `#` first line,
   `src/load/load_test.mbt`), the command line's option table,
   `-l name=module` splitting and a script's varargs
-  (`cmd/main/main_wbtest.mbt`), the message shapes a launched script sees
+  (`cmd/main/main_wbtest.mbt`), the `luac` option table, its combining
+  shell and its listing (`cmd/luac/main_wbtest.mbt`), the message shapes a launched
+  script sees
   (`src/lua/launcher_test.mbt`), and the host boundary
   (`src/host/ffi_wbtest.mbt`).
 * The official Lua 5.4 test suite is the conformance judge.  It is not
@@ -524,8 +568,8 @@ The port was written by following these sources:
   collector's rules and the order it applies them in), `lauxlib.c` and the
   `l*baselib.c`/`lstrlib.c`/`ltablib.c`/`lmathlib.c`/`loslib.c`/`liolib.c`/
   `lcorolib.c`/`ldblib.c`/`lutf8lib.c` libraries for the argument checks and the
-  messages, and `lua.c`/`loadlib.c`/`luaconf.h` for the launcher, the search
-  paths and `package`.
+  messages, and `lua.c`/`luac.c`/`loadlib.c`/`luaconf.h` for the launcher, the
+  compiler driver, the search paths and `package`.
 * **The Lua 5.4 reference manual**, for what the language promises — and, where
   the manual and the implementation differ, the implementation.
 * **The official test suite** as the judge (see `## Tests`).

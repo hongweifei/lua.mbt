@@ -233,10 +233,17 @@ pub fn str_dump(
       )
   }
   let strip = @core.is_truthy_arg(state, args, 2)
+  @core.One(@core.VStr(@core.LStr::of_bytes(dump_proto(cl.proto, strip))))
+}
+
+///|
+/// `luaU_dump`: the bytes of one prototype and everything it holds, as
+/// `string.dump` writes them and as `luac` saves a file.
+pub fn dump_proto(f : @core.LProto, strip : Bool) -> Bytes {
   let w = BinWriter::new()
   w.header()
-  w.proto(cl.proto, strip, true)
-  @core.One(@core.VStr(@core.LStr::of_bytes(w.buf.to_bytes())))
+  w.proto(f, strip, true)
+  w.buf.to_bytes()
 }
 
 ///|
