@@ -31,10 +31,17 @@ pub fn os_time(
   let hour = field_int(state, t, "hour", 12L)
   let min = field_int(state, t, "min", 0L)
   let sec = field_int(state, t, "sec", 0L)
-  let isdst = match t.get_str("isdst") {
-    @core.VBool(true) => 1
-    @core.VBool(false) => 0
-    _ => -1
+  let isdst = match
+    @vm.index_get(
+      state,
+      @core.VTable(t),
+      @core.VStr(@core.LStr::of_string("isdst")),
+      @core.src_none,
+    ) {
+    // `getboolfield`: absent (nil) leaves the choice to the host; anything else
+    // is judged by its truth, not by its type.
+    @core.VNil => -1
+    v => if v.is_truthy() { 1 } else { 0 }
   }
   let r = @host.lua_mbt_time_make(
     year.to_int(),
@@ -61,7 +68,16 @@ pub fn field_int(
   name : String,
   dflt : Int64,
 ) -> Int64 raise @core.LuaRaised {
-  match t.get_str(name) {
+  // `getfield` reads through `lua_getfield`, so an `__index` metamethod supplies
+  // the field when the table does not hold it -- and that call is a host
+  // boundary, so a metamethod entered from here cannot yield.
+  match
+    @vm.index_get(
+      state,
+      @core.VTable(t),
+      @core.VStr(@core.LStr::of_string(name)),
+      @core.src_none,
+    ) {
     @core.VInt(i) => i
     @core.VNum(d) =>
       if @core.float_is_int64(d) {

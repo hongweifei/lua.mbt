@@ -88,9 +88,11 @@ pub(all) struct Frame {
   /// closing may be suspended in the middle of it.
   mut pending_room : Int
   /// For a builtin whose call was suspended in the Lua it called back into:
-  /// where the results of that call stand, and how many.  A resume finishes
-  /// this frame with them instead of running the builtin again, which is what
-  /// `pairs` needs -- it has nothing left to do but return them.
+  /// where the results of that call stand, and how many -- or, when the count is
+  /// negative, as many as the call left, which is what `place_results` recorded
+  /// in this frame's `top`.  A resume finishes this frame with them instead of
+  /// running the builtin again, which is what `pairs` and `dofile` need: their
+  /// continuations in the reference have nothing left to do but return them.
   mut pending_result : (Int, Int)?
 }
 
@@ -156,6 +158,12 @@ pub(all) struct LThread {
   mut open_upvals : Array[LUpval]
   meta : LTable?
   mut status : Int
+  /// How many host calls this thread is inside that cannot be yielded across:
+  /// the reference's upper half of `nCcalls`, marked by `luaD_callnoyield`.  Zero
+  /// is what lets a yield suspend the thread and makes `coroutine.isyieldable`
+  /// answer true.  The main thread starts at one, since nothing there can yield
+  /// at all, and a coroutine starts each resume at zero -- the reference takes
+  /// only the C-call count from the thread that resumes it.
   mut ny : Int
   /// Nested protected calls, which the reference counts as C levels: a chain of
   /// `pcall` calls stops with "C stack overflow" long before the Lua stack does.

@@ -218,9 +218,9 @@ pub fn str_gsub(
                     -1,
                   )
                 @core.VFunc(_) | @core.VBuiltin(_) => {
-                  state.current_thread.ny = state.current_thread.ny + 1
+                  // `lua_call`, with no continuation: the call is a host
+                  // boundary, so the replacement function cannot yield.
                   let r = @vm.call_value(state, repl, captures, 1)
-                  state.current_thread.ny = state.current_thread.ny - 1
                   if r.length() > 0 {
                     r[0]
                   } else {

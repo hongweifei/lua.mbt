@@ -326,12 +326,20 @@ cells.  The same table is run against the reference with `--exe=`:
 
 `files` stops at line 84, so everything after it — including the byte-order-mark
 and `#`-first-line cases at `files.lua:537`–`550` — is not reached on this path.
+That line asks that a seek past the end of `io.stdin` *fail*, and whether stdin
+is that kind of handle is the host's doing, so both implementations stop there.
 That block run on its own passes under both implementations, and
 `tests/language.lua` pins the same four cases.  The same `files.lua` with stdin
-closed (`exec 0<&-`) gets this implementation as far as `files.lua:202`, which
-asks a `dofile` to yield (`coroutine.wrap(dofile)`): here that reports "attempt
-to yield across a C-call boundary" where the reference yields.  That is a known
-gap, not something this round changed.
+closed (`exec 0<&-`) now gets this implementation as far as `files.lua:228`: the
+`dofile`-yields group at `:192`–`:205` passes on both builds on the way (that was
+the gap this round closed -- see *Resumable host calls*), and under the same
+condition the reference reaches `:760`.  Neither stopping place is about yielding:
+`:228` asks `f:read("n")` for the hexadecimal float `0x1.13Ap+3e`, which this
+build's lexer and `tonumber` both read but its `read("n")` number scan does not
+(measured: it answers `nil` and consumes nothing, so the following `read(1)`
+returns the newline); `:760` is inside the `if not _port` block of POSIX shell
+tests (`kill -s HUP $$` and the like), and those commands are not on Windows --
+an environment difference.
 
 The last two files of the suite need a word.  `cstack` runs its real work (the
 `if T then` block at its end is the part that needs the reference's C test
@@ -349,10 +357,26 @@ What the interpreter does, in the areas the suite exercises hardest:
   collector decides what is *reachable* rather than freeing anything; a cycle
   still ends with the process.  `collectgarbage("count")` reports the bytes the
   live set holds, strings included, measured by walking it.
-* **Resumable host calls.** A `coroutine.yield` that happens while a host
-  function is still on the stack — inside `__pairs`, a `__close` handler, a
-  metamethod — rides the error channel out and back, and the instruction that
-  started the call is finished on resume rather than re-run.
+* **Resumable host calls.**  Which host calls a coroutine may yield out of
+  follows the reference.  In 5.4.9 exactly three carry a *continuation* --
+  `pcall`/`xpcall` (`finishpcall`), `pairs` (`pairscont`) and `dofile`
+  (`dofilecont`) -- and only those three may be yielded across.  Every other call
+  the host makes sits inside a `luaD_callnoyield` region: `table.sort`'s
+  comparator, `string.gsub`'s replacement function and replacement table, the
+  `__tostring` that `tostring` reaches, the `__index` that `os.time` reads,
+  `require`'s loader, `load`'s reader and a debug hook.  A yield below one of
+  those refuses, and `coroutine.isyieldable()` honestly answers false inside it.
+  The refusal carries no position, because the reference raises it from
+  `coroutine.yield`'s own frame, where there is no line of Lua to name.  A call
+  the interpreter starts is no boundary at all (`isLuacode`): metamethods,
+  generic-for iterators and `__close` handlers yield as usual.  A yield that does
+  pass through a host function rides the error channel out and back, and the
+  instruction that started the call is finished on resume rather than re-run; the
+  three frames with a continuation are completed on resume with whatever their
+  inner call left, and what `dofile` asks for is `LUA_MULTRET` -- however many
+  values there are.  The mark does not cross a coroutine boundary: a coroutine
+  started from inside a host call may yield on its own, because the reference
+  takes only the C-call *depth* from the resuming thread when it resumes one.
 * **`debug` fidelity.** The line traces, level counting, tail calls, traceback
   naming and abbreviation, and the fields of `debug.getinfo` agree with a
   reference build, instruction for instruction.

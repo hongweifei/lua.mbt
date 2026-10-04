@@ -2,6 +2,7 @@ import {
   "hongweifei/lua/src/core",
   "hongweifei/lua/src/host",
   "hongweifei/lua/src/lib/string" @strlib,
+  "hongweifei/lua/src/vm",
 }
 
 warnings = "-24"

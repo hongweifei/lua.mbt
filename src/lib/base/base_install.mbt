@@ -43,9 +43,7 @@ pub fn open_base_library(state : @core.LuaState) -> Unit {
   g.set_str("next", @core.VBuiltin(@core.LBuiltin::make("next", 2, base_next)))
   g.set_str(
     "pairs",
-    @core.VBuiltin(
-      @core.LBuiltin::make_kind("pairs", @core.BK_PAIRS, 1, base_pairs),
-    ),
+    @core.VBuiltin(@core.LBuiltin::make("pairs", 1, base_pairs)),
   )
   g.set_str(
     "ipairs",

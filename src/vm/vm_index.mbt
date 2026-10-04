@@ -82,19 +82,26 @@ pub fn metamethod_report(name : String) -> String {
 /// A metamethod is *not* a non-yieldable boundary: the reference calls it with
 /// `luaD_call`, so a `__close` handler that yields suspends the coroutine and
 /// finishes when it is resumed.  What a yield needs is a frame that can run its
-/// instruction again, and `call_value` is where that is decided.
+/// instruction again, and `call_value` is where that is decided.  `cont` is the
+/// continuation of `pairs`, which may also be resumed *through* this frame.
 pub fn call_metamethod(
   st : @core.LuaState,
   f : @core.Value,
   args : Array[@core.Value],
   want : Int,
   report : String,
+  cont? : Bool = false,
 ) -> Array[@core.Value] raise @core.LuaRaised {
   let saved_mm = st.mm_name
   st.mm_name = report
-  let r = Ok(call_value(st, f, args, want)) catch {
+  let r = Ok(call_value(st, f, args, want, cont~)) catch {
     @core.LuaRaised(e) => Err(e)
-    @core.LuaYield(v) => raise @core.LuaYield(v)
+    // The yield carries on from a frame above this one, so the name is put back
+    // before it goes: the next frame pushed must not inherit it.
+    @core.LuaYield(v) => {
+      st.mm_name = saved_mm
+      raise @core.LuaYield(v)
+    }
   }
   st.mm_name = saved_mm
   match r {

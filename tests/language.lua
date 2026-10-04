@@ -1015,4 +1015,336 @@ do
     "and a built-in that answers with nothing")
 end
 
+-- A coroutine may yield across a host call only where the reference gives that
+-- call a continuation.  In 5.4.9 there are three: `pairs` (`pairscont`), `dofile`
+-- (`dofilecont`) and `pcall`/`xpcall` (`finishpcall`).  Every other call the host
+-- makes -- a comparator, a replacement function, a metamethod it reaches for
+-- itself -- is `lua_call` inside `luaD_callnoyield`, which marks the region it
+-- covers: a yield there refuses, `coroutine.isyieldable` answers false from
+-- inside, and the mark does not cross into a coroutine the host call starts.
+do
+  local name = os.tmpname()
+  local f = assert(io.open(name, "wb"))
+  f:write([[
+local x, z = coroutine.yield(10)
+local y = coroutine.yield(20)
+return x + y * z
+]])
+  f:close()
+
+  local co = coroutine.wrap(dofile)
+  eq(co(name), 10, "a yield from a file that dofile called reaches the resumer")
+  eq(co(100, 101), 20, "the values a resume brings reach the yield expression")
+  eq(co(200), 100 + 200 * 101, "and the file's results come back through dofile")
+  assert(os.remove(name), "the file is removed")
+
+  -- `dofilecont` is `lua_gettop(L) - 1`: however many values the chunk left,
+  -- which is what the `LUA_MULTRET` of its call asks for.  A resume that brings
+  -- no values leaves nils where the yield stood.
+  local two = os.tmpname()
+  f = assert(io.open(two, "wb"))
+  f:write([[
+local a, b = coroutine.yield(1, 2)
+return a, b, "done"
+]])
+  f:close()
+  local c2 = coroutine.create(dofile)
+  local r = table.pack(coroutine.resume(c2, two))
+  eq(r.n, 3, "the first resume gives the two yielded values")
+  eq(r[3], 2, "the second of them")
+  r = table.pack(coroutine.resume(c2))
+  eq(r.n, 4, "then the chunk's three results, with resume's own first")
+  eq(r[2], nil, "a yield resumed with nothing gives nil")
+  eq(r[4], "done", "and the chunk's last value arrives through dofile")
+  eq(coroutine.status(c2), "dead", "dofile ends when the chunk does")
+
+  -- A protection around it keeps the same shape, and an error raised after a
+  -- yield keeps the line of the file it was written in.
+  local three = os.tmpname()
+  f = assert(io.open(three, "wb"))
+  f:write([[
+local a, b = coroutine.yield("y")
+error("boom after yield")
+]])
+  f:close()
+  local c3 = coroutine.create(function() return pcall(dofile, three) end)
+  eq(select(2, coroutine.resume(c3)), "y", "the yield passes the protection up")
+  local ok3, inside, msg3 = coroutine.resume(c3, 7)
+  eq(ok3, true, "the resume itself succeeds")
+  eq(inside, false, "and the protected call is the one that reports the failure")
+  eq(type(msg3) == "string", true, "with the error as its message")
+  eq(msg3:find("boom after yield", 1, true) ~= nil, true,
+     "raised by the file dofile called")
+  eq(msg3:match(":%d+: boom after yield$") ~= nil, true,
+     "and still carrying that file's position")
+  assert(os.remove(three), "the second file is removed")
+  assert(os.remove(two), "and the first")
+
+  -- A protected call that a yield passes through keeps its own `true` in front of
+  -- whatever the chunk the file left behind it.
+  local nine = os.tmpname()
+  f = assert(io.open(nine, "wb"))
+  f:write([[
+local a, b = coroutine.yield("y")
+return a, b
+]])
+  f:close()
+  local c9 = coroutine.create(function() return pcall(dofile, nine) end)
+  eq(select(2, coroutine.resume(c9)), "y", "the yield reaches through pcall")
+  local r9 = table.pack(coroutine.resume(c9, 7))
+  eq(r9.n, 4, "resume's own true, pcall's true, and the chunk's two values")
+  eq(r9[2], true, "the protected call returned")
+  eq(r9[3], 7, "the value the resume brought")
+  eq(r9[4], nil, "and the second parameter it did not")
+  r9 = table.pack(coroutine.resume(c9, 8, 9))
+  eq(r9[1], false, "the coroutine is dead")
+  eq(r9[2], "cannot resume dead coroutine", "and says so")
+  assert(os.remove(nine), "the file is removed")
+
+  -- A yield inside a function the file calls travels the same way, and the level
+  -- `dofile` stands for is in the stack where a traceback can see it.
+  local five = os.tmpname()
+  f = assert(io.open(five, "wb"))
+  f:write([[
+local function inner(n) return coroutine.yield(n) end
+local a = inner("one")
+local b = inner("two")
+return a .. "|" .. b
+]])
+  f:close()
+  local c5 = coroutine.create(dofile)
+  eq(select(2, coroutine.resume(c5, five)), "one", "the first of them")
+  local tb = debug.traceback(c5)
+  eq(tb:find("[C]: in function 'dofile'", 1, true) ~= nil, true,
+     "dofile stands in the suspended stack as a C level")
+  eq(select(2, coroutine.resume(c5, "X")), "two", "the second yields too")
+  eq(select(2, coroutine.resume(c5, "Y")), "X|Y", "both values reached their call")
+  assert(os.remove(five), "and the file is removed")
+
+  -- On the main thread there is no coroutine to yield from, and the message says
+  -- that instead of the boundary.
+  local four = os.tmpname()
+  f = assert(io.open(four, "wb"))
+  f:write('coroutine.yield(1)\n')
+  f:close()
+  local ok4, e4 = pcall(dofile, four)
+  eq(ok4, false, "a yield on the main thread refuses")
+  eq(e4, "attempt to yield from outside a coroutine",
+     "and says there is no coroutine to yield from")
+  assert(os.remove(four), "the file is removed")
+end
+
+-- The refusals, and what they say.  The message carries no position, because the
+-- reference raises it from `coroutine.yield`'s own frame, where there is no line
+-- of Lua to name.
+do
+  local function refused(what, f)
+    local c = coroutine.create(f)
+    local ok, msg = coroutine.resume(c)
+    eq(ok, false, what .. " refuses the yield")
+    eq(msg, "attempt to yield across a C-call boundary",
+       what .. " gives the boundary's message, with no position")
+    eq(coroutine.status(c), "dead", what .. " leaves the coroutine dead")
+  end
+
+  refused("string.gsub's replacement function", function()
+    return string.gsub("a", ".", function(one) return coroutine.yield(one) end)
+  end)
+  refused("string.gsub's replacement table", function()
+    local t = setmetatable({}, {
+      __index = function(_, k) return coroutine.yield(k) end,
+    })
+    return string.gsub("a", "a", t)
+  end)
+  refused("table.sort's comparator", function()
+    return table.sort({ 2, 1 }, function(a, b)
+      return coroutine.yield(a) < b
+    end)
+  end)
+  refused("a __tostring method", function()
+    local o = setmetatable({}, {
+      __tostring = function() return coroutine.yield("x") end,
+    })
+    return tostring(o)
+  end)
+  refused("os.time's __index method", function()
+    local t = setmetatable({}, {
+      __index = function(_, k) return coroutine.yield(k) end,
+    })
+    return os.time(t)
+  end)
+  refused("a loader that require reaches", function()
+    table.insert(package.searchers, function(name)
+      if name ~= "yielding.loader" then return "not for this name" end
+      return function(m)
+        local t = {}
+        t.x = coroutine.yield("from the loader")
+        return t
+      end
+    end)
+    return require("yielding.loader")
+  end)
+  -- A reader is called inside the load's own protection, so the refusal comes
+  -- back as `nil, message` instead of reaching the caller as an error.  What the
+  -- launcher adds after that message is its own traceback, so only the first line
+  -- is the answer here.
+  local c13 = coroutine.create(function()
+    return load(function()
+      local y = coroutine.yield("from the reader")
+      return nil
+    end)
+  end)
+  local ok13, fn13, err13 = coroutine.resume(c13)
+  eq(ok13, true, "the reader's refusal does not escape the load")
+  eq(fn13, nil, "load answers with no function")
+  eq(tostring(err13):match("^[^\n]*"), "attempt to yield across a C-call boundary",
+     "and the refusal is the message")
+  refused("a debug hook", function()
+    debug.sethook(function()
+      debug.sethook()
+      coroutine.yield("from the hook")
+    end, "l")
+    local x = 1
+    x = x + 1
+    return x
+  end)
+
+  -- The mark covers everything below the call, so a `dofile` nested inside a host
+  -- call that cannot yield cannot yield either, continuation and all.
+  local six = os.tmpname()
+  local f = assert(io.open(six, "wb"))
+  f:write('return coroutine.yield("inside")\n')
+  f:close()
+  local function in_gsub(use)
+    local out = "callback did not run"
+    local c = coroutine.create(function()
+      return string.gsub("a", ".", function()
+        local ok, msg = pcall(use)
+        out = (ok and "yielded " or "refused ") .. tostring(msg)
+        return ""
+      end)
+    end)
+    eq(coroutine.resume(c), true, "the host call itself ran")
+    return out
+  end
+  eq(in_gsub(function() return dofile(six) end),
+     "refused attempt to yield across a C-call boundary",
+     "dofile under a host call that cannot yield refuses")
+
+  -- ... but a coroutine the replacement function starts is not under that mark:
+  -- the reference gives a resumed thread only the C-call *depth* of the thread
+  -- that resumed it, and its own count of non-yieldable calls starts at zero.
+  local seven = os.tmpname()
+  f = assert(io.open(seven, "wb"))
+  f:write([[
+local a = coroutine.yield("first")
+return a .. "-second"
+]])
+  f:close()
+  local got = nil
+  local c = coroutine.create(function()
+    return string.gsub("a", ".", function()
+      local w = coroutine.wrap(dofile)
+      local one = w(seven)
+      local two = w("carried")
+      got = one .. "/" .. two
+      return ""
+    end)
+  end)
+  eq(select(1, coroutine.resume(c)), true,
+     "the nested coroutine yields across the host call of the thread that made it")
+  eq(got, "first/carried-second", "and both of its rounds come back")
+  assert(os.remove(six), "the files are removed")
+  assert(os.remove(seven), "both of them")
+
+  -- What is left yieldable: the metamethods and iterators the interpreter calls
+  -- from Lua code, the target of a protected call, and the bodies of the three
+  -- host calls that bring a continuation.
+  local function there(what, f)
+    local c = coroutine.create(f)
+    local ok, v = coroutine.resume(c)
+    eq(ok, true, what .. " runs without a refusal")
+    eq(type(v), "boolean", what .. " reported whether it may yield")
+    return v
+  end
+  eq(there("a gsub replacement", function()
+    local y
+    string.gsub("a", ".", function(one)
+      y = coroutine.isyieldable()
+      return one
+    end)
+    return y
+  end), false, "a replacement function is a host boundary")
+  eq(there("a sort comparator", function()
+    local y
+    table.sort({ 2, 1 }, function(a, b)
+      y = coroutine.isyieldable()
+      return a < b
+    end)
+    return y
+  end), false, "so is a comparator")
+  eq(there("a __tostring method", function()
+    local y
+    local o = setmetatable({}, {
+      __tostring = function()
+        y = coroutine.isyieldable()
+        return "s"
+      end,
+    })
+    tostring(o)
+    return y
+  end), false, "or a metamethod the host reaches for")
+  eq(there("a hook", function()
+    local y = "not reached"
+    debug.sethook(function()
+      debug.sethook()
+      y = coroutine.isyieldable()
+    end, "l")
+    local x = 1
+    x = x + 1
+    return y
+  end), false, "or a debug hook")
+  eq(there("a __add method", function()
+    local y
+    local o = setmetatable({}, {
+      __add = function()
+        y = coroutine.isyieldable()
+        return 0
+      end,
+    })
+    local r = o + o
+    return y
+  end), true, "a metamethod the interpreter calls is not a boundary")
+  eq(there("a __index method", function()
+    local y
+    local o = setmetatable({}, {
+      __index = function()
+        y = coroutine.isyieldable()
+        return 1
+      end,
+    })
+    local r = o.whatever
+    return y
+  end), true, "nor is a field the interpreter reads")
+  eq(there("a generic-for iterator", function()
+    local y = "not reached"
+    for i in (function()
+      y = coroutine.isyieldable()
+      return nil
+    end) do
+    end
+    return y
+  end), true, "nor an iterator of a generic for")
+  eq(there("the target of pcall", function()
+    return select(2, pcall(coroutine.isyieldable))
+  end), true, "nor what a protected call runs")
+  local eight = os.tmpname()
+  f = assert(io.open(eight, "wb"))
+  f:write('return coroutine.isyieldable()\n')
+  f:close()
+  eq(there("the body of dofile", function() return dofile(eight) end), true,
+     "the body of a host call that brings a continuation may yield")
+  assert(os.remove(eight), "the file is removed")
+end
+
 print("language: ok")

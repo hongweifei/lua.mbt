@@ -1020,4 +1020,33 @@ do
   os.remove(path)
 end
 
+-- `os.time` reads the date table the way `loslib.c` does: every field through
+-- `lua_getfield`, so an `__index` -- a table or a function -- supplies what the
+-- table itself does not hold, and that read asks for all seven of them.  What it
+-- does not do is judge a value by anything but `lua_tointegerx`'s answer, so a
+-- field that is not a number is refused with the same message whether the table
+-- held it or the metamethod did.
+do
+  local t = setmetatable({ month = 6, day = 5 }, { __index = { year = 2030 } })
+  local ok, r = pcall(os.time, t)
+  eq(ok, true, "a field an __index table supplies is read")
+  eq(type(r), "number", "and the call gives a time")
+
+  local called = 0
+  local fields = { year = 2024, month = 1, day = 1 }
+  local fm = setmetatable({}, {
+    __index = function(_, k)
+      called = called + 1
+      return fields[k]
+    end,
+  })
+  eq(type(select(2, pcall(os.time, fm))), "number", "a function __index is asked")
+  eq(called, 7, "for each of the seven fields it reads")
+
+  eq(select(2, pcall(os.time, { month = 1, day = 1 })),
+     "field 'year' missing in date table", "a required field is still required")
+  eq(select(2, pcall(os.time, { year = 2024, month = "x", day = 1 })),
+     "field 'month' is not an integer", "and a field that is not a number is refused")
+end
+
 print("stdlib: ok")

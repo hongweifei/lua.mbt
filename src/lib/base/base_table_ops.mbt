@@ -159,7 +159,10 @@ pub fn base_pairs(
   let v = @core.check_any(state, args, 1, "pairs")
   let h = @vm.metafield(state, v, "__pairs")
   if !h.is_nil() {
-    let res = @vm.call_metamethod(state, h, [v], 3, "")
+    // `luaB_pairs` calls the metamethod with `pairscont`, which only returns the
+    // three values it produced: that continuation is what lets a `__pairs`
+    // handler yield from inside a coroutine.
+    let res = @vm.call_metamethod(state, h, [v], 3, "", cont=true)
     while res.length() < 3 {
       res.push(@core.VNil)
     }

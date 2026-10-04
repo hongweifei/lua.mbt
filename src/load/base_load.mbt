@@ -195,7 +195,11 @@ pub fn base_dofile(
   let r = do_loadfile(state, args)
   match r[0] {
     @core.VNil => @core.raise_fresh(state, r[1])
-    f => @core.Many(@vm.call_value(state, f, [], -1))
+    // The chunk is called the way `luaB_dofile` calls it: with `LUA_MULTRET` and
+    // `dofilecont`, which only finishes the call with whatever the chunk left on
+    // the stack.  That continuation is what lets a coroutine yield from inside
+    // the file (`files.lua:202`), and no other host function here may have one.
+    f => @core.Many(@vm.call_value(state, f, [], -1, cont=true))
   }
 }
 

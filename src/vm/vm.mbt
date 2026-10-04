@@ -79,8 +79,21 @@ pub fn execute(
             fr.nres_wanted
           }
           Some(collect_results(thread, fr.func_slot, count))
-        } else if resuming_result is Some((slot, count)) {
-          Some(collect_results(thread, slot, count))
+        } else if resuming_result is Some((slot, wanted)) {
+          // A negative count is the reference's `LUA_MULTRET`: how many values
+          // the suspended call left is what this frame's open window says, since
+          // `place_results` moved it when the inner call finished.
+          let n = if wanted >= 0 {
+            wanted
+          } else {
+            let left = fr.top - slot
+            if left > 0 {
+              left
+            } else {
+              0
+            }
+          }
+          Some(collect_results(thread, slot, n))
         } else if resuming {
           match thread.resume_vals {
             Some(vals) => Some(vals)

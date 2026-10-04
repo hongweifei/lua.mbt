@@ -50,8 +50,6 @@ pub const BINOP_SUB : Int = 1
 
 pub const BK_NORMAL : Int = 0
 
-pub const BK_PAIRS : Int = 4
-
 pub const BK_PCALL : Int = 2
 
 pub const BK_XPCALL : Int = 3

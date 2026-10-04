@@ -114,10 +114,18 @@ fn run_call_hook_fn(
   )
   let nf = thread.frames.length() - 1
   thread.frames[nf].hook_frame = true
+  // `luaD_hook` calls the hook with `luaD_callnoyield`: a hook is a host
+  // boundary even though the frame above it is Lua code, so nothing it calls may
+  // yield and `coroutine.isyieldable` answers false inside it.
+  thread.ny = thread.ny + 1
   let r = Ok(run_protected(st, thread, saved_frames)) catch {
     @core.LuaRaised(e) => Err(e)
-    @core.LuaYield(v) => raise @core.LuaYield(v)
+    @core.LuaYield(v) => {
+      thread.ny = thread.ny - 1
+      raise @core.LuaYield(v)
+    }
   }
+  thread.ny = thread.ny - 1
   st.native_depth = st.native_depth - 1
   match r {
     Ok(@core.RFinished(vals)) => vals

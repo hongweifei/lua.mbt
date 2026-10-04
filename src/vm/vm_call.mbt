@@ -4,14 +4,32 @@
 /// Calls a value and waits for its results.  Used by every host function that
 /// has to call back into Lua (metamethods, comparators, replacement functions,
 /// error handlers).
+///
+/// The reference has two ways for a host function to call, and they differ in
+/// what a coroutine may do below them.  `lua_call` runs inside
+/// `luaD_callnoyield`, which marks the region it covers non-yieldable, so a
+/// yield anywhere inside it refuses.  `cont` is the other way, `lua_callk` with a
+/// continuation, and 5.4.9 gives one to exactly three host functions: `pcall`
+/// (`finishpcall`, which stands as a protection frame of its own), `pairs`
+/// (`pairscont`) and `dofile` (`dofilecont`).  The last two are what `cont` says
+/// here: their continuations do nothing but finish the call with the values the
+/// inner call produced, so a yield below one of them suspends the thread and a
+/// later resume completes this frame with those values.
+///
+/// A call the interpreter starts from a Lua frame -- a metamethod, a generic-for
+/// iterator -- is no boundary at all, which is why the mark looks at the caller's
+/// frame rather than at the fact of a host call: the reference decides the same
+/// way, with `isLuacode(L->ci)`.
 pub fn call_value(
   st : @core.LuaState,
   f : @core.Value,
   args : Array[@core.Value],
   want : Int,
+  cont? : Bool = false,
 ) -> Array[@core.Value] raise @core.LuaRaised {
   let thread = st.current_thread
   let saved_frames = thread.frames.length()
+  let caller_idx = saved_frames - 1
   let func_slot = thread.stack.length()
   thread.stack.push(f)
   for a in args {
@@ -52,9 +70,33 @@ pub fn call_value(
     hook_call_event(st, thread, args.length(), false)
     st.current_thread = saved
   }
+  // The mark covers the whole region the call runs in, which is what
+  // `coroutine.isyieldable` reads and what makes a yield anywhere below refuse at
+  // the point it is attempted.  A call that brings a continuation marks nothing,
+  // and only marks when the thread is already yieldable -- `lua_callk` degrades
+  // to `luaD_callnoyield` otherwise, so a nested `dofile` inside a host call that
+  // cannot yield cannot yield either.  The frame a protected call stands for is
+  // not a boundary either: `lua_pcallk` gives it `finishpcall`, which is what
+  // carries a `__close` handler interrupted by a yield on to the next one.
+  let boundary = !cont &&
+    (match thread.frames.get(caller_idx) {
+      Some(fr) => fr.closure is None && !fr.protect_frame
+      None => false
+    })
+  if boundary {
+    thread.ny = thread.ny + 1
+  }
   let r = Ok(run_protected(st, thread, saved_frames)) catch {
     @core.LuaRaised(e) => Err(e)
-    @core.LuaYield(v) => raise @core.LuaYield(v)
+    @core.LuaYield(v) => {
+      if boundary {
+        thread.ny = thread.ny - 1
+      }
+      raise @core.LuaYield(v)
+    }
+  }
+  if boundary {
+    thread.ny = thread.ny - 1
   }
   st.native_depth = st.native_depth - 1
   match r {
@@ -71,24 +113,18 @@ pub fn call_value(
       // - A protected call that is closing its frames after a failure keeps
       //   what is left to close on its marker, so reaching that marker again
       //   carries the closing on -- the reference's `finishpcallk`.
+      // - A host call made with a continuation is *finished* too, with the
+      //   values its inner call left on the stack: `pairscont` and `dofilecont`
+      //   have nothing else to do.
       // A level marked non-yieldable, or one of these with nothing to come
       // back to, refuses: the reference's `luaD_callnoyield` boundaries.
-      let caller_idx = saved_frames - 1
       let mut resumable = false
       if thread.ny == 0 && caller_idx >= 0 {
         let caller = thread.frames[caller_idx]
         if caller.pending_closes is Some(_) {
           resumable = true
-        } else if (match caller.builtin {
-            Some(b) => b.kind == @core.BK_PAIRS
-            None => false
-          }) {
-          // `pairs` has nothing left to do but return what the metamethod
-          // produced, so the resume finishes it with those values rather than
-          // running it again -- the reference's `pairscont`.
-          caller.pending_result = Some(
-            (func_slot, if want >= 0 { want } else { 3 }),
-          )
+        } else if cont && caller.closure is None {
+          caller.pending_result = Some((func_slot, want))
           resumable = true
         } else {
           match caller.closure {

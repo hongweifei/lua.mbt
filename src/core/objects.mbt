@@ -167,13 +167,6 @@ pub const BK_PCALL : Int = 2
 pub const BK_XPCALL : Int = 3
 
 ///|
-/// `pairs`, which is yieldable when the table has a `__pairs`: its whole
-/// remaining work is to return the three values the metamethod produced, so a
-/// yield inside it is finished by handing those values to the call instead of
-/// running the builtin again.
-pub const BK_PAIRS : Int = 4
-
-///|
 /// What a builtin answers with.
 ///
 /// A builtin used to build a list on every call -- one heap allocation, and the
