@@ -471,10 +471,12 @@ pub fn gc_collect(st : LuaState) -> Array[Value] {
   st.gc_marked_size = 0
   st.gc_counted_strings = Map([])
   let work : Array[Value] = []
-  // The roots: the globals, the registry, an error handler a host may hold, and
-  // the running thread.  Every other thread is reached through a value.
+  // The roots: the globals, the registry, the modules the host compiled in, an
+  // error handler a host may hold, and the running thread.  Every other thread is
+  // reached through a value.
   mark(st, VTable(st.globals), work)
   mark(st, VTable(st.registry), work)
+  mark(st, VTable(st.native_mods), work)
   mark(st, st.error_handler, work)
   mark(st, VThread(st.main_thread), work)
   mark(st, VThread(st.current_thread), work)
@@ -536,6 +538,7 @@ fn measure_live(st : LuaState) -> Int {
   let work : Array[Value] = []
   mark(st, VTable(st.globals), work)
   mark(st, VTable(st.registry), work)
+  mark(st, VTable(st.native_mods), work)
   mark(st, st.error_handler, work)
   mark(st, VThread(st.main_thread), work)
   mark(st, VThread(st.current_thread), work)

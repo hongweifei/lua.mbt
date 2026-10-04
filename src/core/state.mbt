@@ -14,6 +14,12 @@ pub(all) struct LuaState {
   /// than in the registry means a string method call does not build a key and
   /// look it up.
   mut type_metas : Array[LTable?]
+  /// Modules the host compiled in, keyed by the name a script will `require`.
+  /// This is where the reference's C searcher would find a shared library; here a
+  /// MoonBit host hands the loader over directly.  The table is deliberately not
+  /// reachable from Lua -- unlike `package.preload`, a script can neither list
+  /// what the host installed nor clear it.
+  native_mods : LTable
   main_thread : LThread
   mut current_thread : LThread
   mut native_depth : Int
@@ -147,6 +153,7 @@ pub fn lua_state_new() -> LuaState {
     globals,
     registry,
     type_metas: Array::make(6, None),
+    native_mods: LTable::new(),
     main_thread: main,
     current_thread: main,
     native_depth: 0,

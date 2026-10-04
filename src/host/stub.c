@@ -47,6 +47,7 @@
 #define MBT_FILENO _fileno
 #else
 #include <unistd.h>
+#include <dlfcn.h>
 #include <pthread.h>
 #define MBT_POPEN popen
 #define MBT_PCLOSE pclose
@@ -818,6 +819,151 @@ MBT_EXPORT int32_t lua_mbt_exec_dir(moonbit_bytes_t buf, int32_t n) {
 MBT_EXPORT void lua_mbt_exit(int32_t code) {
   fflush(NULL);
   exit((int)code);
+}
+
+/* ------------------------------------------------------------------ */
+/* dynamic libraries                                                   */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The reference asks the host loader for a shared library, takes the
+ * `lua_CFunction` named there and calls it.  This build can ask -- and does, so
+ * that `package.loadlib` and the native searcher report the loader's own reason
+ * rather than a made-up one -- but it cannot enter the function it found: MoonBit
+ * binds a C symbol by name at compile time and the runtime gives no way to call a
+ * pointer read out of a library at run time.  So these four wrappers stop at
+ * "the file opened" and "the symbol is there"; see the note in README's list of
+ * differences.
+ *
+ * The loader's complaint is saved here instead of being fetched by a second call
+ * from MoonBit, because on Windows the value of `GetLastError` belongs to the
+ * call that failed and anything MoonBit runs in between would overwrite it.  One
+ * static buffer is enough: the interpreter drives one host thread, the same
+ * assumption `errno` and the PRNG state above are written under.
+ */
+
+#define MBT_DL_ERR_MAX 512
+static char mbt_dl_err[MBT_DL_ERR_MAX];
+
+static void mbt_dl_seterr(const char *msg) {
+  size_t n = strlen(msg);
+  if (n >= MBT_DL_ERR_MAX) {
+    n = MBT_DL_ERR_MAX - 1;
+  }
+  memcpy(mbt_dl_err, msg, n);
+  mbt_dl_err[n] = 0;
+}
+
+/* A loader message rarely ends without a newline, and ours is going into the
+ * middle of a line in `require`'s report, so it comes off here. */
+static void mbt_dl_trim(char *s) {
+  size_t n = strlen(s);
+  while (n > 0 && (s[n - 1] == '\n' || s[n - 1] == '\r')) {
+    s[--n] = 0;
+  }
+}
+
+#if defined(_WIN32)
+/* The reference's `pusherror`: the text the system attaches to the error code,
+ * with the code after it. */
+static void mbt_dl_seterr_os(void) {
+  DWORD err = GetLastError();
+  char msg[256];
+  char line[MBT_DL_ERR_MAX];
+  DWORD got = FormatMessageA(
+      FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, err, 0,
+      msg, (DWORD)sizeof(msg) - 1, NULL);
+  if (got == 0) {
+    snprintf(line, sizeof(line), "unknown error (system error %lu)",
+             (unsigned long)err);
+  } else {
+    msg[got] = 0;
+    mbt_dl_trim(msg);
+    snprintf(line, sizeof(line), "%s (system error %lu)", msg,
+             (unsigned long)err);
+  }
+  mbt_dl_seterr(line);
+}
+
+MBT_EXPORT int64_t lua_mbt_dl_open(moonbit_bytes_t path) {
+  /* `LOAD_WITH_ALTERED_SEARCH_PATH` is what makes a library in the same
+   * directory as this one find its own dependencies, the way `dlopen` does with
+   * a path. */
+  HMODULE lib = LoadLibraryExA((const char *)path, NULL,
+                               LOAD_WITH_ALTERED_SEARCH_PATH);
+  if (lib == NULL) {
+    mbt_dl_seterr_os();
+  }
+  return (int64_t)(intptr_t)lib;
+}
+
+MBT_EXPORT int64_t lua_mbt_dl_sym(int64_t h, moonbit_bytes_t name) {
+  FARPROC p = GetProcAddress((HMODULE)(intptr_t)h, (const char *)name);
+  if (p == NULL) {
+    char line[MBT_DL_ERR_MAX];
+    snprintf(line, sizeof(line), "'%s' not found", (const char *)name);
+    mbt_dl_seterr(line);
+  }
+  return (int64_t)(intptr_t)p;
+}
+
+MBT_EXPORT int32_t lua_mbt_dl_close(int64_t h) {
+  return (int32_t)(FreeLibrary((HMODULE)(intptr_t)h) ? 0 : -1);
+}
+#else
+MBT_EXPORT int64_t lua_mbt_dl_open(moonbit_bytes_t path) {
+  /* `RTLD_LOCAL`, like the reference for a library it is only looking into. */
+  void *lib = dlopen((const char *)path, RTLD_NOW | RTLD_LOCAL);
+  if (lib == NULL) {
+    const char *e = dlerror();
+    char line[MBT_DL_ERR_MAX];
+    snprintf(line, sizeof(line), "%s", e != NULL ? e : "cannot open library");
+    mbt_dl_trim(line);
+    mbt_dl_seterr(line);
+  }
+  return (int64_t)(intptr_t)lib;
+}
+
+MBT_EXPORT int64_t lua_mbt_dl_sym(int64_t h, moonbit_bytes_t name) {
+  void *p;
+  const char *e;
+  char line[MBT_DL_ERR_MAX];
+  dlerror(); /* clear a message a previous call left standing */
+  p = dlsym((void *)(intptr_t)h, (const char *)name);
+  e = dlerror();
+  if (p == NULL || e != NULL) {
+    if (e != NULL) {
+      snprintf(line, sizeof(line), "%s", e);
+    } else {
+      snprintf(line, sizeof(line), "'%s' not found", (const char *)name);
+    }
+    mbt_dl_trim(line);
+    mbt_dl_seterr(line);
+    return 0;
+  }
+  return (int64_t)(intptr_t)p;
+}
+
+MBT_EXPORT int32_t lua_mbt_dl_close(int64_t h) {
+  return (int32_t)dlclose((void *)(intptr_t)h);
+}
+#endif
+
+/* Copies what the last failure said into `buf`, NUL terminates it and returns
+ * its length.  It empties the saved message, so a later call after a success
+ * says nothing rather than repeating an old complaint. */
+MBT_EXPORT int32_t lua_mbt_dl_error(moonbit_bytes_t buf, int32_t n) {
+  int32_t len = (int32_t)strlen(mbt_dl_err);
+  if (n <= 0) {
+    return 0;
+  }
+  if (len >= n) {
+    len = n - 1;
+  }
+  memcpy(buf, mbt_dl_err, (size_t)len);
+  buf[len] = 0;
+  mbt_dl_err[0] = 0;
+  return len;
 }
 
 /* ------------------------------------------------------------------ */

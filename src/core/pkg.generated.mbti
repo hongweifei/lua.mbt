@@ -762,6 +762,7 @@ pub(all) struct LuaState {
   globals : LTable
   registry : LTable
   mut type_metas : Array[LTable?]
+  native_mods : LTable
   main_thread : LThread
   mut current_thread : LThread
   mut native_depth : Int

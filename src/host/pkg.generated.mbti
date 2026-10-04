@@ -12,6 +12,14 @@ pub fn lua_mbt_ctype(Int, Int) -> Int
 
 pub fn lua_mbt_diff_seconds(Int64, Int64) -> Double
 
+pub fn lua_mbt_dl_close(Int64) -> Int
+
+pub fn lua_mbt_dl_error(Bytes, Int) -> Int
+
+pub fn lua_mbt_dl_open(Bytes) -> Int64
+
+pub fn lua_mbt_dl_sym(Int64, Bytes) -> Int64
+
 pub fn lua_mbt_errno() -> Int
 
 pub fn lua_mbt_exec_dir(Bytes, Int) -> Int

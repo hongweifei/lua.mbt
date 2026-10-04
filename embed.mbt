@@ -415,3 +415,46 @@ pub fn Lua::preload(self : Lua, name : String, f : HostFunction) -> Unit {
     None => ()
   }
 }
+
+///|
+/// Installs a MoonBit function as a **native module**, which is the thing the
+/// reference's `require` finds in a shared library: `require("名字")` runs the
+/// loader with `(name, ":native:")` and caches what it answers in
+/// `package.loaded`.  Unlike `Lua::preload` the loader is in no Lua-visible
+/// table, so a script can neither list what the host installed nor clear it.
+/// This build opens no shared library it can enter, so this is how a script gets
+/// a module written below Lua.
+///
+/// ```mbt check
+/// test "a module the host compiled in" {
+///   let lua = Lua::new()
+///   let seen : Array[Value] = []
+///   lua.register_module("conf", fn(args) {
+///     for v in args {
+///       seen.push(v)
+///     }
+///     let t = new_table()
+///     t.set_str("limit", Value::VInt(42L))
+///     Ok([t.as_value()])
+///   })
+///   assert_eq(lua.eval_int("return require('conf').limit").unwrap(), 42L)
+///   // `require` hands the loader the name and where the loader came from.
+///   assert_eq(seen.length(), 2)
+///   assert_eq(seen[0].as_text(), Some("conf"))
+///   assert_eq(seen[1].as_text(), Some(":native:"))
+///   // The loader ran once: `require` caches, so the two handles are one table.
+///   let m = lua.require("conf").unwrap()
+///   assert_true(m.raw_equal(lua.require("conf").unwrap()))
+///   // A script cannot see the loader, and so cannot clear it.
+///   assert_true(lua.eval_bool("return package.preload.conf == nil").unwrap())
+///   // It is found by the searcher that owns the native slot, not a new one.
+///   assert_eq(lua.eval_int("return #package.searchers").unwrap(), 3L)
+/// }
+/// ```
+pub fn Lua::register_module(
+  self : Lua,
+  name : String,
+  f : HostFunction,
+) -> Unit {
+  self.st.native_mods.set_str(name, host_function(name, f))
+}

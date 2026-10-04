@@ -286,6 +286,30 @@ pub extern "c" fn lua_mbt_stdin_is_tty() -> Int = "lua_mbt_stdin_is_tty"
 pub extern "c" fn lua_mbt_exec_dir(buf : Bytes, n : Int) -> Int = "lua_mbt_exec_dir"
 
 ///|
+/// Opens a shared library, the way the reference's loader does, and answers with
+/// its handle -- 0 for "the host refused", the same convention as a `FILE *`
+/// handle here.  Why it refused is the next `lua_mbt_dl_error`.
+#borrow(path)
+pub extern "c" fn lua_mbt_dl_open(path : Bytes) -> Int64 = "lua_mbt_dl_open"
+
+///|
+/// The address of `name` in the library `h`, or 0 when the library has no such
+/// entry.
+#borrow(name)
+pub extern "c" fn lua_mbt_dl_sym(h : Int64, name : Bytes) -> Int64 = "lua_mbt_dl_sym"
+
+///|
+/// Gives the library `h` back to the host.
+pub extern "c" fn lua_mbt_dl_close(h : Int64) -> Int = "lua_mbt_dl_close"
+
+///|
+/// Copies what the last loader failure said into `buf`, NUL terminates it and
+/// returns its length.  The failing call saves the message itself, so this has to
+/// be read before any other host call -- see the note in `stub.c`.
+#borrow(buf)
+pub extern "c" fn lua_mbt_dl_error(buf : Bytes, n : Int) -> Int = "lua_mbt_dl_error"
+
+///|
 pub extern "c" fn lua_mbt_exit(code : Int) -> Unit = "lua_mbt_exit"
 
 ///|

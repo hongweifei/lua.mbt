@@ -169,6 +169,11 @@ is actually wrong: reading `{7, 'x'}` as an `Array[Int64]` says
 The other direction is one call too: `lua.preload("设置", fn(_) { ... })` makes a
 MoonBit module findable by a script's `require("设置")`, whose cache applies as
 usual, and the host's own `lua.require("设置")` answers with the same value.
+A module a script should not be able to see or replace goes through
+`lua.register_module("名字", fn(_) { ... })` instead: it is found by the searcher
+the reference reserves for native libraries (the loader's second argument is
+`":native:"`, and the result lands in `package.loaded` as usual), but it lives in
+no Lua-visible table, so a script can neither list it nor clear it.
 A table's own fields and its sequence can also be taken without any conversion,
 through `table_entries` and `table_sequence`.
 
@@ -330,9 +335,18 @@ What the interpreter does, in the areas the suite exercises hardest:
   `Lua 5.4  (MoonBit implementation)` where the reference prints its copyright
   line.  `_VERSION` is `"Lua 5.4"`, and a program that reads the banner text is
   the only thing that would see the difference.
-* **There is no loader for shared libraries**, so `package.loadlib` answers the
-  way a Lua built without one does, and the native searcher reports that it has
-  no loader for a file it finds.
+* **A shared library can be opened and searched, but not entered.**  Both
+  `package.loadlib` and the native searcher really call the host loader (`dlopen`
+  /`dlsym` on POSIX, `LoadLibraryExA`/`GetProcAddress` on Windows), so the
+  complaint carries the loader's own reason and the failing step is named the way
+  the reference names it: `"open"` for a file that will not open, `"init"` for a
+  library that opens and has no such entry.  The one thing the reference can do
+  and this build cannot is *call* what it found -- MoonBit binds a C symbol by
+  name at compile time and the native runtime exports no way to call a pointer
+  read out of a library -- so when the file and the entry both turn up the answer
+  is `nil, "dynamic libraries cannot be entered by this build", "absent"`.  A
+  module written below Lua is `Lua::register_module` (see "Using it as a
+  library").
 * **An identifier may hold non-ASCII code points: this implementation's own
   extension.**  The reference's `lislalpha` knows only ASCII (its
   `luai_ctype_` table covers 0x00-0x7F), so any byte of 0x80 or more in a

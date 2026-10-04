@@ -51,8 +51,9 @@ fn default_path() -> String {
 
 ///|
 /// The default `package.cpath`, the reference's `LUA_CPATH_DEFAULT` for the
-/// host.  This implementation has no loader for such a file, but the field
-/// exists so that programs inspecting it see what a build for this host would.
+/// host.  A file found there is opened for real -- the loader's own reason is
+/// what `require` reports -- but this build cannot enter what it finds, so these
+/// templates name nothing that can be loaded.
 fn default_cpath() -> String {
   if @host.lua_mbt_is_windows() != 0 {
     "!\\?.dll;!\\..\\lib\\lua\\5.4\\?.dll;!\\loadall.dll;.\\?.dll"
@@ -300,36 +301,95 @@ fn searcher_lua(
 }
 
 ///|
-/// `package.loadlib`.  This implementation has no loader for shared libraries,
-/// so it answers the way a Lua built without one does: `nil`, the message the
-/// reference's `DLMSG` gives, and `"absent"` for the step that failed
-/// (`LIB_FAIL` on the fallback path).  A program that calls it gets that answer
-/// instead of an attempt to call a missing function.
+/// What the host loader said the last time it refused something.  The failing
+/// call saves the message in C rather than letting MoonBit ask for it later:
+/// on Windows the error belongs to the call that failed, and anything run in
+/// between would overwrite it.  See the note in `stub.c`.
+fn dl_error() -> String {
+  let size = 512
+  let buf = Bytes::new(size)
+  let n = @host.lua_mbt_dl_error(buf, size)
+  @core.text_of(@core.bytes_slice(buf, 0, n))
+}
+
+///|
+/// Opens a shared library and answers with its handle, or with the loader's
+/// reason.  0 is "no library", the same way 0 is "no file" for a stream handle.
+fn dl_open(path : String) -> (Int64, String) {
+  let h = @host.lua_mbt_dl_open(@core.bytes_of(path))
+  if h == 0L {
+    (0L, dl_error())
+  } else {
+    (h, "")
+  }
+}
+
+///|
+/// Looks `name` up in an open library.  The caller owns the handle either way,
+/// and nothing in this build can call what comes back.
+fn dl_sym(h : Int64, name : String) -> (Int64, String) {
+  let p = @host.lua_mbt_dl_sym(h, @core.bytes_of(name))
+  if p == 0L {
+    (0L, dl_error())
+  } else {
+    (p, "")
+  }
+}
+
+///|
+/// How far the loader gets: the library opens and the entry is there, but this
+/// build has no way to call a function it did not bind at compile time.
+let cannot_enter : String = "dynamic libraries cannot be entered by this build"
+
+///|
+/// The three answers `ll_loadlib` gives when the library was not found: nothing,
+/// the reason, and which step failed.
+fn loadlib_failed(message : String, what : String) -> @core.BuiltinResult {
+  @core.Many([
+    @core.VNil,
+    @core.VStr(@core.LStr::of_string(message)),
+    @core.VStr(@core.LStr::of_string(what)),
+  ])
+}
+
+///|
+/// `package.loadlib`.  The host loader is really asked, so a file that will not
+/// open answers with the loader's own reason and `"open"`, and a library that
+/// opens but has no such entry answers with `"init"` -- both as the reference's
+/// `lookforfunc` does.  What this build cannot do is *enter* the function it
+/// finds: MoonBit binds a C symbol by name at compile time and the runtime gives
+/// no way to call a pointer read out of a library.  A successful lookup is
+/// therefore reported the way a build without a loader reports itself: `nil`, a
+/// message that says what stopped it, and `"absent"`.
 fn pkg_loadlib(
   state : @core.LuaState,
   upvals : Array[@core.Value],
   args : ArrayView[@core.Value],
 ) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
-  let _ = @core.check_str(state, args, 1, "loadlib")
-  let _ = @core.check_str(state, args, 2, "loadlib")
-  @core.Many([
-    @core.VNil,
-    @core.VStr(
-      @core.LStr::of_string(
-        "dynamic libraries not enabled; check your Lua installation",
-      ),
-    ),
-    @core.VStr(@core.LStr::of_string("absent")),
-  ])
+  let path = @core.check_str(state, args, 1, "loadlib")
+  let sym = @core.check_str(state, args, 2, "loadlib")
+  let (lib, why) = dl_open(@core.text_of(path.data()))
+  if lib == 0L {
+    return loadlib_failed(why, "open")
+  }
+  let (entry, why2) = dl_sym(lib, @core.text_of(sym.data()))
+  let _ = @host.lua_mbt_dl_close(lib)
+  if entry == 0L {
+    loadlib_failed(why2, "init")
+  } else {
+    loadlib_failed(cannot_enter, "absent")
+  }
 }
 
 ///|
-/// The searcher for a native module.  It looks in `package.cpath` exactly as the
-/// Lua searcher looks in `package.path` and reports the same way, which is what
-/// makes `require`'s message name the files it tried; this implementation has no
-/// loader for a shared library, so a file that *is* found is reported as one it
-/// cannot load.
+/// The searcher for a native module.  A module the host compiled in answers
+/// first and needs no file -- this is the slot where the reference would have
+/// opened a shared library, and here the loader is handed over directly.
+/// Otherwise it looks in `package.cpath` exactly as the Lua searcher looks in
+/// `package.path` and reports the same way, which is what makes `require`'s
+/// message name the files it tried; a file that is found is opened for real, so
+/// the complaint is the host loader's own.
 fn searcher_c(
   state : @core.LuaState,
   upvals : Array[@core.Value],
@@ -337,24 +397,61 @@ fn searcher_c(
 ) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let name = @core.check_str(state, args, 1, "searcher")
-  let pkg = @load.package_self(state)
-  let cpath = match pkg.get_str("cpath") {
-    @core.VStr(p) => @core.text_of(p.data())
-    _ => @core.runtime_error(state, "'package.cpath' must be a string")
-  }
-  let (found, msg) = search_path(
-    @core.text_of(name.data()),
-    cpath,
-    ".",
-    dirsep(),
-  )
-  match found {
-    None => @core.One(@core.VStr(@core.LStr::of_string(msg)))
-    Some(file) =>
-      @core.One(
-        @core.VStr(@core.LStr::of_string("no native loader for '" + file + "'")),
+  let host = state.native_mods.get_lstr(name)
+  match host {
+    @core.VFunc(_) | @core.VBuiltin(_) =>
+      // The loader data names where the loader came from, as ":preload:" does.
+      @core.Two(host, @core.VStr(@core.LStr::of_string(":native:")))
+    _ => {
+      let pkg = @load.package_self(state)
+      let cpath = match pkg.get_str("cpath") {
+        @core.VStr(p) => @core.text_of(p.data())
+        _ => @core.runtime_error(state, "'package.cpath' must be a string")
+      }
+      let (found, msg) = search_path(
+        @core.text_of(name.data()),
+        cpath,
+        ".",
+        dirsep(),
       )
+      match found {
+        None => @core.One(@core.VStr(@core.LStr::of_string(msg)))
+        Some(file) => search_native(@core.text_of(name.data()), file)
+      }
+    }
   }
+}
+
+///|
+/// A file `package.cpath` turned up.  The reference opens it and looks for the
+/// `luaopen_` entry named after the module; this makes the same two host calls,
+/// so that what `require` reports is the loader's reason rather than a guess, and
+/// then gives the library back -- nothing in this build can call what it finds.
+fn search_native(name : String, file : String) -> @core.BuiltinResult {
+  // The reference's naming rule: a module's dots become underscores in the entry
+  // its file is asked for, so `require("a.b")` looks for `luaopen_a_b`.
+  let entry = "luaopen_" + name.replace_all(old=".", new="_")
+  let complaint = match dl_open(file) {
+    (0L, why) =>
+      "error loading module '" + name + "' from file '" + file + "':\n\t" + why
+    (lib, _) => {
+      // A missing entry is reported by name rather than with the loader's text,
+      // which only restates it ("luaopen_x: undefined symbol", typically).
+      let (found, _) = dl_sym(lib, entry)
+      let _ = @host.lua_mbt_dl_close(lib)
+      if found == 0L {
+        "no module '" + entry + "' in file '" + file + "'"
+      } else {
+        "error loading module '" +
+        name +
+        "' from file '" +
+        file +
+        "':\n\t" +
+        cannot_enter
+      }
+    }
+  }
+  @core.One(@core.VStr(@core.LStr::of_string(complaint)))
 }
 
 ///|
