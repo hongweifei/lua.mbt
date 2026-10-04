@@ -76,14 +76,21 @@ pub fn io_close(
 
 ///|
 pub fn io_flush(
-  _state : @core.LuaState,
+  state : @core.LuaState,
   upvals : Array[@core.Value],
   args : ArrayView[@core.Value],
 ) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let _ = args
-  let _ = @host.lua_mbt_fflush(0L)
-  @core.Nothing
+  // `io_flush` flushes the *default output* through `getiofile`, so a closed
+  // default is this error rather than a flush of nothing, and the answer is the
+  // convention's `true` (`luaL_fileresult`), not nothing at all.
+  let f = standard_file(state, "output", default_output(state))
+  if @host.lua_mbt_fflush(f.handle) == 0 {
+    @core.One(@core.VBool(true))
+  } else {
+    @core.Many(file_failure(None))
+  }
 }
 
 ///|
@@ -93,11 +100,7 @@ pub fn io_read(
   args : ArrayView[@core.Value],
 ) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
-  let v = default_input(state)
-  let f = match v.as_file() {
-    Some(f) => f
-    None => @core.runtime_error(state, "default input file is not open")
-  }
+  let f = standard_file(state, "input", default_input(state))
   read_from_file(state, f, args, 1)
 }
 
@@ -109,10 +112,7 @@ pub fn io_write(
 ) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let v = default_output(state)
-  let f = match v.as_file() {
-    Some(f) => f
-    None => @core.runtime_error(state, "default output file is not open")
-  }
+  let f = standard_file(state, "output", v)
   let mut i = 0
   while i < args.length() {
     let b = write_arg(state, args, i, "write")
@@ -208,6 +208,25 @@ pub fn set_default_file(
 }
 
 ///|
+/// `getiofile`: the file the library reads or writes when the script named none.
+/// A closed default is this error -- the library's own default is gone -- which is
+/// not the sentence `tofile` gives for a file the script handed over.
+fn standard_file(
+  state : @core.LuaState,
+  which : String,
+  v : @core.Value,
+) -> @core.LFile raise @core.LuaRaised {
+  let f = match v.as_file() {
+    Some(f) => f
+    None => @core.runtime_error(state, "default " + which + " file is closed")
+  }
+  if f.closed || f.handle == 0L {
+    @core.runtime_error(state, "default " + which + " file is closed")
+  }
+  f
+}
+
+///|
 /// The default input file, created lazily.
 pub fn default_input(st : @core.LuaState) -> @core.Value {
   match st.registry.get_str("__io_input") {
@@ -260,16 +279,34 @@ pub fn io_lines(
   args : ArrayView[@core.Value],
 ) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
+  // `io_lines` puts the file it will read at index 1 -- the default input, or the
+  // one it opens -- and `aux_lines` then takes everything after it as formats, so
+  // a call with no file name can still ask for formats of its own.  Only the file
+  // it opened itself is the generator's to close at the end (`toclose`), which is
+  // why the default input gets the iterator that leaves the file alone.
+  let formats = if args.length() > 0 { args.length() - 1 } else { 0 }
   if args.length() == 0 || args[0].is_nil() {
     let v = default_input(state)
+    // The default input is run through `tofile` here, at the call that asks for
+    // the iterator, so a closed default is refused with the sentence for a file
+    // the script handed over -- not the `default input file is closed` of
+    // `getiofile`, which is what `io.read` and `io.write` say.
+    let _ = check_open_file(state, [v], 1, "lines")
+    check_line_formats(state, formats)
+    let up : Array[@core.Value] = [v]
+    let mut i = 1
+    while i < args.length() {
+      up.push(args[i])
+      i = i + 1
+    }
     return @core.Many([
       @core.VBuiltin(
         @core.make_builtin(
-          "io_lines_iterator",
+          "lines_iterator",
           @core.BK_NORMAL,
           -1,
-          io_lines_iterator,
-          [v],
+          lines_iterator,
+          up,
         ),
       ),
     ])
@@ -287,6 +324,7 @@ pub fn io_lines(
     )
   }
   let v = new_file_value(state, h, @core.text_of(name.data()), false, false)
+  check_line_formats(state, formats)
   let up : Array[@core.Value] = [v]
   let mut i = 1
   while i < args.length() {

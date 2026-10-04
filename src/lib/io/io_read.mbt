@@ -47,10 +47,13 @@ pub fn read_number_from(f : @core.LFile) -> @core.Value {
       c = @host.lua_mbt_fgetc(f.handle)
     }
   }
-  let digits_here = fn() -> Int {
+  // `readdigits` takes the base as an argument: the exponent is marked `p` for a
+  // hexadecimal numeral but always written in decimal digits, so `0x1.13Ap+3`
+  // ends at the `p`'s digits and leaves the `x` of a following word alone.
+  let digits_here = fn(hexp : Bool) -> Int {
     let mut k = 0
     while c >= 0 &&
-          (if hex {
+          (if hexp {
             @core.is_hex_digit_byte(c)
           } else {
             @core.is_digit_byte(c)
@@ -73,17 +76,17 @@ pub fn read_number_from(f : @core.LFile) -> @core.Value {
       digits = 1
     }
   }
-  digits = digits + digits_here()
+  digits = digits + digits_here(hex)
   if c == 46 || c == @core.locale_decpoint() {
     accept()
-    digits = digits + digits_here()
+    digits = digits + digits_here(hex)
   }
   if digits > 0 && (if hex { c == 112 || c == 80 } else { c == 101 || c == 69 }) {
     accept()
     if c == 45 || c == 43 {
       accept()
     }
-    let _ = digits_here()
+    let _ = digits_here(false)
   }
   if c >= 0 {
     let _ = @host.lua_mbt_ungetc(c, f.handle)
@@ -279,32 +282,84 @@ pub fn file_read(
 }
 
 ///|
-/// The iterator produced by `file:lines`.  It reads once per call and closes
-/// the file when it reaches the end.
+/// What an iterator over lines answers, following `io_readline`.  A false first
+/// value is not a value the loop is given: it is the end, answered with *no*
+/// values at all.  The one thing it does turn into is an error -- when the read
+/// came back with the message and the error number of a stream failure, that
+/// message is raised here, so a loop stops rather than going on silently.
+fn lines_answer(
+  state : @core.LuaState,
+  res : @core.BuiltinResult,
+) -> @core.BuiltinResult raise @core.LuaRaised {
+  match res {
+    @core.Many(vals) =>
+      if vals.length() == 0 || vals[0].is_truthy() {
+        res
+      } else if vals.length() > 1 {
+        // Only `file_failure` answers with more than the nil, so the second value
+        // is the host's reason -- whose wording is the host's, which is why
+        // nothing here repeats it.
+        let why = match vals[1] {
+          @core.VStr(s) => @core.text_of(s.data())
+          _ => ""
+        }
+        @core.runtime_error(state, why)
+      } else {
+        @core.Nothing
+      }
+    _ => res
+  }
+}
+
+///|
+/// The file an iterator over lines reads from.  A generator that has closed the
+/// file it owns -- at the end of the file, or on a break out of the loop that
+/// took the fourth value -- answers every later call this way, rather than
+/// reading through the handle it gave up.
+fn lines_file(
+  state : @core.LuaState,
+  filev : @core.Value,
+) -> @core.LFile raise @core.LuaRaised {
+  let f = match filev.as_file() {
+    Some(f) => f
+    None => @core.runtime_error(state, "file is already closed")
+  }
+  if f.closed || f.handle == 0L {
+    @core.runtime_error(state, "file is already closed")
+  }
+  f
+}
+
+///|
+/// `aux_lines`' bound on the formats a `lines` iterator carries: at most
+/// `MAXARGLINE` of them, and the argument blamed is the *last* one the reference
+/// would have room for, not the first one too many.
+fn check_line_formats(
+  state : @core.LuaState,
+  nargs : Int,
+) -> Unit raise @core.LuaRaised {
+  if nargs > 250 {
+    @core.arg_error(state, 252, "lines", "too many arguments")
+  }
+}
+
+///|
+/// The iterator produced by `file:lines`.  It reads once per call and leaves the
+/// file open at the end: the handle was not its to close.
 pub fn lines_iterator(
   state : @core.LuaState,
   upvals : Array[@core.Value],
   args : ArrayView[@core.Value],
 ) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = args
-  let filev = upvals[0]
-  let f = match filev.as_file() {
-    Some(f) => f
-    None => return @core.One(@core.VNil)
-  }
+  let f = lines_file(state, upvals[0])
   let formats : Array[@core.Value] = []
   let mut i = 1
   while i < upvals.length() {
     formats.push(upvals[i])
     i = i + 1
   }
-  let res = read_from_file(state, f, formats, 1)
-  match res {
-    // The file is done: `io_readline` answers with no values at all, not with
-    // one nil, which `select("#", it())` can tell apart.
-    @core.One(@core.VNil) => @core.Nothing
-    _ => res
-  }
+  lines_answer(state, read_from_file(state, f, formats, 1))
 }
 
 ///|
@@ -315,11 +370,7 @@ pub fn io_lines_iterator(
   args : ArrayView[@core.Value],
 ) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = args
-  let filev = upvals[0]
-  let f = match filev.as_file() {
-    Some(f) => f
-    None => return @core.One(@core.VNil)
-  }
+  let f = lines_file(state, upvals[0])
   let formats : Array[@core.Value] = []
   let mut i = 1
   while i < upvals.length() {
@@ -327,20 +378,18 @@ pub fn io_lines_iterator(
     i = i + 1
   }
   let res = read_from_file(state, f, formats, 1)
-  match res {
-    @core.One(@core.VNil) => {
-      if !f.closed && !f.standard {
-        let _ = @host.lua_mbt_fclose(f.handle)
-        f.closed = true
-        f.handle = 0L
-      }
-      // No values, not one nil: the loop that owns this file closes it through
-      // the fourth value `io.lines` hands out, and `select("#", it())` sees the
-      // difference (`io_readline` answers the same way).
-      @core.Nothing
-    }
-    _ => res
+  let done = match res {
+    @core.Many(vals) => vals.length() == 0 || !vals[0].is_truthy()
+    _ => false
   }
+  if done {
+    if !f.closed && !f.standard {
+      let _ = @host.lua_mbt_fclose(f.handle)
+      f.closed = true
+      f.handle = 0L
+    }
+  }
+  lines_answer(state, res)
 }
 
 ///|
@@ -351,6 +400,7 @@ pub fn file_lines(
 ) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let _ = check_open_file(state, args, 1, "lines")
+  check_line_formats(state, args.length() - 1)
   let up : Array[@core.Value] = [args[0]]
   let mut i = 1
   while i < args.length() {

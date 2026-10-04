@@ -330,16 +330,30 @@ That line asks that a seek past the end of `io.stdin` *fail*, and whether stdin
 is that kind of handle is the host's doing, so both implementations stop there.
 That block run on its own passes under both implementations, and
 `tests/language.lua` pins the same four cases.  The same `files.lua` with stdin
-closed (`exec 0<&-`) now gets this implementation as far as `files.lua:228`: the
-`dofile`-yields group at `:192`–`:205` passes on both builds on the way (that was
-the gap this round closed -- see *Resumable host calls*), and under the same
-condition the reference reaches `:760`.  Neither stopping place is about yielding:
-`:228` asks `f:read("n")` for the hexadecimal float `0x1.13Ap+3e`, which this
-build's lexer and `tonumber` both read but its `read("n")` number scan does not
-(measured: it answers `nil` and consumes nothing, so the following `read(1)`
-returns the newline); `:760` is inside the `if not _port` block of POSIX shell
-tests (`kill -s HUP $$` and the like), and those commands are not on Windows --
-an environment difference.
+closed (`exec 0<&-`) now gets this implementation as far as `files.lua:577`, where
+the reference under the same condition reaches `:760`.  Six differences were
+measured and fixed along that road, each now pinned by a test: the `dofile`-yields
+group at `:202` (see *Resumable host calls*); `f:read("n")` on the hexadecimal
+float `0x1.13Ap+3e` at `:228` -- the exponent is always scanned as *decimal*
+digits, so the stop is after the `3` and the `e` is left in the stream, and
+`tests/stdlib.lua` pins that shape along with the 200-character ceiling and the
+prefixes a scan eats without them being numerals; the `io.lines` iterator at
+`:254` (the end of the file answers with *no* values rather than one `nil`, and
+calling an iterator whose generator has closed its own file raises
+`file is already closed` carrying the caller's position -- reading through the
+handle it had given up used to end the process without a word); the 250-format
+ceiling at `:291` (`bad argument #252 to 'io.lines' (too many arguments)`, while
+the method form reports `#251 to 'lines'`); and the closed default input at
+`:330`, where the two sentences really are different -- `io.read`, `io.write` and
+`io.flush` go through `getiofile` and say `default input file is closed`, whereas
+`io.lines` and `io.close` go through `tofile` and say `attempt to use a closed
+file`, and `io.flush` answers `true`.  What stops this build now, `:577`, is
+another matter: there a chunk that begins with a `#` comment line and then the
+`\27Lua` signature must be loaded *precompiled* -- strip the first line, then
+recognize the signature -- and this build parses what is left as source, reporting
+`unexpected symbol near '<\27>'`.  The reference's own last stop, `:760`, is inside
+the `if not _port` block of POSIX shell tests (`kill -s HUP $$` and the like), and
+those commands are not on Windows -- an environment difference.
 
 The last two files of the suite need a word.  `cstack` runs its real work (the
 `if T then` block at its end is the part that needs the reference's C test

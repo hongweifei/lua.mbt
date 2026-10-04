@@ -1049,4 +1049,141 @@ do
      "field 'month' is not an integer", "and a field that is not a number is refused")
 end
 
+-- `io.read("n")` is the reference's `read_number`: a small machine collects the
+-- longest prefix that *looks* like a numeral and then asks the number reader
+-- whether it is one, so what a read takes in and what it leaves in the stream is
+-- the observable.  The exponent is always written in decimal digits -- marked `e`
+-- after a decimal numeral and `p` after a hexadecimal one -- which is what stops
+-- `0x1.13Ap+3e` at the `3` and leaves the `e` alone.  A prefix that is not a
+-- numeral is still consumed: the look-ahead is the only thing put back.
+do
+  local function scan(s)
+    local name = os.tmpname()
+    local w = assert(io.open(name, "wb"))
+    w:write(s)
+    w:close()
+    local r = assert(io.open(name, "rb"))
+    local v = r:read("n")
+    local rest = r:read("a")
+    r:close()
+    os.remove(name)
+    return tostring(v) .. "|" .. tostring(rest)
+  end
+  eq(scan("0x1.13Ap+3e"), "8.61328125|e", "a hex exponent is decimal digits")
+  eq(scan("0x1p3"), "8.0|", "a hex numeral with no fractional part")
+  eq(scan("0x.8p1"), "1.0|", "and one that starts after the point")
+  eq(scan("0xp3"), "nil|p3", "a `0x` with no digits is not a numeral")
+  eq(scan("1e"), "nil|", "a dangling exponent mark is consumed anyway")
+  eq(scan("0x"), "nil|", "and so is a bare `0x`")
+  eq(scan("1.2.3"), "1.2|.3", "the longest prefix that is one")
+  eq(scan("--1"), "nil|-1", "a lone sign is not a numeral, and the rest stays")
+  local z = "1" .. string.rep("0", 300)
+  eq(scan(z), "nil|" .. string.rep("0", 101),
+     "the scan stops at 200 characters and the numeral is then no numeral")
+end
+
+-- The `lines` iterator follows `io_readline`.  The end of the file is answered
+-- with *no* values at all, not with a nil, so a `while f() do` stops where the
+-- reference's does.  A generator that opened the file closes it on the way out,
+-- and every later call of that iterator says so -- with the position of the code
+-- that called it, which `pcall` hides and a direct call shows.  A file the script
+-- opened itself is not the generator's to close.
+do
+  local name = os.tmpname()
+  local w = assert(io.open(name, "wb"))
+  w:write("a\nb\n")
+  w:close()
+
+  local f = io.lines(name)
+  eq(select("#", f()), 1, "a line is one value")
+  eq(select("#", f()), 1, "and so is the next")
+  eq(select("#", f()), 0, "the end of the file answers with no values at all")
+  local ok, err = pcall(f)
+  eq(ok, false, "a later call is an error")
+  eq(err, "file is already closed", "and the message says which file")
+
+  local h = assert(io.open(name))
+  local g = h:lines()
+  eq(select("#", g()), 1, "the first line of a file the loop did not open")
+  eq(select("#", g()), 1, "and the second")
+  eq(select("#", g()), 0, "the end is still no values")
+  eq(select("#", g()), 0, "and calling past it is allowed, because the file stays open")
+  eq(io.type(h), "file", "the handle the script opened is still open")
+
+  local function formats(n)
+    local t = {}
+    for i = 1, n do
+      t[i] = 1
+    end
+    return t
+  end
+  -- The count is checked where the iterator is made, before any of it runs, and
+  -- only after the handle itself has been accepted (`f_lines` calls `tofile`
+  -- first).
+  eq(type(h:lines(table.unpack(formats(250)))), "function",
+     "250 formats is the most the iterator carries")
+  local _, e1 = pcall(io.lines, name, table.unpack(formats(251)))
+  eq(e1:find("bad argument #252 to 'io.lines' (too many arguments)", 1, true) ~= nil,
+     true, "one more is refused at the call that asks for the iterator")
+  local _, e2 = pcall(h.lines, h, table.unpack(formats(251)))
+  eq(e2, "bad argument #252 to '?' (too many arguments)",
+     "a method fetched as a function blames the last slot and names no function")
+  local _, e2m = pcall(function()
+    return h:lines(table.unpack(formats(251)))
+  end)
+  eq(e2m:match(": bad argument #251 to 'lines' %(too many arguments%)$") ~= nil,
+     true, "while the method call itself carries the position of the line that made it")
+  eq(h:close(), true, "the handle the script opened is still open, and it closes")
+
+  -- A loop that breaks early closes the file its generator opened, through the
+  -- fourth value the loop was handed.
+  local it, st, ctl, cl = io.lines(name)
+  for l in it, st, ctl, cl do
+    break
+  end
+  local _, e3 = pcall(cl.read, cl, "l")
+  eq(e3:find("attempt to use a closed file", 1, true) ~= nil, true,
+     "the file the loop owns is closed by the break")
+  os.remove(name)
+end
+
+-- The two sentences for a closed default file are not the same, and which one a
+-- call gets follows the reference exactly: `getiofile` (what `io.read`, `io.write`
+-- and `io.flush` reach for) says the *default* is closed, while `tofile` (what a
+-- file the script named goes through, and what `io.lines` uses for the default
+-- input) says the script tried to *use* a closed one.  A flush answers with the
+-- convention's `true`.
+do
+  local iname = os.tmpname()
+  local w = assert(io.open(iname, "wb"))
+  w:write("one\n")
+  w:close()
+  eq(select("#", io.flush()), 1, "a flush answers with one value")
+  eq(io.flush(), true, "and it is the convention's true")
+  io.input(iname)
+  io.input():close()
+  local okr, erre = pcall(io.read)
+  eq(okr, false, "reading the closed default input fails")
+  eq(erre, "default input file is closed", "and names the default that is gone")
+  local _, errel = pcall(io.lines)
+  eq(errel:find("attempt to use a closed file", 1, true) ~= nil, true,
+     "while io.lines reaches it through tofile")
+  io.input(io.stdin)
+
+  local oname = os.tmpname()
+  io.output(oname)
+  io.output():close()
+  local _, erre2 = pcall(io.write, "z")
+  eq(erre2, "default output file is closed", "so does io.write")
+  local _, erre3 = pcall(io.flush)
+  eq(erre3, "default output file is closed", "and io.flush")
+  local _, erre4 = pcall(io.close)
+  eq(erre4:find("attempt to use a closed file", 1, true) ~= nil, true,
+     "but io.close with no argument goes through tofile")
+  io.output(io.stdout)
+  eq(io.type(io.output()), "file", "and the default output is usable again")
+  os.remove(iname)
+  os.remove(oname)
+end
+
 print("stdlib: ok")
