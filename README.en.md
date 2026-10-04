@@ -456,7 +456,10 @@ What the interpreter does, in the areas the suite exercises hardest:
   loader really is asked (`dlopen`/`dlsym` on POSIX, `LoadLibraryExA`/
   `GetProcAddress` on Windows), so a file that will not open answers `"open"` and
   one that opens without the entry answers `"init"`, each with the loader's own
-  reason.  Only *calling* the function is impossible: the reference pushes a
+  reason.  (On Windows that reason is `FormatMessage`'s text, and this build hands
+  it over as **bytes** -- it is the host's code page, not UTF-8 -- with the error
+  number appended and the trailing newline dropped, so the sentence differs
+  byte for byte while the two step names, `"open"` and `"init"`, do not.)  Only *calling* the function is impossible: the reference pushes a
   `lua_CFunction` as a value and calls it with its own `lua_State`, and this build
   has neither a `lua_State` on the C side -- that would be the interpreter written
   again in C -- nor any way for a library to call back into MoonBit, since the
@@ -466,6 +469,30 @@ What the interpreter does, in the areas the suite exercises hardest:
   *can* be called is a plain C function, in the next item.  A module written below
   Lua, for a script to `require`, is `Lua::register_module` (see "Using it as a
   library").
+* **The four searchers `require` works through.**  `package.searchers` has four
+  entries, as the reference's does: `package.preload`, the Lua-file searcher, the
+  C-file searcher, and the fourth -- the one that looks for the *root* of a dotted
+  name.  It cuts `require("a.b")` at the **first dot** to the root name `a`, looks
+  for `a` in `package.cpath`, and asks whichever file it finds for `luaopen_a_b`:
+  one library may hold a whole tree of modules.  The entry name follows
+  `loadfunc`'s rule -- dots become underscores, and a name carrying the ignore
+  mark (`-`, the fifth line of `package.config`) is asked for by the part *in
+  front* of the mark first, falling back on the part behind it, so
+  `require("a-b")` looks for `luaopen_a`.  (The reference loads and calls that
+  one; this build finds the file and the entry but cannot enter the function --
+  the item above.)  With no dot in the name the fourth searcher answers with
+  **nothing**, which is not the same as answering with a complaint: no line is
+  added to `require`'s report.  Both were measured: the whole not-found message
+  for `require("a.b")` and for `require("x")` comes out byte-identical from the
+  two binaries -- `tests/require_test.lua` recomputes that chain of `no file`
+  lines from `package.path` and `package.cpath` and compares.  Once a file is
+  found the search ends there: `checkload`'s
+  `error loading module 'NAME' from file 'FILE':` is *raised*, not one more line
+  of the list, and only the root searcher's own `no module 'a.b' in file 'a.dll'`
+  is taken into the list and searched on -- and that one names the module with its
+  dots, since the reference never prints an entry name, and neither does this
+  build now.  `findfile` reads both fields with `lua_tostring`, so
+  `package.path = 5` is no error: the file it looks for is named `5`.
 * **`package.loadc` is this implementation's own extension.**  It calls a plain C
   function through a signature the program declares:
 

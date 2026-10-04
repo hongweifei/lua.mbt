@@ -447,8 +447,9 @@ pub fn Lua::preload(self : Lua, name : String, f : HostFunction) -> Unit {
 ///   assert_true(m.raw_equal(lua.require("conf").unwrap()))
 ///   // A script cannot see the loader, and so cannot clear it.
 ///   assert_true(lua.eval_bool("return package.preload.conf == nil").unwrap())
-///   // It is found by the searcher that owns the native slot, not a new one.
-///   assert_eq(lua.eval_int("return #package.searchers").unwrap(), 3L)
+///   // It is found by the searcher that owns the native slot, not a new one, and
+///   // the table holds the reference's four: preload, Lua file, C file, C root.
+///   assert_eq(lua.eval_int("return #package.searchers").unwrap(), 4L)
 /// }
 /// ```
 pub fn Lua::register_module(

@@ -900,9 +900,11 @@ MBT_EXPORT int64_t lua_mbt_dl_open(moonbit_bytes_t path) {
 MBT_EXPORT int64_t lua_mbt_dl_sym(int64_t h, moonbit_bytes_t name) {
   FARPROC p = GetProcAddress((HMODULE)(intptr_t)h, (const char *)name);
   if (p == NULL) {
-    char line[MBT_DL_ERR_MAX];
-    snprintf(line, sizeof(line), "'%s' not found", (const char *)name);
-    mbt_dl_seterr(line);
+    /* The reference's `pusherror`: the reason is the system's own text, not a
+     * sentence about the name that was asked for.  `require` puts this in the
+     * middle of its report, and a message naming the entry there would be this
+     * build's invention -- the reference never prints an entry name. */
+    mbt_dl_seterr_os();
   }
   return (int64_t)(intptr_t)p;
 }

@@ -174,6 +174,26 @@ fn file_exists(path : String) -> Bool {
 }
 
 ///|
+/// `findfile` reads the path a searcher is about to use with `lua_tostring`,
+/// which takes a number as the text of that number and refuses anything that is
+/// neither a string nor a number.  So `package.path = 5` is not an error: it
+/// searches for a file called `5`.
+fn path_field(
+  state : @core.LuaState,
+  field : String,
+) -> String raise @core.LuaRaised {
+  match @load.package_self(state).get_str(field) {
+    @core.VStr(s) => @core.text_of(s.data())
+    v =>
+      if v.is_number() {
+        @core.text_of(@vm.to_string(state, v))
+      } else {
+        @core.runtime_error(state, "'package." + field + "' must be a string")
+      }
+  }
+}
+
+///|
 /// `package.searchpath`.
 fn pkg_searchpath(
   state : @core.LuaState,
@@ -243,13 +263,10 @@ fn searcher_lua(
 ) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   let name = @core.check_str(state, args, 1, "searcher")
-  let pkg = @load.package_self(state)
-  // A `package.path` that is not a string is an error, not a fallback to the
-  // default: the reference reports it through `findfile` before searching.
-  let path = match pkg.get_str("path") {
-    @core.VStr(p) => @core.text_of(p.data())
-    _ => @core.runtime_error(state, "'package.path' must be a string")
-  }
+  // A `package.path` that is neither a string nor a number is an error, not a
+  // fallback to the default: the reference reports it through `findfile` before
+  // searching.
+  let path = path_field(state, "path")
   let (found, msg) = search_path(
     @core.text_of(name.data()),
     path,
@@ -305,49 +322,57 @@ fn searcher_lua(
 /// call saves the message in C rather than letting MoonBit ask for it later:
 /// on Windows the error belongs to the call that failed, and anything run in
 /// between would overwrite it.  See the note in `stub.c`.
-fn dl_error() -> String {
+///
+/// The answer stays **bytes**.  It is the host's own text, and on Windows that
+/// means the system codepage rather than UTF-8 -- the reference passes those
+/// bytes on untouched, and reading them as a `String` would replace whatever
+/// this machine's codepage spelled with the replacement character.
+fn dl_error() -> Bytes {
   let size = 512
   let buf = Bytes::new(size)
   let n = @host.lua_mbt_dl_error(buf, size)
-  @core.text_of(@core.bytes_slice(buf, 0, n))
+  @core.bytes_slice(buf, 0, n)
 }
 
 ///|
 /// Opens a shared library and answers with its handle, or with the loader's
 /// reason.  0 is "no library", the same way 0 is "no file" for a stream handle.
-fn dl_open(path : String) -> (Int64, String) {
+fn dl_open(path : String) -> (Int64, Bytes) {
   let h = @host.lua_mbt_dl_open(@core.bytes_of(path))
   if h == 0L {
     (0L, dl_error())
   } else {
-    (h, "")
+    (h, @core.bytes_of(""))
   }
 }
 
 ///|
 /// Looks `name` up in an open library.  The caller owns the handle either way,
 /// and nothing in this build can call what comes back.
-fn dl_sym(h : Int64, name : String) -> (Int64, String) {
+fn dl_sym(h : Int64, name : String) -> (Int64, Bytes) {
   let p = @host.lua_mbt_dl_sym(h, @core.bytes_of(name))
   if p == 0L {
     (0L, dl_error())
   } else {
-    (p, "")
+    (p, @core.bytes_of(""))
   }
 }
 
 ///|
 /// How far the loader gets: the library opens and the entry is there, but this
-/// build has no way to call a function it did not bind at compile time.
-let cannot_enter : String = "dynamic libraries cannot be entered by this build"
+/// build has no way to call a function it did not bind at compile time.  Bytes
+/// because it goes where the loader's own reason goes.
+let cannot_enter : Bytes = @core.bytes_of(
+  "dynamic libraries cannot be entered by this build",
+)
 
 ///|
 /// The three answers `ll_loadlib` gives when the library was not found: nothing,
 /// the reason, and which step failed.
-fn loadlib_failed(message : String, what : String) -> @core.BuiltinResult {
+fn loadlib_failed(message : Bytes, what : String) -> @core.BuiltinResult {
   @core.Many([
     @core.VNil,
-    @core.VStr(@core.LStr::of_string(message)),
+    @core.VStr(@core.LStr::of_bytes(message)),
     @core.VStr(@core.LStr::of_string(what)),
   ])
 }
@@ -711,8 +736,9 @@ fn pkg_loadc(
 /// opened a shared library, and here the loader is handed over directly.
 /// Otherwise it looks in `package.cpath` exactly as the Lua searcher looks in
 /// `package.path` and reports the same way, which is what makes `require`'s
-/// message name the files it tried; a file that is found is opened for real, so
-/// the complaint is the host loader's own.
+/// message name the files it tried.  A file that is found ends the search: what
+/// comes back is the loader's own reason, raised rather than listed, because the
+/// reference has by then found the module's file and only the loading failed.
 fn searcher_c(
   state : @core.LuaState,
   upvals : Array[@core.Value],
@@ -726,55 +752,165 @@ fn searcher_c(
       // The loader data names where the loader came from, as ":preload:" does.
       @core.Two(host, @core.VStr(@core.LStr::of_string(":native:")))
     _ => {
-      let pkg = @load.package_self(state)
-      let cpath = match pkg.get_str("cpath") {
-        @core.VStr(p) => @core.text_of(p.data())
-        _ => @core.runtime_error(state, "'package.cpath' must be a string")
-      }
-      let (found, msg) = search_path(
-        @core.text_of(name.data()),
-        cpath,
-        ".",
-        dirsep(),
-      )
+      let text = @core.text_of(name.data())
+      let cpath = path_field(state, "cpath")
+      let (found, msg) = search_path(text, cpath, ".", dirsep())
       match found {
         None => @core.One(@core.VStr(@core.LStr::of_string(msg)))
-        Some(file) => search_native(@core.text_of(name.data()), file)
+        Some(file) => search_c_file(state, text, file)
       }
     }
   }
 }
 
 ///|
-/// A file `package.cpath` turned up.  The reference opens it and looks for the
-/// `luaopen_` entry named after the module; this makes the same two host calls,
-/// so that what `require` reports is the loader's reason rather than a guess, and
-/// then gives the library back -- nothing in this build can call what it finds.
-fn search_native(name : String, file : String) -> @core.BuiltinResult {
-  // The reference's naming rule: a module's dots become underscores in the entry
-  // its file is asked for, so `require("a.b")` looks for `luaopen_a_b`.
-  let entry = "luaopen_" + name.replace_all(old=".", new="_")
-  let complaint = match dl_open(file) {
-    (0L, why) =>
-      "error loading module '" + name + "' from file '" + file + "':\n\t" + why
-    (lib, _) => {
-      // A missing entry is reported by name rather than with the loader's text,
-      // which only restates it ("luaopen_x: undefined symbol", typically).
-      let (found, _) = dl_sym(lib, entry)
-      let _ = @host.lua_mbt_dl_close(lib)
-      if found == 0L {
-        "no module '" + entry + "' in file '" + file + "'"
-      } else {
-        "error loading module '" +
-        name +
-        "' from file '" +
-        file +
-        "':\n\t" +
-        cannot_enter
+/// The fourth searcher, the one that looks for the *root* of a dotted name.  A
+/// module called `a.b` need not have a file of its own: the reference takes the
+/// part in front of the first dot, looks for `a` in `package.cpath`, and asks the
+/// file it finds for the entry `luaopen_a_b` -- so one library can hold a whole
+/// tree of modules.  A name with no dot is exactly what the searcher above has
+/// already tried, and the reference answers with *nothing* there, which is not
+/// the same as answering with a complaint: nothing adds no line to `require`'s
+/// report.
+fn searcher_croot(
+  state : @core.LuaState,
+  upvals : Array[@core.Value],
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
+  let _ = upvals
+  let name = @core.check_str(state, args, 1, "searcher")
+  let text = @core.text_of(name.data())
+  match text.find(".") {
+    None => @core.Nothing
+    Some(i) => {
+      let root = text[:i].to_owned()
+      let cpath = path_field(state, "cpath")
+      let (found, msg) = search_path(root, cpath, ".", dirsep())
+      match found {
+        None => @core.One(@core.VStr(@core.LStr::of_string(msg)))
+        Some(file) => search_croot_file(state, text, file)
       }
     }
   }
-  @core.One(@core.VStr(@core.LStr::of_string(complaint)))
+}
+
+///|
+/// The reference's `searcher_Croot` once the root's file is in hand.  A missing
+/// entry is the one answer this searcher keeps as a message rather than an error,
+/// and the module it names is spelled *with its dots* -- the entry the file was
+/// asked for never appears.  Everything else the file refuses is `checkload`'s,
+/// with the module's whole name in it.
+fn search_croot_file(
+  state : @core.LuaState,
+  name : String,
+  file : String,
+) -> @core.BuiltinResult raise @core.LuaRaised {
+  match load_entry(file, openfunc_names(name)) {
+    HasEntry => load_error(state, name, file, cannot_enter)
+    NoEntry(_) =>
+      @core.One(
+        @core.VStr(
+          @core.LStr::of_string(
+            "no module '" + name + "' in file '" + file + "'",
+          ),
+        ),
+      )
+    NoLibrary(why) => load_error(state, name, file, why)
+  }
+}
+
+///|
+/// The entry names `loadfunc` asks a file for, in the order it asks them.  A
+/// module's dots become underscores, so `a.b` is looked for as `luaopen_a_b`.
+/// A name carrying the ignore mark -- `-`, the fifth line of `package.config` --
+/// asks for the part in front of it first and falls back on the part behind it,
+/// which is how `a-b` ends up in `luaopen_a` rather than in a name no C function
+/// could ever have.
+fn openfunc_names(name : String) -> Array[String] {
+  let modname = name.replace_all(old=".", new="_")
+  match modname.find("-") {
+    None => ["luaopen_" + modname]
+    Some(i) =>
+      [
+        "luaopen_" + modname[:i].to_owned(),
+        "luaopen_" + modname[i + 1:].to_owned(),
+      ]
+  }
+}
+
+///|
+/// What the host loader said about a file `package.cpath` turned up.  The two
+/// reasons are the loader's own bytes, for the reason given on `dl_error`.
+priv enum FileAnswer {
+  HasEntry
+  NoEntry(Bytes)
+  NoLibrary(Bytes)
+}
+
+///|
+/// The reference's `lookforfunc`: open the file, then ask it for each of the
+/// `names` in turn until one is there.  What the callers need is which of the
+/// three things happened, not the address -- this build cannot call what it
+/// finds.  The library is handed back after the lookup, since nothing is going
+/// to be called from it.
+fn load_entry(file : String, names : Array[String]) -> FileAnswer {
+  match dl_open(file) {
+    (0L, why) => NoLibrary(why)
+    (lib, _) => {
+      let mut last = @core.bytes_of("")
+      for n in names {
+        match dl_sym(lib, n) {
+          (0L, why) => last = why
+          _ => {
+            let _ = @host.lua_mbt_dl_close(lib)
+            return HasEntry
+          }
+        }
+      }
+      let _ = @host.lua_mbt_dl_close(lib)
+      NoEntry(last)
+    }
+  }
+}
+
+///|
+/// `checkload`'s complaint for a file that was found but would not load.  The
+/// reference raises it through `luaL_error`, so the search stops right there:
+/// what `require` answers is this message rather than the list of files it tried.
+fn load_error(
+  state : @core.LuaState,
+  name : String,
+  file : String,
+  reason : Bytes,
+) -> @core.BuiltinResult raise @core.LuaRaised {
+  @core.runtime_error_bytes(
+    state,
+    @core.bytes_concat([
+      @core.bytes_of("error loading module '"),
+      @core.bytes_of(name),
+      @core.bytes_of("' from file '"),
+      @core.bytes_of(file),
+      @core.bytes_of("':\n\t"),
+      reason,
+    ]),
+  )
+}
+
+///|
+/// The reference's `searcher_C` once it has a file.  The entry is either there --
+/// and this build stops at "cannot enter what I found" -- or the loader says it
+/// is not, with its own reason.  Either way the search does not go on, because
+/// the file was found: that is what tells this message apart from the list of
+/// files `require` says it looked for.
+fn search_c_file(
+  state : @core.LuaState,
+  name : String,
+  file : String,
+) -> @core.BuiltinResult raise @core.LuaRaised {
+  match load_entry(file, openfunc_names(name)) {
+    HasEntry => load_error(state, name, file, cannot_enter)
+    NoEntry(why) | NoLibrary(why) => load_error(state, name, file, why)
+  }
 }
 
 ///|
@@ -816,6 +952,10 @@ fn open_package_library(state : @core.LuaState) -> Unit {
   searchers.set_int(
     3L,
     @core.VBuiltin(@core.LBuiltin::make("c_searcher", 1, searcher_c)),
+  )
+  searchers.set_int(
+    4L,
+    @core.VBuiltin(@core.LBuiltin::make("croot_searcher", 1, searcher_croot)),
   )
   state.globals.set_str("package", @core.VTable(pkg))
 }
