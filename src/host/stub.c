@@ -967,6 +967,234 @@ MBT_EXPORT int32_t lua_mbt_dl_error(moonbit_bytes_t buf, int32_t n) {
 }
 
 /* ------------------------------------------------------------------ */
+/* calling a function found in a library                               */
+/* ------------------------------------------------------------------ */
+
+/*
+ * MoonBit can only call a C function whose *name* it bound at compile time, so a
+ * pointer read out of a library at run time is unreachable from the language.  C
+ * can call it -- but only through a pointer of the right shape, and every shape
+ * has to exist in this file at compile time.  What follows is that set of shapes:
+ * the smallest honest answer to "call a C function", and the reason
+ * `package.loadc` names a shape it cannot call instead of guessing one.
+ *
+ * A shape is (return, arity, argument types), passed to the dispatcher as small
+ * integer tags:
+ *     return   0 void  1 int  2 int64  3 double  4 string (char *)
+ *     argument 0 absent, 1 int  2 int64  3 double  4 string (const char *)
+ * Arguments travel in two `int64` slots -- a `double` arrives as its IEEE bits --
+ * plus the two possible string arguments as pointers, because MoonBit cannot hand
+ * a `Bytes` over as an integer.  Only here does a tag say which slot means what,
+ * and `MBT_IDX` is the single place an index is computed.
+ *
+ * What this cannot do, at any shape, is call a `lua_CFunction`: that needs the
+ * callee to call back into the interpreter through a C API this build does not
+ * export.  See the shared-library note in README.
+ */
+
+#define MBT_SHAPE_COUNT 375 /* 5 returns * 3 arities * 5 * 5 argument slots */
+#define MBT_IDX(r, arity, t1, t2) (((r) * 3 + (arity)) * 25 + (t1) * 5 + (t2))
+
+/* Reserved answers, only meaningful for a `string` return, whose real answer is a
+ * length and so never negative. */
+#define MBT_DL_NO_STRING -1  /* the C function answered with a null pointer */
+#define MBT_DL_LONG -2       /* the string does not fit the buffer it was given */
+#define MBT_DL_BAD_SHAPE -3  /* tags no shape was built for; see the note above */
+
+typedef int64_t (*mbt_shape_fn)(
+  int64_t fn, int64_t a0, int64_t a1, const char *s0, const char *s1, char *out,
+  int32_t outn);
+
+/* Bits both ways, with memcpy rather than a type pun. */
+static double mbt_bits_to_double(int64_t v) {
+  double d;
+  memcpy(&d, &v, sizeof d);
+  return d;
+}
+
+static int64_t mbt_double_to_bits(double d) {
+  int64_t v;
+  memcpy(&v, &d, sizeof v);
+  return v;
+}
+
+/* Copy a NUL terminated result into the caller's buffer: its length, or one of
+ * the reserved answers above. */
+static int64_t mbt_put_cstr(const char *s, char *out, int32_t outn) {
+  size_t n;
+  if (s == NULL) {
+    return MBT_DL_NO_STRING;
+  }
+  n = strlen(s);
+  if ((size_t)outn <= n) {
+    return MBT_DL_LONG;
+  }
+  memcpy(out, s, n);
+  out[n] = 0;
+  return (int64_t)n;
+}
+
+/* The C type behind each tag. */
+#define MBT_RT_void void
+#define MBT_RT_int int
+#define MBT_RT_int64 int64_t
+#define MBT_RT_double double
+#define MBT_RT_string const char *
+#define MBT_AT_int int
+#define MBT_AT_int64 int64_t
+#define MBT_AT_double double
+#define MBT_AT_string const char *
+
+/* The tag numbers, so a table row and its index cannot drift apart. */
+#define MBT_TR_void 0
+#define MBT_TR_int 1
+#define MBT_TR_int64 2
+#define MBT_TR_double 3
+#define MBT_TR_string 4
+#define MBT_TT_int 1
+#define MBT_TT_int64 2
+#define MBT_TT_double 3
+#define MBT_TT_string 4
+
+/* Reading an argument out of slot 0 / slot 1. */
+#define MBT_L0_int ((int)a0)
+#define MBT_L0_int64 a0
+#define MBT_L0_double mbt_bits_to_double(a0)
+#define MBT_L0_string s0
+#define MBT_L1_int ((int)a1)
+#define MBT_L1_int64 a1
+#define MBT_L1_double mbt_bits_to_double(a1)
+#define MBT_L1_string s1
+
+/* What to do with the call's answer. */
+#define MBT_SV_void(x) ((void)(x), (int64_t)0)
+#define MBT_SV_int(x) ((int64_t)(x))
+#define MBT_SV_int64(x) ((int64_t)(x))
+#define MBT_SV_double(x) mbt_double_to_bits(x)
+#define MBT_SV_string(x) mbt_put_cstr((x), out, outn)
+
+/* Token pasting needs the extra round, because the pasted token is itself a
+ * macro. */
+#define MBT_CAT(a, b) a##b
+#define MBT_RT(T) MBT_CAT(MBT_RT_, T)
+#define MBT_AT(T) MBT_CAT(MBT_AT_, T)
+#define MBT_L0(T) MBT_CAT(MBT_L0_, T)
+#define MBT_L1(T) MBT_CAT(MBT_L1_, T)
+#define MBT_ST(R) MBT_CAT(MBT_SV_, R)
+
+#define MBT_SHAPE_ARGS                                                         \
+  int64_t fn, int64_t a0, int64_t a1, const char *s0, const char *s1,         \
+      char *out, int32_t outn
+
+/* One function per shape.  `MBT_SHAPE_1` still declares slot 1 and the second
+ * string unused: the shape says which of them the call reads. */
+#define MBT_SHAPE_0(R)                                                         \
+  static int64_t mbt_sh_0_##R(MBT_SHAPE_ARGS) {                                \
+    MBT_RT(R)(*f)(void) = (MBT_RT(R)( * )(void))(void *)fn;                    \
+    (void)a0;                                                                  \
+    (void)a1;                                                                  \
+    (void)s0;                                                                  \
+    (void)s1;                                                                  \
+    (void)out;                                                                 \
+    (void)outn;                                                                \
+    return MBT_ST(R)(f());                                                     \
+  }
+
+#define MBT_SHAPE_1(R, T1)                                                     \
+  static int64_t mbt_sh_1_##R##_##T1(MBT_SHAPE_ARGS) {                         \
+    MBT_RT(R)(*f)(MBT_AT(T1)) = (MBT_RT(R)( * )(MBT_AT(T1)))(void *)fn;        \
+    (void)a1;                                                                  \
+    (void)s1;                                                                  \
+    (void)out;                                                                 \
+    (void)outn;                                                                \
+    return MBT_ST(R)(f(MBT_L0(T1)));                                           \
+  }
+
+#define MBT_SHAPE_2(R, T1, T2)                                                 \
+  static int64_t mbt_sh_2_##R##_##T1##_##T2(MBT_SHAPE_ARGS) {                  \
+    MBT_RT(R)(*f)(MBT_AT(T1), MBT_AT(T2)) =                                    \
+        (MBT_RT(R)( * )(MBT_AT(T1), MBT_AT(T2)))(void *)fn;                    \
+    return MBT_ST(R)(f(MBT_L0(T1), MBT_L1(T2)));                               \
+  }
+
+MBT_SHAPE_0(void) MBT_SHAPE_0(int) MBT_SHAPE_0(int64) MBT_SHAPE_0(double)
+    MBT_SHAPE_0(string)
+
+#define MBT_SHAPES_1(R)                                                        \
+  MBT_SHAPE_1(R, int) MBT_SHAPE_1(R, int64) MBT_SHAPE_1(R, double)             \
+      MBT_SHAPE_1(R, string)
+
+MBT_SHAPES_1(void) MBT_SHAPES_1(int) MBT_SHAPES_1(int64) MBT_SHAPES_1(double)
+    MBT_SHAPES_1(string)
+
+#define MBT_SHAPES_2A(R, T1)                                                   \
+  MBT_SHAPE_2(R, T1, int) MBT_SHAPE_2(R, T1, int64)                            \
+      MBT_SHAPE_2(R, T1, double) MBT_SHAPE_2(R, T1, string)
+
+#define MBT_SHAPES_2(R)                                                        \
+  MBT_SHAPES_2A(R, int) MBT_SHAPES_2A(R, int64) MBT_SHAPES_2A(R, double)       \
+      MBT_SHAPES_2A(R, string)
+
+MBT_SHAPES_2(void) MBT_SHAPES_2(int) MBT_SHAPES_2(int64) MBT_SHAPES_2(double)
+    MBT_SHAPES_2(string)
+
+/* The table, each row naming the shape it answers for.  A slot left out is a
+ * shape nothing can call, and the row is written from the same tags as the
+ * function it points at, so the two cannot disagree. */
+#define MBT_E0(R) [MBT_IDX(MBT_TR_##R, 0, 0, 0)] = mbt_sh_0_##R,
+#define MBT_E1(R, T1)                                                          \
+  [MBT_IDX(MBT_TR_##R, 1, MBT_TT_##T1, 0)] = mbt_sh_1_##R##_##T1,
+#define MBT_E2(R, T1, T2)                                                      \
+  [MBT_IDX(MBT_TR_##R, 2, MBT_TT_##T1, MBT_TT_##T2)] =                         \
+      mbt_sh_2_##R##_##T1##_##T2,
+
+#define MBT_ROW_1(R)                                                           \
+  MBT_E1(R, int) MBT_E1(R, int64) MBT_E1(R, double) MBT_E1(R, string)
+
+#define MBT_ROW_2A(R, T1)                                                      \
+  MBT_E2(R, T1, int) MBT_E2(R, T1, int64) MBT_E2(R, T1, double)                \
+      MBT_E2(R, T1, string)
+
+#define MBT_ROW_2(R)                                                           \
+  MBT_ROW_2A(R, int) MBT_ROW_2A(R, int64) MBT_ROW_2A(R, double)                \
+      MBT_ROW_2A(R, string)
+
+static const mbt_shape_fn mbt_shapes[MBT_SHAPE_COUNT] = {
+  MBT_E0(void) MBT_E0(int) MBT_E0(int64) MBT_E0(double) MBT_E0(string)
+      MBT_ROW_1(void) MBT_ROW_1(int) MBT_ROW_1(int64) MBT_ROW_1(double)
+          MBT_ROW_1(string) MBT_ROW_2(void) MBT_ROW_2(int) MBT_ROW_2(int64)
+              MBT_ROW_2(double) MBT_ROW_2(string)};
+
+/*
+ * Make the call the signature says.  The tags come from the declared signature,
+ * which the Lua side parsed -- it owns "is this a shape that can be called", and
+ * this owns calling it.  The answer is the integer or the bit pattern of the
+ * double, by the declared return type; a `string` return is copied into `out`
+ * and its length comes back instead.
+ */
+MBT_EXPORT int64_t lua_mbt_dl_call(int32_t ret, int32_t arity, int32_t t1,
+                                   int32_t t2, int64_t fn, int64_t a0,
+                                   int64_t a1, moonbit_bytes_t s0,
+                                   moonbit_bytes_t s1, moonbit_bytes_t out,
+                                   int32_t outn) {
+  mbt_shape_fn f;
+  if (ret < MBT_TR_void || ret > MBT_TR_string || arity < 0 || arity > 2) {
+    return MBT_DL_BAD_SHAPE;
+  }
+  if (arity == 0 && (t1 != 0 || t2 != 0)) {
+    return MBT_DL_BAD_SHAPE;
+  }
+  if (arity == 1 && t2 != 0) {
+    return MBT_DL_BAD_SHAPE;
+  }
+  f = mbt_shapes[MBT_IDX(ret, arity, t1, t2)];
+  if (f == NULL) {
+    return MBT_DL_BAD_SHAPE;
+  }
+  return f(fn, a0, a1, (const char *)s0, (const char *)s1, (char *)out, outn);
+}
+
+/* ------------------------------------------------------------------ */
 /* pseudo random numbers (xoshiro256**, as in the reference)           */
 /* ------------------------------------------------------------------ */
 

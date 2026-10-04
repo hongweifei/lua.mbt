@@ -12,6 +12,8 @@ pub fn lua_mbt_ctype(Int, Int) -> Int
 
 pub fn lua_mbt_diff_seconds(Int64, Int64) -> Double
 
+pub fn lua_mbt_dl_call(Int, Int, Int, Int, Int64, Int64, Int64, Bytes, Bytes, Bytes, Int) -> Int64
+
 pub fn lua_mbt_dl_close(Int64) -> Int
 
 pub fn lua_mbt_dl_error(Bytes, Int) -> Int

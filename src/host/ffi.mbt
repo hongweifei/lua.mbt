@@ -310,6 +310,28 @@ pub extern "c" fn lua_mbt_dl_close(h : Int64) -> Int = "lua_mbt_dl_close"
 pub extern "c" fn lua_mbt_dl_error(buf : Bytes, n : Int) -> Int = "lua_mbt_dl_error"
 
 ///|
+/// Call `fn` through the shape the four tags describe -- the return type, how
+/// many arguments, and the type of each -- with the arguments packed into the two
+/// `Int64` slots (a `double` travels as its IEEE bits) and the two string slots.
+/// The answer is the integer result, or the bits of the `double`, or for a
+/// `string` the length copied into `out`.  See the note on the shape table in
+/// `stub.c`: a shape is only callable if this build built it.
+#borrow(s0, s1, out)
+pub extern "c" fn lua_mbt_dl_call(
+  ret : Int,
+  arity : Int,
+  t1 : Int,
+  t2 : Int,
+  entry : Int64,
+  a0 : Int64,
+  a1 : Int64,
+  s0 : Bytes,
+  s1 : Bytes,
+  out : Bytes,
+  outn : Int,
+) -> Int64 = "lua_mbt_dl_call"
+
+///|
 pub extern "c" fn lua_mbt_exit(code : Int) -> Unit = "lua_mbt_exit"
 
 ///|

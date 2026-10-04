@@ -383,6 +383,329 @@ fn pkg_loadlib(
 }
 
 ///|
+/// A declared signature: the tags that name the call shape, and the C symbol.
+priv struct CSig {
+  ret : Int
+  arity : Int
+  t1 : Int
+  t2 : Int
+  sym : String
+}
+
+///|
+/// The types this build can put in a call, tagged as `stub.c` tags them.  There
+/// is no `bool`, no pointer and no struct: each would need a shape built here,
+/// and a shape nobody asks for is code nobody checked.
+fn c_type_tag(name : String) -> Int? {
+  match name {
+    "int" => Some(1)
+    "int64" => Some(2)
+    "double" => Some(3)
+    "string" => Some(4)
+    _ => None
+  }
+}
+
+///|
+/// The argument's C type, or `void` for a return.
+fn c_ret_tag(name : String) -> Int? {
+  if name == "void" {
+    Some(0)
+  } else {
+    c_type_tag(name)
+  }
+}
+
+///|
+fn is_space(c : Int) -> Bool {
+  c == 32 || c == 9 || c == 10 || c == 13
+}
+
+///|
+fn is_name_char(c : Int) -> Bool {
+  (c >= 65 && c <= 90) ||
+  (c >= 97 && c <= 122) ||
+  (c >= 48 && c <= 57) ||
+  c == 95
+}
+
+///|
+fn is_name_start(c : Int) -> Bool {
+  (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c == 95
+}
+
+///|
+fn skip_space(b : Bytes, from : Int) -> Int {
+  let mut i = from
+  while i < b.length() && is_space(b[i].to_int()) {
+    i = i + 1
+  }
+  i
+}
+
+///|
+/// Read the identifier starting at `i`; the second value is where it stopped, so
+/// an empty answer is `i` itself.
+fn read_name(b : Bytes, i : Int) -> (String, Int) {
+  let mut j = i
+  while j < b.length() && is_name_char(b[j].to_int()) {
+    j = j + 1
+  }
+  (@core.text_of(@core.bytes_slice(b, i, j - i)), j)
+}
+
+///|
+/// `<return> <symbol>(<type>, ...)`, spelled the way C spells it.  The name is
+/// what is looked up in the library, so the declaration is also the answer to
+/// "which entry?" -- there is no separate symbol argument to disagree with it.
+fn parse_sig(src : String) -> Result[CSig, String] {
+  let b = @core.bytes_of(src)
+  let n = b.length()
+  let (ret_name, p1) = read_name(b, skip_space(b, 0))
+  if ret_name.length() == 0 {
+    return Err(
+      "a signature looks like 'double pow(double, double)', with no '*'",
+    )
+  }
+  let (sym, p2) = read_name(b, skip_space(b, p1))
+  if sym.length() == 0 {
+    return Err(
+      "expected a function name between the return type and the '(', as in 'double pow(double, double)'",
+    )
+  }
+  let open = skip_space(b, p2)
+  if open >= n || b[open] != b'(' {
+    return Err("expected '(' after the function name")
+  }
+  let ret = match c_ret_tag(ret_name) {
+    Some(r) => r
+    None =>
+      return Err(
+        "this build cannot return a '" +
+        ret_name +
+        "'; the return types are void, int, int64, double, string",
+      )
+  }
+  let types : Array[Int] = []
+  let mut i = skip_space(b, open + 1)
+  if i < n && b[i] == b')' {
+    i = i + 1
+  } else {
+    for ;; {
+      let start = skip_space(b, i)
+      if start >= n {
+        return Err("expected a type in the argument list")
+      }
+      let (tname, after) = read_name(b, start)
+      if tname.length() == 0 || !is_name_start(b[start].to_int()) {
+        return Err("expected a type in the argument list")
+      }
+      match c_type_tag(tname) {
+        Some(t) => types.push(t)
+        None =>
+          return Err(
+            "this build cannot take a '" +
+            tname +
+            "' argument; the types are int, int64, double, string",
+          )
+      }
+      let next = skip_space(b, after)
+      if next < n && b[next] == b',' {
+        i = next + 1
+      } else if next < n && b[next] == b')' {
+        i = next + 1
+        break
+      } else {
+        return Err("expected ',' or ')' in the argument list")
+      }
+    }
+  }
+  if skip_space(b, i) != n {
+    return Err("unexpected text after the closing ')'")
+  }
+  // The arity limit is the table's, not the parser's invention.
+  if types.length() > 2 {
+    return Err(
+      "this build can call a function of at most 2 arguments; " +
+      sym +
+      " takes " +
+      types.length().to_string(),
+    )
+  }
+  Ok({
+    ret,
+    arity: types.length(),
+    t1: if types.length() > 0 {
+      types[0]
+    } else {
+      0
+    },
+    t2: if types.length() > 1 {
+      types[1]
+    } else {
+      0
+    },
+    sym,
+  })
+}
+
+///|
+/// One argument, read the way the C API reads it: `luaL_checkinteger` for an
+/// `int`/`int64` (so a numeric string is accepted and the value is converted as
+/// C would), `luaL_checknumber` for a `double`, `luaL_checkstring` for a
+/// `string`.  The `LStr` comes back rather than its bytes because the bytes are
+/// only borrowed for the duration of the call: a string the coercion made up has
+/// to stay alive until the C function is done with it.
+fn pack_arg(
+  state : @core.LuaState,
+  tag : Int,
+  args : ArrayView[@core.Value],
+  n : Int,
+  fname : String,
+) -> (Int64, @core.LStr?) raise @core.LuaRaised {
+  match tag {
+    1 | 2 => (@core.check_int(state, args, n, fname), None)
+    3 =>
+      (@core.check_number(state, args, n, fname).reinterpret_as_int64(), None)
+    _ => (0L, Some(@core.check_str(state, args, n, fname)))
+  }
+}
+
+///|
+/// How far a `string` result is copied.  Longer than this the call reports
+/// itself rather than hand back a truncated answer.
+let dl_out_size : Int = 4096
+
+///|
+/// The callable `package.loadc` answers with: a Lua function that packs its
+/// arguments into the shape's slots, makes the call, and reads the answer back by
+/// the declared return type.
+fn c_callable(sig : CSig, entry : Int64) -> @core.Value {
+  let name = sig.sym
+  let no_text = @core.bytes_of("")
+  fn body(
+    state : @core.LuaState,
+    upvals : Array[@core.Value],
+    args : ArrayView[@core.Value],
+  ) -> @core.BuiltinResult raise @core.LuaRaised {
+    let _ = upvals
+    let mut a0 = 0L
+    let mut a1 = 0L
+    let mut text0 : @core.LStr? = None
+    let mut text1 : @core.LStr? = None
+    if sig.arity >= 1 {
+      let (v, t) = pack_arg(state, sig.t1, args, 1, name)
+      a0 = v
+      text0 = t
+    }
+    if sig.arity == 2 {
+      let (v, t) = pack_arg(state, sig.t2, args, 2, name)
+      a1 = v
+      text1 = t
+    }
+    // Only a `string` result needs somewhere to be copied to, and the size says
+    // as much -- the shape the table answers for is the one that touches `out`.
+    let want_text = sig.ret == 4
+    let out = if want_text { Bytes::new(dl_out_size) } else { no_text }
+    let rc = @host.lua_mbt_dl_call(
+      sig.ret,
+      sig.arity,
+      sig.t1,
+      sig.t2,
+      entry,
+      a0,
+      a1,
+      match text0 {
+        Some(s) => s.data()
+        None => no_text
+      },
+      match text1 {
+        Some(s) => s.data()
+        None => no_text
+      },
+      out,
+      if want_text {
+        dl_out_size
+      } else {
+        0
+      },
+    )
+    match sig.ret {
+      0 => @core.Nothing
+      1 | 2 => @core.One(@core.VInt(rc))
+      3 => @core.One(@core.VNum(rc.reinterpret_as_double()))
+      _ =>
+        if rc == -1L {
+          // The C function answered with a null pointer, which is a value.
+          @core.One(@core.VNil)
+        } else if rc < 0L {
+          @core.runtime_error(
+            state,
+            "'" +
+            name +
+            "' answered a string longer than " +
+            dl_out_size.to_string() +
+            " bytes",
+          )
+        } else {
+          @core.One(
+            @core.VStr(
+              @core.LStr::of_bytes(@core.bytes_slice(out, 0, rc.to_int())),
+            ),
+          )
+        }
+    }
+  }
+  // -1 for the parameter count: a C function takes what it was given and ignores
+  // the rest, which is also how the reference's `lua_CFunction` behaves.
+  @core.VBuiltin(@core.LBuiltin::make(name, -1, body))
+}
+
+///|
+/// A signature this build cannot express.  Not one of the loader's three answers
+/// -- nothing was opened and no entry was looked up -- so it comes back as `nil`
+/// and a message, without a step.
+fn loadc_rejected(message : String) -> @core.BuiltinResult {
+  @core.Many([@core.VNil, @core.VStr(@core.LStr::of_string(message))])
+}
+
+///|
+/// `package.loadc` -- **this implementation's own extension**, not the
+/// reference's: the reference hands back a `lua_CFunction` and calls it against
+/// its own `lua_State`, and neither half of that exists here (see the note on the
+/// shape table in `stub.c`).  What it does give is a plain C function, found by
+/// name in a library named at run time, called through a shape the program
+/// declares: `package.loadc("libm.so.6", "double fmod(double, double)")`.
+/// Arguments are converted the way the C API converts them, and a `string`
+/// argument is borrowed for the duration of the call only.
+fn pkg_loadc(
+  state : @core.LuaState,
+  upvals : Array[@core.Value],
+  args : ArrayView[@core.Value],
+) -> @core.BuiltinResult raise @core.LuaRaised {
+  let _ = upvals
+  let path = @core.check_str(state, args, 1, "loadc")
+  let decl = @core.check_str(state, args, 2, "loadc")
+  let sig = match parse_sig(@core.text_of(decl.data())) {
+    Err(msg) => return loadc_rejected(msg)
+    Ok(s) => s
+  }
+  let (lib, why_open) = dl_open(@core.text_of(path.data()))
+  if lib == 0L {
+    return loadlib_failed(why_open, "open")
+  }
+  let (entry, why_sym) = dl_sym(lib, sig.sym)
+  if entry == 0L {
+    let _ = @host.lua_mbt_dl_close(lib)
+    return loadlib_failed(why_sym, "init")
+  }
+  // The library is deliberately *not* closed: the function is about to be
+  // called, and a library the process has released could have given its pages
+  // back.  The reference keeps its libraries for the same reason.
+  @core.One(c_callable(sig, entry))
+}
+
+///|
 /// The searcher for a native module.  A module the host compiled in answers
 /// first and needs no file -- this is the slot where the reference would have
 /// opened a shared library, and here the loader is handed over directly.
@@ -470,6 +793,10 @@ fn open_package_library(state : @core.LuaState) -> Unit {
   pkg.set_str(
     "loadlib",
     @core.VBuiltin(@core.LBuiltin::make("loadlib", 2, pkg_loadlib)),
+  )
+  pkg.set_str(
+    "loadc",
+    @core.VBuiltin(@core.LBuiltin::make("loadc", 2, pkg_loadc)),
   )
   // The `package` table is reachable both as a field of itself, like the
   // * reference implementation, and through `require`.

@@ -35,10 +35,17 @@ test "module loading suite" {
 }
 
 ///|
-/// The one suite that is this implementation's own: names written in UTF-8 are
-/// an extension, so the reference refuses the chunks in it.
+/// The two suites that are this implementation's own: names written in UTF-8 and
+/// `package.loadc` are both extensions, so the reference refuses the first and has
+/// no second to call.  Keeping them in their own files is what lets the four
+/// conformance suites stay runnable on the reference build.
 test "utf8 identifier suite" {
   run_suite("tests/utf8_identifiers.lua")
+}
+
+///|
+test "native call suite" {
+  run_suite("tests/native_libs.lua")
 }
 
 ///|

@@ -335,18 +335,48 @@ What the interpreter does, in the areas the suite exercises hardest:
   `Lua 5.4  (MoonBit implementation)` where the reference prints its copyright
   line.  `_VERSION` is `"Lua 5.4"`, and a program that reads the banner text is
   the only thing that would see the difference.
-* **A shared library can be opened and searched, but not entered.**  Both
-  `package.loadlib` and the native searcher really call the host loader (`dlopen`
-  /`dlsym` on POSIX, `LoadLibraryExA`/`GetProcAddress` on Windows), so the
-  complaint carries the loader's own reason and the failing step is named the way
-  the reference names it: `"open"` for a file that will not open, `"init"` for a
-  library that opens and has no such entry.  The one thing the reference can do
-  and this build cannot is *call* what it found -- MoonBit binds a C symbol by
-  name at compile time and the native runtime exports no way to call a pointer
-  read out of a library -- so when the file and the entry both turn up the answer
-  is `nil, "dynamic libraries cannot be entered by this build", "absent"`.  A
-  module written below Lua is `Lua::register_module` (see "Using it as a
+* **`package.loadlib` finds no `lua_CFunction` and cannot call one.**  The host
+  loader really is asked (`dlopen`/`dlsym` on POSIX, `LoadLibraryExA`/
+  `GetProcAddress` on Windows), so a file that will not open answers `"open"` and
+  one that opens without the entry answers `"init"`, each with the loader's own
+  reason.  Only *calling* the function is impossible: the reference pushes a
+  `lua_CFunction` as a value and calls it with its own `lua_State`, and this build
+  has neither a `lua_State` on the C side -- that would be the interpreter written
+  again in C -- nor any way for a library to call back into MoonBit, since the
+  native runtime exports no way to call a pointer read out at run time.  So when
+  both the file and the entry turn up the answer is
+  `nil, "dynamic libraries cannot be entered by this build", "absent"`.  What
+  *can* be called is a plain C function, in the next item.  A module written below
+  Lua, for a script to `require`, is `Lua::register_module` (see "Using it as a
   library").
+* **`package.loadc` is this implementation's own extension.**  It calls a plain C
+  function through a signature the program declares:
+
+  ```lua
+  local pow = assert(package.loadc("libm.so.6", "double pow(double, double)"))
+  print(pow(2, 10))                                    -- 1024.0
+  local strcmp = assert(package.loadc("libc.so.6", "int strcmp(string, string)"))
+  print(strcmp("abc", "abc"))                          -- 0
+  local find = assert(package.loadc("libc.so.6", "string strchr(string, int)"))
+  print(find("abcdef", string.byte("c")), find("abcdef", 0))  -- cdef  nil
+  ```
+
+  The second argument is a whole C declaration rather than a symbol name: the name
+  in it is what gets looked up in the library, and the types say how to pack the
+  arguments and read the answer.  The types are `int` (C `int`, 32 bits), `int64`
+  (C `int64_t`/`long long`/`size_t`/pointer width), `double` and `string`.  A
+  `string` argument lends the Lua string's bytes **for the duration of the call**
+  (a library that keeps it must copy it, and an embedded NUL ends it); a `string`
+  result is copied up to its NUL -- past 4096 bytes the call reports itself rather
+  than truncating, and a NULL answer is `nil`.  A `void` result answers with no
+  values.  **At most two arguments**: every callable shape has to be built in C,
+  which is the price of the backend having no call-by-pointer, and
+  return-type × argument-type combinations already make 105 shapes -- a third
+  argument would make it 500.  `bool`, `float`, structs and longer argument lists
+  are not in the table, and the parser names whichever part of the signature it
+  cannot take.  Failure stays soft and keeps `loadlib`'s shape: `nil, reason`, or
+  `nil, reason, "open" | "init"`.  The reference has no such function, so
+  `tests/native_libs.lua` joins the UTF-8 suite as a **non-portable** one.
 * **An identifier may hold non-ASCII code points: this implementation's own
   extension.**  The reference's `lislalpha` knows only ASCII (its
   `luai_ctype_` table covers 0x00-0x7F), so any byte of 0x80 or more in a
@@ -407,13 +437,14 @@ moon test
 ```
 
 * `tests/language.lua`, `tests/stdlib.lua`, `tests/require_test.lua`,
-  `tests/examples.lua` and `tests/utf8_identifiers.lua` are Lua programs run
-  through the interpreter from `src/lua/suite_test.mbt` — the same black-box
-  shape an embedder would use, so a failure is reported with the failing Lua
-  line.  The first four also pass under the reference; **the last one does
-  not**, because it is the identifier extension above (`local 中 = 1` on line 26
-  is refused by the reference).  Keeping it in its own file is what keeps the
-  conformance suites and the extension suite from polluting each other.
+  `tests/examples.lua`, `tests/utf8_identifiers.lua` and `tests/native_libs.lua`
+  are Lua programs run through the interpreter from `src/lua/suite_test.mbt` — the
+  same black-box shape an embedder would use, so a failure is reported with the
+  failing Lua line.  The first four also pass under the reference; **the last two
+  do not**, because they are the two extensions above: the reference refuses
+  `local 中 = 1` (line 26 of that suite) and has no `package.loadc` to call at all.
+  Keeping each in its own file is what keeps the conformance suites and the
+  extension suites from polluting each other.
 * The remaining tests sit next to the code they pin: the register layout the
   code generator produces (`src/compiler/codegen_wbtest.mbt`), the `printf`
   conversions, the numeral parser and the code point test for a name character
