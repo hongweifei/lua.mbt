@@ -7,13 +7,31 @@ import {
 
 // Runs the pure-Lua test files of the official Lua 5.4 suite through the
 // built interpreter and reports pass/fail per file.
-// Usage: moon run --target native tools/run_official_tests.mbtx [filter...]
+// Usage: moon run --target native tools/run_official_tests.mbtx
+//          [--mode=src,dump,strip] [--exe=path] [file...]
 //
 // Two of them need a word: `api.lua` guards its whole body with `if T==nil
 // then ... return end`, and `T` is the C test library only a test build of the
 // reference provides, so both binaries skip it and report success.  `cstack`
 // runs its real work (the `if T then` block at the end is the part that needs
 // `T`), which is why it is here.
+//
+// Every file runs in three shapes, because the reference's own driver does:
+// `all.lua:139-143` redefines `dofile` to load a file, dump it, and load the
+// dump back, so most of the suite is really tested against a *precompiled*
+// chunk, and `all.lua:172` dumps `code.lua` stripped.  `src` is what a plain
+// `lua file.lua` does, which is all this harness used to run.
+//
+// `--exe=` points the matrix at another binary, and running the same matrix
+// through the reference is what tells a difference of this build apart from a
+// difference every build has.  Two things it will otherwise read as a failure:
+// `heavy.lua` ends by allocating until the host refuses, so its time is
+// whatever this machine lets a process take (ours stops at its own memory
+// budget in seconds; the reference was still thrashing after six minutes, which
+// is a TimeoutError here and nothing else), and a red that both binaries share
+// can still name a different line -- `literals[dump]` fails where long literals
+// stop being the same object, which ours carries one assertion further than the
+// reference does.
 
 let suite_dir : String = "lua-5.4.9-tests"
 let lua_exe : String = "_build/native/release/build/cmd/main/main.exe"
@@ -23,8 +41,54 @@ let tests : Array[String] = [
   "constructs", "coroutine", "errors", "events", "goto", "heavy", "locals",
   "math", "nextvar", "pm", "sort", "strings", "tpack", "utf8", "vararg",
   "verybig", "attrib", "db", "gc", "gengc", "tracegc", "files", "api",
-  "cstack",
+  "cstack", "big",
 ]
+
+let modes : Array[String] = ["src", "dump", "strip"]
+
+/// `big.lua` yields from its own top level (`big.lua:56`), so nothing can run
+/// it by calling it: `all.lua:177` wraps it in `coroutine.wrap` and resumes it
+/// twice.  Every other file is a function that returns normally.
+fn coroutine_driven(name : String) -> Bool { name == "big" }
+
+/// The code that runs one file in one shape.  `all.lua:139-143` is the pattern:
+/// load, dump, load the dump, run.  A stripped dump is what
+/// `dofile('code.lua', true)` asks for.
+fn driver(name : String, mode : String) -> String {
+  let strip = if mode == "strip" { "true" } else { "false" }
+  let body = if coroutine_driven(name) {
+    // The two answers are exactly what `all.lua` asserts: the value the chunk
+    // yields, then the value it returns.
+    "local co = coroutine.wrap(f) assert(co() == 'b') assert(co() == 'a')"
+  } else {
+    "f()"
+  }
+  let load = "local f = assert(loadfile(\"\{name}.lua\")) "
+  let through = if mode == "src" {
+    ""
+  } else {
+    "f = assert(load(string.dump(f, \{strip}))) "
+  }
+  load + through + body
+}
+
+/// A file that both yields and needs no dump is still run through `-e`, because
+/// the CLI's own script path calls the chunk and cannot resume it.  (`lua
+/// big.lua` fails the same way on every build, which is why `all.lua` drives it
+/// that other way.)
+fn script_args(name : String, mode : String) -> Array[String] {
+  if mode == "src" && !coroutine_driven(name) {
+    [name + ".lua"]
+  } else {
+    ["-e", driver(name, mode)]
+  }
+}
+
+/// How a run is labelled: `big` for the source shape, `big[dump]` and
+/// `big[strip]` for the two that go through a binary chunk.
+fn label(name : String, mode : String) -> String {
+  if mode == "src" { name } else { name + "[" + mode + "]" }
+}
 
 fn last_lines(s : String, n : Int) -> String {
   let lines = [for l in s.split("\n") => l.trim_end()]
@@ -41,13 +105,24 @@ fn first_lines(s : String, n : Int) -> String {
   lines[:k].join("\n")
 }
 
-async fn run_one(name : String) -> (String, Bool, String) {
-  let cmd = @shell.Cmd(
-    lua_exe,
-    [name + ".lua"],
-    cwd=suite_dir,
-    stderr=@shell.Capture,
-  )
+/// The value of a `--key=value` argument, or None if this argument is not it.
+fn flag_of(arg : String, key : String) -> String? {
+  let parts : Array[String] = [for v in arg.split("=") => v.to_owned()]
+  if parts.length() > 1 && parts[0] == key {
+    Some(parts[1:].join("="))
+  } else {
+    None
+  }
+}
+
+async fn run_one(exe : String, name : String, mode : String) -> (
+  String,
+  Bool,
+  String,
+) {
+  let args = script_args(name, mode)
+  let cmd = @shell.Cmd(exe, args, cwd=suite_dir, stderr=@shell.Capture)
+  let shown = label(name, mode)
   try {
     let out = cmd.output(timeout_ms=120000)
     let code = out.exit_code()
@@ -62,24 +137,40 @@ async fn run_one(name : String) -> (String, Bool, String) {
         last_lines(out.stdout(), 6)
       }
     }
-    (name, ok, "exit=\{code}\n\{detail}")
+    (shown, ok, "exit=\{code}\n\{detail}")
   } catch {
-    err => (name, false, "spawn error: \{err}")
+    err => (shown, false, "spawn error: \{err}")
   }
 }
 
 async fn main {
-  let filter = @env.args()[1:]
-  let selected : Array[String] = []
-  for t in tests {
-    if filter.length() == 0 || filter.exists(f => t == f) {
-      selected.push(t)
+  let argv = @env.args()[1:]
+  let mut exe = lua_exe
+  let wanted : Array[String] = []
+  let mut only_modes : Array[String] = []
+  for a in argv {
+    match flag_of(a, "--exe") {
+      Some(v) if v != "" => exe = v
+      _ =>
+        match flag_of(a, "--mode") {
+          Some(v) => only_modes = [for x in v.split(",") => x.to_owned()]
+          None => wanted.push(a)
+        }
     }
   }
+  let bad = only_modes.filter(m => !modes.exists(x => x == m))
+  if bad.length() > 0 {
+    fail("unknown mode '" + bad.join(",") + "', known: " + modes.join(", "))
+  }
+  let used = if only_modes.length() == 0 { modes } else { only_modes }
   let results : Array[(String, Bool, String)] = []
-  for name in selected {
-    println("running \{name} ...")
-    results.push(run_one(name))
+  for name in tests {
+    if wanted.length() == 0 || wanted.exists(x => x == name) {
+      for mode in used {
+        println("running \{label(name, mode)} ...")
+        results.push(run_one(exe, name, mode))
+      }
+    }
   }
   println("")
   println("=== official Lua 5.4 suite results ===")

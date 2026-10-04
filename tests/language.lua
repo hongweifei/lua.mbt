@@ -715,15 +715,24 @@ end
 
 -- `setstepmul` scales the work one step is worth, which is what it does in the
 -- reference (`incstep` multiplies the debt by it): a larger multiplier finishes a
--- cycle in fewer calls than a smaller one.  A parameter is stored as a multiple
+-- cycle in no more calls than a smaller one.  A parameter is stored as a multiple
 -- of four, as the reference stores it, so what it last reported comes back
 -- rounded down.
+--
+-- `incstep` is the *incremental* mode's step loop, so this asks for that mode
+-- explicitly: the default is generational, where a step runs a minor collection
+-- and answers the question differently (checked just below).  How many calls a
+-- cycle takes is not compared with the reference -- it counts out the credit a
+-- finished cycle leaves, and that is a function of how big each build's own
+-- heap is -- so only the relations are asserted.
 do
+  local previous = collectgarbage("incremental")
   local function steps(mul, size)
     collectgarbage("setstepmul", mul)
     collectgarbage()
     local n = 0
-    repeat n = n + 1 until collectgarbage("step", size)
+    repeat n = n + 1 until collectgarbage("step", size) or n > 5000
+    assert(n <= 5000, "a step of " .. size .. "KB never finished a cycle")
     return n
   end
   -- The effect is small, as it is in the reference (about 1% there): the credit
@@ -733,6 +742,21 @@ do
   eq(steps(100, 20000), 1, "a step of a cycle's size still finishes it at once")
   collectgarbage("setstepmul", 50)
   eq(collectgarbage("setstepmul", 100), 48, "a parameter comes back a multiple of four")
+  eq(collectgarbage(previous), "incremental", "the mode is handed back")
+
+  -- A step reports a *finished cycle*, which is read from where the collector
+  -- sits, not from what it did: a generational collection never ends at that
+  -- state, and an incremental one does.  Whether the collector is running makes
+  -- no difference to the answer.
+  local function answers(mode)
+    collectgarbage(mode)
+    collectgarbage()
+    return tostring(collectgarbage("step", 20000)) ..
+    "," .. tostring(collectgarbage("step", 0))
+  end
+  eq(answers("generational"), "false,false", "a generational step reports no cycle")
+  eq(answers("incremental"), "true,true", "an incremental one reports the cycle it ended")
+  collectgarbage(previous)
 end
 
 -- `count` carries the objects a library function makes, not only the strings.
@@ -791,6 +815,39 @@ do
   local r = stripped(); debug.sethook(nil)
   eq(r, 12, "the stripped function runs")
   eq(saw_nil, true, "and its hook is told no line")
+
+  -- A message that asks "where am I?" answers with a *line*, not with a name,
+  -- so stripped code reports no position at all -- even when `load` was given a
+  -- chunk name, as here.  A runtime error is the exception: it is prefixed by
+  -- different code, which prints whatever it has, so it says `?:-1:`.
+  local probes = [[
+    return function () error("boom") end,
+           function () assert(false) end,
+           function () local t = nil; return t.x end,
+           function () return string.rep(nil, 1) end,
+           function () return string.dump(print) end
+  ]]
+  local function message(f) local ok, m = pcall(f) return m end
+  local function dumped(strip)
+    local f = assert(load(probes, "c.lua"))
+    return assert(load(string.dump(f, strip), "c.lua"))
+  end
+  local e1, e2, e3, e4, e5 = dumped(false)()
+  eq(message(e1), '[string "c.lua"]:1: boom', "a line is a position")
+  eq(message(e2), '[string "c.lua"]:2: assertion failed!', "for assert too")
+  local s1, s2, s3, s4, s5 = dumped(true)()
+  eq(message(s1), "boom", "no line, no position")
+  eq(message(s2), "assertion failed!", "not for assert either")
+  eq(message(s4), "bad argument #1 to 'rep' (string expected, got nil)",
+     "nor inside an argument error")
+  eq(message(s3), "?:-1: attempt to index a nil value",
+     "but a runtime error prints what it has")
+
+  -- A function that is not a Lua closure is a function all the same, so it
+  -- passes the type check and fails afterwards.
+  eq(message(e5), '[string "c.lua"]:5: unable to dump given function',
+     "a C function cannot be dumped")
+  eq(message(s5), "unable to dump given function", "and says so without a line")
 end
 
 -- A `...` outside a vararg function is a syntax error, not something the

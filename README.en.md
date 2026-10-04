@@ -233,12 +233,16 @@ package's public interface, which is the point of it.
 * **Memory.** Objects are managed by the host runtime, which uses reference
   counting. Cyclic garbage is therefore reclaimed when the process exits.
   `collectgarbage` reports a real allocation figure and honours the usual
-  options, but its "collect" cannot free cycles.
+  options, but its "collect" cannot free cycles.  `step` answers by the
+  reference's rule: the answer reads where the collector stopped, so only
+  incremental mode ever says "a cycle ended" and the default generational mode
+  never does (measured equal to the reference in all four cells of mode x
+  collector-running).
 
 ## Status
 
 `tools/run_official_tests.mbtx` runs every file of the official 5.4.9 suite
-through this interpreter: **28 of the 30 pass**.  The two that do not fail
+through this interpreter: **29 of the 31 pass**.  The two that do not fail
 in exactly the place the reference implementation built on this platform fails,
 which was checked by running the same file through it:
 
@@ -255,6 +259,34 @@ implementations, and the suite has a `_port` flag for them: a port that cannot
 run its non-portable tests sets it and those blocks are skipped.  This harness
 leaves it unset, so the blocks *are* run — they pass apart from the two lines
 above.
+
+The thirty-first file is `big.lua`: its body yields from the top level
+(`big.lua:56`), so nothing can run it by calling it — `all.lua:177` wraps it in
+`coroutine.wrap` and resumes it twice, and this harness does the same.  (`lua
+big.lua` fails the same way on both builds, which is not a defect.)
+
+Each file also runs in three shapes, because the reference's own driver does:
+`all.lua:139-143` redefines `dofile` to load a file, dump it, and load the dump
+back, so the suite's main path really tests a *precompiled* chunk, and
+`all.lua:172` asks for `code.lua` dumped stripped.  `src` is the plain
+`lua file.lua` shape (the 31 above); `dump` and `strip` add 31 each, so 93
+cells.  The same table is run against the reference with `--exe=`:
+
+* **79/93 here against 77/93 there**, and all 14 cells this build fails are
+  cells the reference fails too (`literals[dump]`, `literals[strip]`,
+  `calls[strip]`, `constructs[strip]`, `coroutine[strip]`, `errors[strip]`,
+  `locals[strip]`, `db[strip]`, plus `attrib` and `files` in all three shapes).
+  The two new shapes add no cell that is red only here.
+* The `strip` reds are unavoidable: stripping removes lines and names, and those
+  files assert error messages *with* positions, so the sentence comes back
+  without its prefix on both builds.  That is why `all.lua` itself strips only
+  `code.lua` and hands `strings.lua` and `literals.lua` back to the original
+  `dofile`.
+* The reference fails two cells this build passes: `heavy` and `heavy[dump]`.
+  `heavy.lua` ends by allocating until the host refuses, so its time is whatever
+  this machine lets a process take — the reference was still paging after six
+  minutes (a timeout here), while this build stops at its own memory budget
+  within seconds.  Environment, not implementation.
 
 `files` stops at line 84, so everything after it — including the byte-order-mark
 and `#`-first-line cases at `files.lua:537`–`550` — is not reached on this path.
@@ -302,9 +334,9 @@ What the interpreter does, in the areas the suite exercises hardest:
   which on a large machine is many gigabytes later.  Memory here is owned by the
   host runtime, which cannot refuse gracefully, so the interpreter keeps its own
   budget.  It is one constant.
-* **`collectgarbage("setstepmul", m)` does shape a step here**, though the ledger is this implementation's own.  It scales the work one step is worth, in the direction the reference takes (`incstep` multiplies the debt by it): a larger multiplier finishes a cycle in fewer calls and a smaller one in more (measured: 5000 takes 2 calls, 50 takes 200; the default of 100 leaves everything as it was).  The reference's own stepmul effect is about 1%, because its debt and credit dominate, so the absolute counts still differ.  A parameter is stored as a multiple of four, as the reference stores it (`GCPARAM_ADJ`), so `setstepmul(50)` reports 48 next time; where the reference's byte-sized slot makes a very large parameter wrap, this keeps the value and clamps instead.
+* **`collectgarbage("setstepmul", m)` is stored and pointed the way the reference stores and points it, but its magnitude is nothing like it.**  A gc parameter is kept as a multiple of four, as there (`GCPARAM_ADJ`), so `setstepmul(50)` reports 48 next time; where the reference's byte-sized slot makes a very large parameter wrap, this keeps the value and clamps instead.  The direction is the reference's too: a larger multiplier finishes a cycle in fewer calls.  The magnitude is not.  Measured in one shape (incremental mode, collector running, 20000 nested tables built, then 2 KB steps until it reports a finished cycle): the reference gives **1385/1403/1452** for multipliers 5000/100/50 (about 5% apart) and this build gives **1/11/21** (twenty-fold).  The work one step pays for scales with the multiplier here; the credit a finished cycle leaves does not.  And since `stepmul` is a parameter of `incstep`, in the default **generational** mode it is never even consulted.
 
-* **The `collectgarbage("step")` ledger now follows the reference's debt arithmetic, but the figures are still this implementation's own.**  It simulates `incstep`: a sized step reaches the collector only through `luaC_checkGC`, which steps only while the debt is positive -- so a step taken while the credit from the last collection is unpaid does **nothing at all**; once it is paid, a step pays for "the debt plus the granularity" of work, which is why `size == 0` has room for a whole small cycle (`true` on a fresh heap) and answers `false` on a large one (it used to answer `true` always).  `dosteps(2/10/100/20000)` measures **883/176/18/1** against the reference's **968/194/20/1** (about 9% apart), with the same ordering and `dosteps(20000) == 1`; `setstepmul` points the same way (5000 -> 875, 50 -> 893) and, as there, matters little (about 1%).  The rest of the difference is that this implementation's "one cycle's work" estimate (objects plus bytes over 16) is not the reference's per-object cost, so a few boolean sequences (whether a second `step 0` on a large heap finds the cycle finished) differ.  `count` reports the bytes the collector measured the live set to hold and now also carries the **objects a library function has made since the last cycle**, so it rises with allocation and falls when a cycle runs; the absolute figures differ, because the reference's figure is its allocator's own.
+* **The `collectgarbage("step")` answer follows the reference's rule.**  What the reference answers is not "a cycle ended" but "the debt is paid off **and** the collector is sitting at its pause state".  Two consequences, both measured: a sized step reaches the collector only through `luaC_checkGC`, which looks only at whether the debt is positive, so a step taken while the credit from the last collection is unpaid does **nothing at all**; and **in generational mode the answer is always `false`**, because a generational collection never ends at the pause state -- and generational is the default mode.  The four cells of "mode x collector running or stopped" now agree with the reference one by one (before this round was fixed, the two generational cells answered `true` here).  The ledger itself is still this implementation's own: in the shape above a 2 KB step needs 11 calls here and 1403 there, because "what a cycle owes" is an estimate (objects plus bytes over 16) rather than the reference's per-object cost.  `count` reports the bytes the collector measured the live set to hold and also carries the **objects a library function has made since the last cycle**, so it rises with allocation and falls when a cycle runs; the absolute figures differ, because the reference's figure is its allocator's own.
 
 * **Binary chunks are not interchangeable with the reference's.**  The header is
   byte for byte the same — signature, version, format, machine word sizes and the
@@ -440,11 +472,24 @@ moon test
   `tests/examples.lua`, `tests/utf8_identifiers.lua` and `tests/native_libs.lua`
   are Lua programs run through the interpreter from `src/lua/suite_test.mbt` — the
   same black-box shape an embedder would use, so a failure is reported with the
-  failing Lua line.  The first four also pass under the reference; **the last two
+  failing Lua line.  The first four also pass under the reference — measured
+  this round, with a 5.4.9 binary built on the spot by `zig cc`, each file run as
+  a script through it; **the last two
   do not**, because they are the two extensions above: the reference refuses
   `local 中 = 1` (line 26 of that suite) and has no `package.loadc` to call at all.
   Keeping each in its own file is what keeps the conformance suites and the
-  extension suites from polluting each other.
+  extension suites from polluting each other.  That "first four" claim had in
+  fact stopped being true, and this round is what made it true again, in three
+  places: the `repeat ... until collectgarbage("step", n)` loop in
+  `language.lua` never terminates under the reference (the default mode is
+  **generational**, and a step there never reports a finished cycle), so that
+  block now asks for incremental mode and caps its loop; the `stdlib.lua`
+  assertion about `load`'s reader error text now compares only the first line,
+  because `lua` installs a message handler for a script and that handler is
+  still installed while `load` reads, so the text comes back with a traceback
+  behind it; and the "the library opened and the entry exists, but this build
+  cannot enter" cell in `require_test.lua` — an answer only this build gives,
+  where the reference hands back a callable — moved into `native_libs.lua`.
 * The remaining tests sit next to the code they pin: the register layout the
   code generator produces (`src/compiler/codegen_wbtest.mbt`), the `printf`
   conversions, the numeral parser and the code point test for a name character

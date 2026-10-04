@@ -95,4 +95,34 @@ collectgarbage("collect")
 assert(keeper(-3) == 3, "still callable after a collection")
 assert(pow(3, 3) == 27 and strcmp("a", "a") == 0, "and so is the rest of them")
 
+-- What `package.loadlib` answers once the host both opens the library and finds
+-- the entry: the one thing no build with a working loader answers, because this
+-- build can look but cannot enter.  It is not the old "not enabled" fallback,
+-- so the message is asserted and not just the step.  The reference hands back a
+-- callable here, which is why this lives with the extension suite and not with
+-- `require`.
+local entries = {
+  { "kernel32.dll", "LoadLibraryA" },
+  { "libc.so.6", "malloc" },
+  { "libm.so.6", "malloc" },
+  { "libSystem.dylib", "malloc" },
+}
+local entered, why_entered
+for i = 1, #entries do
+  local e = entries[i]
+  local _, w, s = package.loadlib(e[1], e[2])
+  if not why_entered then
+    why_entered = e[1] .. ": " .. tostring(w) .. " [" .. tostring(s) .. "]"
+  end
+  if s == "absent" then
+    entered = w
+    break
+  end
+end
+assert(
+  entered == "dynamic libraries cannot be entered by this build",
+  "no candidate gave both the library and the entry (first try: " ..
+    tostring(why_entered) .. ")"
+)
+
 print("native_libs: ok")

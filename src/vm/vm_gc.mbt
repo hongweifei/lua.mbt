@@ -54,15 +54,27 @@ fn cycle_units(st : @core.LuaState) -> Int {
 /// collector, and whether it finished a cycle.
 ///
 /// A collection here is atomic, so what is simulated is the *accounting* the
-/// reference decides with.  Two of its rules do the work:
+/// reference decides with.  Three of its rules do the work:
+/// - the answer is "the debt was paid off *and* the collector is sitting at its
+///   pause state", not "a cycle ended"; a generational collection -- minor or
+///   major, with the collector running or stopped -- never leaves the state
+///   machine at the pause state, so in that mode a step never answers `true`;
 /// - a sized step only reaches the collector through `luaC_checkGC`, which steps
 ///   only when the debt is positive -- so a step taken while the credit from the
 ///   last collection is unpaid does *nothing*;
 /// - a step that does run pays for `debt + the granularity` worth of work, which
 ///   is why a basic step (`size` 0) has room for a small heap's whole cycle and
 ///   answers `true` there, while on a large one it answers `false`.
-/// `setstepmul` scales both figures, as it does there.
+/// `setstepmul` scales both figures, as it does there -- it is an `incstep`
+/// parameter, so in generational mode it changes nothing.
 pub fn gc_step(st : @core.LuaState, size : Int) -> Bool raise @core.LuaRaised {
+  let finished = gc_step_work(st, size)
+  finished && st.gc_mode != "generational"
+}
+
+///|
+/// The accounting of one step, without the mode that asks for it.
+fn gc_step_work(st : @core.LuaState, size : Int) -> Bool raise @core.LuaRaised {
   // `lua_gc`: a basic step clears the debt and steps at once; a sized one adds
   // its kilobytes and lets `luaC_checkGC` decide whether that pays for a step.
   if size == 0 {

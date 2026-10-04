@@ -219,6 +219,11 @@ pub fn str_dump(
   let v = @core.check_present(state, args, 1, "dump", "function")
   let cl = match v {
     @core.VFunc(f) => f
+    // A function that is not a Lua closure reaches `lua_dump`, which answers
+    // "cannot" rather than "wrong type": the reference says `unable to dump
+    // given function` for `string.dump(print)`, not an argument error.
+    @core.VBuiltin(_) =>
+      @core.runtime_error(state, "unable to dump given function")
     _ =>
       @core.arg_error(
         state,

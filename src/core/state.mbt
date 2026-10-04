@@ -639,6 +639,12 @@ pub fn is_truthy_arg(st : LuaState, args : ArrayView[Value], n : Int) -> Bool {
 /// The `chunk:line: ` prefix of the frame `level` steps up the stack.  Level 1
 /// is the function that called the running native function, which is what
 /// `error(msg, level)` reports.
+///
+/// A frame with no line gives no prefix at all, which is what makes a chunk
+/// loaded from a *stripped* dump report `boom` rather than `?:-1: boom`.  The
+/// reference gates here (`luaL_where` asks for a line `> 0`) but not in a
+/// runtime error (`luaG_addinfo` prints whatever `luaG_getfuncline` returns,
+/// including `-1`), so the two kinds of message differ for stripped code.
 pub fn position_at_level(st : LuaState, level : Int) -> Bytes {
   let thread = st.current_thread
   // The frames above the running native are the ones being described.
@@ -649,13 +655,19 @@ pub fn position_at_level(st : LuaState, level : Int) -> Bytes {
   }
   let fr = thread.frames[idx]
   match fr.closure {
-    Some(cl) =>
-      bytes_of(
-        source_for_message(cl.proto.source.data()) +
-        ":" +
-        line_at(cl.proto, fr.pc - 1).to_string() +
-        ": ",
-      )
+    Some(cl) => {
+      let line = line_at(cl.proto, fr.pc - 1)
+      if line > 0 {
+        bytes_of(
+          source_for_message(cl.proto.source.data()) +
+          ":" +
+          line.to_string() +
+          ": ",
+        )
+      } else {
+        Bytes::new(0)
+      }
+    }
     None => Bytes::new(0)
   }
 }

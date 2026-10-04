@@ -31,34 +31,6 @@ for i = 1, #candidates do
 end
 assert(opened, "no candidate library opened (first try: " .. tostring(first) .. ")")
 
--- A library the host opens *and* provides the entry for.  The answer is then the
--- one thing no build with a working loader gives, because this build can look but
--- cannot enter -- and it is not the old "not enabled" fallback, which is why the
--- message is asserted and not just the step.
-local entries = {
-  { "kernel32.dll", "LoadLibraryA" },
-  { "libc.so.6", "malloc" },
-  { "libm.so.6", "malloc" },
-  { "libSystem.dylib", "malloc" },
-}
-local entered, why_entered
-for i = 1, #entries do
-  local e = entries[i]
-  local _, w, s = package.loadlib(e[1], e[2])
-  if not why_entered then
-    why_entered = e[1] .. ": " .. tostring(w) .. " [" .. tostring(s) .. "]"
-  end
-  if s == "absent" then
-    entered = w
-    break
-  end
-end
-assert(
-  entered == "dynamic libraries cannot be entered by this build",
-  "no candidate gave both the library and the entry (first try: " ..
-    tostring(why_entered) .. ")"
-)
-
 -- `require` reports the loader's reason for a file `package.cpath` turned up.
 -- Here the template finds a Lua source file, which no loader will open.
 local saved = package.cpath

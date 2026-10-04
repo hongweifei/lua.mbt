@@ -716,7 +716,12 @@ do
   -- `generic_reader` raises it through `luaL_error`.
   local lf, lmsg = load(function() return {} end)
   eq(lf, nil, "a reader that returns a table makes load fail")
-  eq(bare(lmsg), "reader function must return a string", "with the reference's text")
+  -- What a host says, not how much it says: `lua` runs the chunk under a
+  -- message handler, and that handler is still installed while `load` reads,
+  -- so the text comes back with a traceback behind it.  Only the first line is
+  -- the message itself.
+  eq(bare(lmsg):match("^[^\n]*"), "reader function must return a string",
+     "with the reference's text")
   eq(lmsg:match("^.-:%d+: ") ~= nil, true, "and a position in front of it")
 
   -- `load` reads a reader only as far as the parser needed, which is what the
