@@ -170,8 +170,15 @@ pub fn push_frame(
       }
       // The arguments stay where the caller put them.  The body is handed a
       // view of the registers above the function slot, so a call into the
-      // standard library copies nothing to be given its own arguments.
-      thread.ensure_stack(func_slot + 1 + nargs)
+      // standard library copies nothing to be given its own arguments.  The
+      // window reaches one slot past the last argument, because that is where a
+      // single answer goes: a call given no arguments has no argument slot to
+      // answer into, and writing past the end of the stack is an out-of-bounds
+      // store -- silent in release, a panic in debug.
+      let need = func_slot + 2 + nargs
+      if thread.stack.length() < need {
+        thread.ensure_stack(need)
+      }
       let frame : @core.Frame = {
         pc: 0,
         func_slot,

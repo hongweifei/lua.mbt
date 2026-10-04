@@ -942,4 +942,20 @@ do
   end
 end
 
+-- A built-in answers in the registers the call owns, and for a call that was
+-- given no arguments there are none: the window has to reach one slot past the
+-- argument list, or the answer is written off the end of the stack.  Through
+-- `pcall` the call has no room of the caller's own to land in, which is the shape
+-- that shows it.
+do
+  local ok, v = pcall(math.random)
+  assert(ok, "pcall of a built-in with no arguments")
+  assert(type(v) == "number", "and its answer comes back")
+  local ok2, t = pcall(os.time)
+  assert(ok2 and type(t) == "number", "the same for another one")
+  assert(select("#", pcall(os.clock)) == 2, "one answer, not two")
+  assert(select("#", pcall(table.sort, {})) == 1,
+    "and a built-in that answers with nothing")
+end
+
 print("language: ok")
