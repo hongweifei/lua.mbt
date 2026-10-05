@@ -248,7 +248,17 @@ package's public interface, which is the point of it.
   conversion specifier at a time, as the reference does, and passes the rest of
   the format through byte for byte, so `os.date("%Y年")` gives `1970年` --
   formatting the whole format in one call loses the text around a multi byte
-  character.  A file name is bytes too: a name that reads as
+  character.  `os.time` follows `loslib.c` in the same way: once `mktime` has
+  normalised the structure, the reference writes it back **into the table the
+  caller passed in** (`setallfields`' nine fields, in that order, `day` rather
+  than the C name `mday`, and `isdst` as a boolean only where the host had an
+  answer), so after `local t = {year = 2024, month = 13, day = 1}; os.time(t)`
+  the table reads `year = 2025`, `month = 1` and the defaulted `hour = 12`.  A
+  field is judged by `lua_tointegerx` -- `year = "2024"` is a field -- and the
+  bound `getfield` asks is whether the value still fits in a C `int` once that
+  field's own starting point comes off it (years from 1900, months from
+  January), which is what `field 'year' is out-of-bound` means.  A file name is
+  bytes too: a name that reads as
   UTF-8 is handed to the host as UTF-8, which is what makes a Chinese file name
   work on Windows (see the differences below); a name that is not UTF-8 is
   passed through unchanged for the host's own single byte encoding.

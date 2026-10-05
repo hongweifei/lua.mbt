@@ -13,6 +13,12 @@ pub fn os_clock(
 }
 
 ///|
+/// `os.time`.  The reference reads the table with `getfield`, converts with
+/// `mktime`, and then hands the *normalised* structure back into the very table
+/// it was given (`setallfields`) -- so a caller can ask what `month = 13` became,
+/// and a `__newindex` sees all nine writes in the order they happen.  Those
+/// fields are written even when the conversion fails, because the reference
+/// checks the result only afterwards.
 pub fn os_time(
   state : @core.LuaState,
   upvals : Array[@core.Value],
@@ -25,12 +31,12 @@ pub fn os_time(
   let t = @core.check_table(state, args, 1, "time")
   // Year, month and day have no default, so a date table missing one is
   // refused; the time-of-day fields do have them (`os_time`'s `getfield`).
-  let year = field_int(state, t, "year", -1L)
-  let month = field_int(state, t, "month", -1L)
-  let day = field_int(state, t, "day", -1L)
-  let hour = field_int(state, t, "hour", 12L)
-  let min = field_int(state, t, "min", 0L)
-  let sec = field_int(state, t, "sec", 0L)
+  let year = field_int(state, t, "year", -1L, 1900L)
+  let month = field_int(state, t, "month", -1L, 1L)
+  let day = field_int(state, t, "day", -1L, 0L)
+  let hour = field_int(state, t, "hour", 12L, 0L)
+  let min = field_int(state, t, "min", 0L, 0L)
+  let sec = field_int(state, t, "sec", 0L, 0L)
   let isdst = match
     @vm.index_get(
       state,
@@ -43,16 +49,11 @@ pub fn os_time(
     @core.VNil => -1
     v => if v.is_truthy() { 1 } else { 0 }
   }
+  let tm = Bytes::new(tm_field_count * 8)
   let r = @host.lua_mbt_time_make(
-    year.to_int(),
-    month.to_int(),
-    day.to_int(),
-    hour.to_int(),
-    min.to_int(),
-    sec.to_int(),
-    isdst,
-    1,
+    year, month, day, hour, min, sec, isdst, 1, tm,
   )
+  set_all_fields(state, t, tm_values(tm))
   if r == -1L {
     @core.runtime_error(
       state, "time result cannot be represented in this installation",
@@ -62,39 +63,157 @@ pub fn os_time(
 }
 
 ///|
-pub fn field_int(
+/// How many `int64`s the host reports back, and how wide each one is: the nine
+/// members of `struct tm` that `setallfields` knows about, laid out lowest byte
+/// first so neither side assumes the other's word order.
+let tm_field_count : Int = 9
+
+///|
+/// One of those fields.  The arithmetic wraps the way C's does, so a negative
+/// `tm_year` -- a date before 1900 -- comes back as the number the host stored.
+fn tm_field(tm : Bytes, which : Int) -> Int64 {
+  let mut v = 0L
+  let mut i = 7
+  while i >= 0 {
+    v = v * 256L + @core.ubyte_at(tm, which * 8 + i).to_int64()
+    i = i - 1
+  }
+  v
+}
+
+///|
+/// What `mktime` left in the structure: the nine fields in the order
+/// `setallfields` writes them -- `tm_year`, `tm_mon`, `tm_mday`, `tm_hour`,
+/// `tm_min`, `tm_sec`, `tm_yday`, `tm_wday`, `tm_isdst`.
+fn tm_values(tm : Bytes) -> Array[Int64] {
+  let out : Array[Int64] = []
+  for i in 0..<tm_field_count {
+    out.push(tm_field(tm, i))
+  }
+  out
+}
+
+///|
+/// `setallfields`: the normalised structure written back into the table, each
+/// field shifted by what C measures it from -- `tm_year` is years since 1900,
+/// `tm_mon` months since January, and `tm_yday`/`tm_wday` are both zero-based.
+/// Note the order, which a `__newindex` observer sees: `day`, not `mday`, and the
+/// two derived fields last.
+fn set_all_fields(
+  state : @core.LuaState,
+  t : @core.LTable,
+  tm : Array[Int64],
+) -> Unit raise @core.LuaRaised {
+  let names : Array[(String, Int64)] = [
+    ("year", 1900L),
+    ("month", 1L),
+    ("day", 0L),
+    ("hour", 0L),
+    ("min", 0L),
+    ("sec", 0L),
+    ("yday", 1L),
+    ("wday", 1L),
+  ]
+  for i in 0..<8 {
+    let (name, delta) = names[i]
+    set_field(state, t, name, @core.VInt(tm[i] + delta))
+  }
+  // `setboolfield`: a daylight-saving flag the host left undefined is not
+  // written at all -- it is a boolean or nothing, never a number.
+  if tm[8] >= 0L {
+    set_field(state, t, "isdst", @core.VBool(tm[8] != 0L))
+  }
+}
+
+///|
+/// One write-back.  `lua_setfield` is a *setting*, so a table that does not hold
+/// the key and has a `__newindex` sends the value there and keeps nothing.
+fn set_field(
+  state : @core.LuaState,
+  t : @core.LTable,
+  name : String,
+  v : @core.Value,
+) -> Unit raise @core.LuaRaised {
+  @vm.index_set(
+    state,
+    @core.VTable(t),
+    @core.VStr(@core.LStr::of_string(name)),
+    v,
+    @core.src_none,
+  )
+}
+
+///|
+/// The reference's `getfield`: one field of the date table, read as an integer.
+///
+/// `lua_tointegerx` is what decides whether a value is an integer, so a string
+/// spelling a numeral counts as one (`year = "2024"` and even `"2024.0"`, which
+/// is what `tonumber` would give) while a fractional float, a boolean or a table
+/// does not.  A nil field falls back on `dflt`, and a negative `dflt` marks a
+/// field the program has to supply.
+///
+/// `delta` is what C measures the field from, and the bound is checked on that
+/// shifted value: the reference asks that `tm_year` and friends fit in a C `int`
+/// and says `field 'x' is out-of-bound` when they do not.  A default is *not*
+/// checked -- it is the library's own number, not the program's.
+fn field_int(
   state : @core.LuaState,
   t : @core.LTable,
   name : String,
   dflt : Int64,
+  delta : Int64,
 ) -> Int64 raise @core.LuaRaised {
   // `getfield` reads through `lua_getfield`, so an `__index` metamethod supplies
   // the field when the table does not hold it -- and that call is a host
   // boundary, so a metamethod entered from here cannot yield.
-  match
-    @vm.index_get(
-      state,
-      @core.VTable(t),
-      @core.VStr(@core.LStr::of_string(name)),
-      @core.src_none,
-    ) {
-    @core.VInt(i) => i
-    @core.VNum(d) =>
-      if @core.float_is_int64(d) {
-        @core.float_to_int64(d)
+  let v = @vm.index_get(
+    state,
+    @core.VTable(t),
+    @core.VStr(@core.LStr::of_string(name)),
+    @core.src_none,
+  )
+  match v.as_integer() {
+    Some(i) =>
+      if field_fits(i, delta) {
+        i
+      } else {
+        @core.runtime_error(state, "field '" + name + "' is out-of-bound")
+      }
+    None =>
+      if v.is_nil() {
+        if dflt < 0L {
+          @core.runtime_error(
+            state,
+            "field '" + name + "' missing in date table",
+          )
+        } else {
+          dflt
+        }
       } else {
         @core.runtime_error(state, "field '" + name + "' is not an integer")
       }
-    @core.VNil =>
-      // A negative default marks a field the reference requires.
-      if dflt < 0L {
-        @core.runtime_error(state, "field '" + name + "' missing in date table")
-      } else {
-        dflt
-      }
-    _ => @core.runtime_error(state, "field '" + name + "' is not an integer")
   }
 }
+
+///|
+/// `getfield`'s bound: once `delta` comes off the field, what is left has to fit
+/// in the C `int` that member of `struct tm` is.  A default never reaches this
+/// test -- it is the library's own number, not the program's.
+fn field_fits(value : Int64, delta : Int64) -> Bool {
+  if value >= 0L {
+    value - delta <= int_field_max
+  } else {
+    int_field_min + delta <= value
+  }
+}
+
+///|
+/// The `int` the reference's `struct tm` members are: `getfield` bounds a field
+/// by what will be stored in one of them, not by the number the program wrote.
+let int_field_max : Int64 = 2147483647L
+
+///|
+let int_field_min : Int64 = -2147483648L
 
 ///|
 pub fn os_difftime(

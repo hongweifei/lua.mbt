@@ -12,7 +12,10 @@ xoshiro256** 随机数发生器、字符串转数字、排序）。Lua 以 MIT �
 `lbaselib.c`（`pairscont`、`dofilecont`、`finishpcall`）和 `lcorolib.c` 的设计。
 `require` 的四个搜索器、`package.path`/`package.cpath` 的展开与入口名的推导，遵循
 `loadlib.c`（`searchpath`、`findfile`、`loadfunc`、`checkload`、`searcher_Croot`）
-的设计。
+的设计。`os.time` 读字段、界检与把归一化结果写回调用者那张表，遵循 `loslib.c`
+（`getfield`、`getboolfield`、`setallfields`）的设计；`io.read`/`io.lines` 的数字
+扫描与结束、关闭、上限的答法，遵循 `liolib.c`（`read_number`、`io_readline`、
+`aux_lines`、`getiofile`、`tofile`）的设计。
 
 ---
 

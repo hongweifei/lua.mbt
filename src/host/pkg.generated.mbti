@@ -126,7 +126,7 @@ pub fn lua_mbt_system_available() -> Int
 
 pub fn lua_mbt_time() -> Int64
 
-pub fn lua_mbt_time_make(Int, Int, Int, Int, Int, Int, Int, Int) -> Int64
+pub fn lua_mbt_time_make(Int64, Int64, Int64, Int64, Int64, Int64, Int, Int, Bytes) -> Int64
 
 pub fn lua_mbt_tm_breakdown(Int64, Int, Bytes) -> Int
 

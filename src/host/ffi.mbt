@@ -203,15 +203,24 @@ pub extern "c" fn lua_mbt_strftime_time(
 ) -> Int = "lua_mbt_strftime_time"
 
 ///|
+
+///|
+/// Builds a timestamp from the seven date fields, and fills `out` with the nine
+/// normalised `struct tm` fields as eight bytes each -- `os.time` writes those
+/// back into the table it was given.  The six calendar fields are `Int64`
+/// because `os.time` hands over what the program wrote (the year, not the count
+/// of years since 1900) after checking it fits; see the note in `stub.c`.
+#borrow(out)
 pub extern "c" fn lua_mbt_time_make(
-  year : Int,
-  month : Int,
-  day : Int,
-  hour : Int,
-  min : Int,
-  sec : Int,
+  year : Int64,
+  month : Int64,
+  day : Int64,
+  hour : Int64,
+  min : Int64,
+  sec : Int64,
   isdst : Int,
   islocal : Int,
+  out : Bytes,
 ) -> Int64 = "lua_mbt_time_make"
 
 ///|

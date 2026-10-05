@@ -593,22 +593,35 @@ lua_mbt_strftime_time(
 
 /* Builds a timestamp from the nine `struct tm` fields.  Fields outside their
  * normal range are normalised exactly like mktime does.  `islocal` selects
- * local time (mktime) instead of UTC (timegm).  Returns -1 on failure. */
+ * local time (mktime) instead of UTC (timegm).  Returns -1 on failure.
+ *
+ * `out` receives the structure as it stands *after* the call -- the nine
+ * normalised fields, one int64 each in the file's own little-endian layout, in
+ * the order `setallfields` writes them (year, month, day, hour, minute, second,
+ * yday, wday, isdst).  The reference reads exactly those back out of the same
+ * `struct tm` to normalise the date table the program handed it, and it does so
+ * whether or not the conversion succeeded, so they are stored before the failure
+ * is reported. */
 MBT_EXPORT int64_t lua_mbt_time_make(
-  int32_t year,
-  int32_t month,
-  int32_t day,
-  int32_t hour,
-  int32_t min,
-  int32_t sec,
+  int64_t year,
+  int64_t month,
+  int64_t day,
+  int64_t hour,
+  int64_t min,
+  int64_t sec,
   int32_t isdst,
-  int32_t islocal
+  int32_t islocal,
+  moonbit_bytes_t out
 ) {
   struct tm tmv;
   time_t r;
+  uint8_t *p = (uint8_t *)out;
   memset(&tmv, 0, sizeof(tmv));
-  tmv.tm_year = (int)year - 1900;
-  tmv.tm_mon = (int)month - 1;
+  /* The fields arrive as the program wrote them and are shifted here, in
+   * 64-bit arithmetic: `os.time` has already checked that each one lands inside
+   * C's `int` once its own offset comes off it, exactly as `getfield` does. */
+  tmv.tm_year = (int)(year - 1900);
+  tmv.tm_mon = (int)(month - 1);
   tmv.tm_mday = (int)day;
   tmv.tm_hour = (int)hour;
   tmv.tm_min = (int)min;
@@ -623,6 +636,15 @@ MBT_EXPORT int64_t lua_mbt_time_make(
     r = timegm(&tmv);
 #endif
   }
+  mbt_put_i64(p + 0, tmv.tm_year);
+  mbt_put_i64(p + 8, tmv.tm_mon);
+  mbt_put_i64(p + 16, tmv.tm_mday);
+  mbt_put_i64(p + 24, tmv.tm_hour);
+  mbt_put_i64(p + 32, tmv.tm_min);
+  mbt_put_i64(p + 40, tmv.tm_sec);
+  mbt_put_i64(p + 48, tmv.tm_yday);
+  mbt_put_i64(p + 56, tmv.tm_wday);
+  mbt_put_i64(p + 64, tmv.tm_isdst);
   if (r == (time_t)-1) {
     return -1;
   }

@@ -8,8 +8,6 @@ import {
 // Values
 pub fn date_table(@core.LuaState, Int64, Bool) -> @core.Value raise @core.LuaRaised
 
-pub fn field_int(@core.LuaState, @core.LTable, String, Int64) -> Int64 raise @core.LuaRaised
-
 pub fn open_os_library(@core.LuaState) -> Unit
 
 pub fn os_clock(@core.LuaState, Array[@core.Value], ArrayView[@core.Value]) -> @core.BuiltinResult raise @core.LuaRaised

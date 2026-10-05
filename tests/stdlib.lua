@@ -1049,6 +1049,93 @@ do
      "field 'month' is not an integer", "and a field that is not a number is refused")
 end
 
+-- The other half of `os.time`: the conversion is not the only answer it gives.
+-- `mktime` normalises the structure it was handed and `setallfields` writes that
+-- back into the *same table the program passed in*, field by field through
+-- `lua_setfield` -- so the order is observable from a `__newindex`, a missing
+-- hour comes back as the 12 it defaulted to, and a table that only ever had a
+-- `year` can be read again without one.
+do
+  local seen = {}
+  local t = setmetatable({}, {
+    __index = { year = 2024, month = 13, day = 1 },
+    __newindex = function(_, k, v)
+      -- The daylight-saving flag is a boolean whose *value* belongs to the
+      -- zone, so only its type is pinned here; every other field is arithmetic.
+      seen[#seen + 1] = k .. "=" .. (k == "isdst" and type(v) or tostring(v))
+    end,
+  })
+  local noon = os.time(t)
+  eq(table.concat(seen, " "),
+     "year=2025 month=1 day=1 hour=12 min=0 sec=0 yday=1 wday=4 isdst=boolean",
+     "the normalised structure goes back into the table, in the reference's order")
+  eq(next(t) == nil, true, "and a __newindex keeps all nine of them to itself")
+
+  local n = { year = 2024, month = 13, day = 1 }
+  eq(os.time(n), noon, "the same moment, for a table that holds its own fields")
+  eq(n.year .. "/" .. n.month .. "/" .. n.day, "2025/1/1", "thirteen months is next January")
+  eq(n.hour, 12, "the hour a missing field defaulted to is written down")
+  eq(n.yday, 1, "and so are the two the host computed")
+  eq(n.wday, 4, "one day later in the week, counted from Sunday")
+  eq(math.type(n.year), "integer", "what it writes are integers")
+  eq(type(n.isdst), "boolean", "and the flag is a boolean, never a number")
+  eq(os.time(n), noon, "asking again with the normalised table changes nothing")
+
+  -- A write-back is a *setting*: nothing of the program's own table survives it,
+  -- but a field it never had is created.
+  local extra = { year = 2024, month = 1, day = 1, note = "keep me" }
+  os.time(extra)
+  eq(extra.note, "keep me", "a field the library does not know is left alone")
+  eq(extra.sec, 0, "and a defaulted one appears")
+
+  local w = 0
+  local stop = setmetatable({}, {
+    __index = { year = 2024, day = 1 },
+    __newindex = function() w = w + 1 end,
+  })
+  eq(select(2, pcall(os.time, stop)), "field 'month' missing in date table",
+     "a required field stops the call")
+  eq(w, 0, "before anything has been written back")
+end
+
+-- `lua_tointegerx` decides what a field is, and the bound `getfield` checks is
+-- the C `int` the shifted value has to fit into -- `year` is measured from 1900
+-- and `month` from January, so their limits differ by exactly that.
+do
+  local s = { year = "2024", month = "1", day = "1" }
+  eq(os.time(s), os.time({ year = 2024, month = 1, day = 1 }),
+     "a string spelling a numeral is a field")
+  eq(s.year, 2024, "and the write-back leaves the number, not the string")
+  eq(math.type(s.year), "integer", "an integer at that")
+  eq(select(2, pcall(os.time, { year = "2024.5", month = 1, day = 1 })),
+     "field 'year' is not an integer", "but a fractional one is not")
+  eq(type(select(2, pcall(os.time, { year = 2024.0, month = 1, day = 1 }))), "number",
+     "while a float holding an integral value is")
+
+  local last_year = 2147483647 + 1900
+  eq(select(2, pcall(os.time, { year = last_year + 1, month = 1, day = 1 })),
+     "field 'year' is out-of-bound", "one year past what tm_year can hold")
+  eq(select(2, pcall(os.time, { year = -2147483648 + 1900 - 1, month = 1, day = 1 })),
+     "field 'year' is out-of-bound", "and one past it going down")
+  eq(select(2, pcall(os.time, { year = 2^62, month = 1, day = 1 })),
+     "field 'year' is out-of-bound", "the bound comes before the conversion, not after")
+  eq(select(2, pcall(os.time, { year = 2024, month = 2147483647 + 1 + 1, day = 1 })),
+     "field 'month' is out-of-bound", "month's own limit is one higher")
+  local inside = tostring(select(2, pcall(os.time, { year = last_year, month = 1, day = 1 })))
+  eq(inside:find("out-of-bound", 1, true) == nil, true,
+     "the last year inside the bound is the host's business, not the bound's")
+
+  -- A year before 1900 is a *negative* `tm_year`, and whether such a time exists
+  -- at all is the host's answer (Windows has none, Linux counts back from 1970).
+  -- What must hold in either case is that the field comes back as it went in.
+  local before = { year = 1899, month = 1, day = 1 }
+  pcall(os.time, before)
+  eq(before.year, 1899, "a negative tm_year round-trips through the host")
+  local far = { year = -2147481748, month = 1, day = 1 }
+  pcall(os.time, far)
+  eq(far.year, -2147481748, "and so does the smallest one the bound lets through")
+end
+
 -- `io.read("n")` is the reference's `read_number`: a small machine collects the
 -- longest prefix that *looks* like a numeral and then asks the number reader
 -- whether it is one, so what a read takes in and what it leaves in the stream is
