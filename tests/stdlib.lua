@@ -1309,4 +1309,58 @@ do
   eq(popen_refused("rbt"), true, "at most one may follow it")
 end
 
+-- A library table's *name set* is behaviour too.  A name the reference does not
+-- answer is not a free extra: `if math.pow then ... end` -- a real idiom in code
+-- written against 5.1 and 5.2 -- takes a different branch, and 5.3 removed
+-- `math.pow` (the operator `^` replaced it) along with `cosh`/`sinh`/`tanh`.
+-- These lists are copied off the reference build, member for member.
+do
+  local function names(t, drop)
+    local out = {}
+    for k in pairs(t) do
+      if not (drop and drop[k]) then out[#out + 1] = tostring(k) end
+    end
+    table.sort(out)
+    return table.concat(out, ",")
+  end
+  local expected = {
+    string = "byte,char,dump,find,format,gmatch,gsub,len,lower,match,pack,"
+      .. "packsize,rep,reverse,sub,unpack,upper",
+    table = "concat,insert,move,pack,remove,sort,unpack",
+    math = "abs,acos,asin,atan,ceil,cos,deg,exp,floor,fmod,huge,log,max,"
+      .. "maxinteger,min,mininteger,modf,pi,rad,random,randomseed,sin,sqrt,tan,"
+      .. "tointeger,type,ult",
+    io = "close,flush,input,lines,open,output,popen,read,stderr,stdin,stdout,"
+      .. "tmpfile,type,write",
+    os = "clock,date,difftime,execute,exit,getenv,remove,rename,setlocale,time,"
+      .. "tmpname",
+    debug = "debug,gethook,getinfo,getlocal,getmetatable,getregistry,getupvalue,"
+      .. "getuservalue,setcstacklimit,sethook,setlocal,setmetatable,setupvalue,"
+      .. "setuservalue,traceback,upvalueid,upvaluejoin",
+    utf8 = "char,charpattern,codepoint,codes,len,offset",
+    coroutine = "close,create,isyieldable,resume,running,status,wrap,yield",
+    -- `package.loadc` is this implementation's own extension, so it is dropped
+    -- from the comparison here; `tests/native_libs.lua` is where it is asserted.
+    package = "config,cpath,loaded,loadlib,path,preload,searchers,searchpath",
+  }
+  local order = {
+    "string", "table", "math", "io", "os", "debug", "utf8", "coroutine",
+    "package",
+  }
+  for i = 1, #order do
+    local key = order[i]
+    local drop = key == "package" and { loadc = true } or nil
+    eq(names(_G[key], drop), expected[key], key .. " has the reference's names")
+  end
+
+  -- The file object's metatable belongs to the same class: five entries, and
+  -- `__name` is what `io.type` reports.
+  local devnull = package.config:sub(1, 1) == "\\" and "NUL" or "/dev/null"
+  local f = assert(io.open(devnull, "r"))
+  eq(names(getmetatable(f)), "__close,__gc,__index,__name,__tostring",
+     "a file carries the reference's metatable")
+  eq(io.type(f), "file", "and io.type reads its __name")
+  f:close()
+end
+
 print("stdlib: ok")

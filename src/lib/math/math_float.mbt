@@ -304,36 +304,6 @@ pub fn math_acos(
 }
 
 ///|
-pub fn math_sinh(
-  state : @core.LuaState,
-  upvals : Array[@core.Value],
-  args : ArrayView[@core.Value],
-) -> @core.BuiltinResult raise @core.LuaRaised {
-  let _ = upvals
-  math_float1(state, args, "sinh", fn(d) { @cmath.sinh(d) })
-}
-
-///|
-pub fn math_cosh(
-  state : @core.LuaState,
-  upvals : Array[@core.Value],
-  args : ArrayView[@core.Value],
-) -> @core.BuiltinResult raise @core.LuaRaised {
-  let _ = upvals
-  math_float1(state, args, "cosh", fn(d) { @cmath.cosh(d) })
-}
-
-///|
-pub fn math_tanh(
-  state : @core.LuaState,
-  upvals : Array[@core.Value],
-  args : ArrayView[@core.Value],
-) -> @core.BuiltinResult raise @core.LuaRaised {
-  let _ = upvals
-  math_float1(state, args, "tanh", fn(d) { @cmath.tanh(d) })
-}
-
-///|
 pub fn math_exp(
   state : @core.LuaState,
   upvals : Array[@core.Value],
@@ -361,16 +331,4 @@ pub fn math_rad(
 ) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
   math_float1(state, args, "rad", fn(d) { d * (3.141592653589793 / 180.0) })
-}
-
-///|
-pub fn math_pow_fn(
-  state : @core.LuaState,
-  upvals : Array[@core.Value],
-  args : ArrayView[@core.Value],
-) -> @core.BuiltinResult raise @core.LuaRaised {
-  let _ = upvals
-  let a = @core.check_number(state, args, 1, "pow")
-  let b = @core.check_number(state, args, 2, "pow")
-  @core.One(@core.VNum(@cmath.pow(a, b)))
 }

@@ -125,4 +125,19 @@ assert(
     tostring(why_entered) .. ")"
 )
 
+-- `package.loadc` is the only name in `package` that the reference does not
+-- answer, so `tests/stdlib.lua` drops it and compares the rest member for
+-- member.  Asserting the whole function set here is what keeps that drop
+-- honest: one extension, not a drifting superset.
+local fns = {}
+for k, v in pairs(package) do
+  if type(v) == "function" then fns[#fns + 1] = k end
+end
+table.sort(fns)
+assert(
+  table.concat(fns, ",") == "loadc,loadlib,searchpath",
+  "package's functions are the reference's two plus this build's own: "
+    .. table.concat(fns, ",")
+)
+
 print("native_libs: ok")

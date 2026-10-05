@@ -1,6 +1,11 @@
 // Installing the mathematical library.
 
 ///|
+/// The `math` table.  Its members are exactly the reference's: the 5.4 manual
+/// lists no `pow` (5.3 replaced it with `^`), nor `cosh`/`sinh`/`tanh`.  A name
+/// the reference does not answer is not a free extra -- `if math.pow then ...`
+/// takes a different branch in the two implementations, and that is a behaviour
+/// difference, not a convenience.
 pub fn open_math_library(state : @core.LuaState) -> Unit {
   let t = @core.LTable::new()
   t.set_str("abs", @core.VBuiltin(@core.LBuiltin::make("abs", 1, math_abs)))
@@ -18,12 +23,8 @@ pub fn open_math_library(state : @core.LuaState) -> Unit {
   t.set_str("asin", @core.VBuiltin(@core.LBuiltin::make("asin", 1, math_asin)))
   t.set_str("acos", @core.VBuiltin(@core.LBuiltin::make("acos", 1, math_acos)))
   t.set_str("atan", @core.VBuiltin(@core.LBuiltin::make("atan", 2, math_atan)))
-  t.set_str("sinh", @core.VBuiltin(@core.LBuiltin::make("sinh", 1, math_sinh)))
-  t.set_str("cosh", @core.VBuiltin(@core.LBuiltin::make("cosh", 1, math_cosh)))
-  t.set_str("tanh", @core.VBuiltin(@core.LBuiltin::make("tanh", 1, math_tanh)))
   t.set_str("exp", @core.VBuiltin(@core.LBuiltin::make("exp", 1, math_exp)))
   t.set_str("log", @core.VBuiltin(@core.LBuiltin::make("log", 2, math_log)))
-  t.set_str("pow", @core.VBuiltin(@core.LBuiltin::make("pow", 2, math_pow_fn)))
   t.set_str("deg", @core.VBuiltin(@core.LBuiltin::make("deg", 1, math_deg)))
   t.set_str("rad", @core.VBuiltin(@core.LBuiltin::make("rad", 1, math_rad)))
   t.set_str("max", @core.VBuiltin(@core.LBuiltin::make("max", -1, math_max)))
