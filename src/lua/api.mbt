@@ -11,6 +11,15 @@ pub fn set_warnings_enabled(st : @core.LuaState, enabled : Bool) -> Unit {
 }
 
 ///|
+/// Runs the finalizers and lets go of the state, which is `lua_close`'s place in
+/// the C API and what the standalone interpreter does after the script is over --
+/// the last thing a `__gc` can print happens here.  A handler that fails is
+/// reported as a warning, exactly as it is during a collection.
+pub fn close(st : @core.LuaState) -> Unit {
+  @vm.close_state(st)
+}
+
+///|
 /// Defines the global `arg` table.
 pub fn set_global_arg(st : @core.LuaState, t : @core.LTable) -> Unit {
   st.globals.set_str("arg", @core.VTable(t))

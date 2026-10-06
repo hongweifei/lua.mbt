@@ -1,0 +1,392 @@
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/shell",
+  "moonbitlang/core/env",
+  "moonbitlang/core/string",
+}
+
+// Drives the command line of this build and of the reference build through the
+// same shapes and compares stdout, stderr and exit status byte for byte.
+// Usage: moon run --target native tools/run_cli_matrix.mbtx
+//          [--ref=path] [--our=path] [tag ...]
+//
+// Why a matrix and not a unit test: everything here is decided by the *launcher*
+// -- which words are options, what `arg` holds, when a finalizer runs, what a
+// warning costs -- and the reference's own `main.lua` cannot cover it on this
+// host, because it drives `lua` through a C test library (`T`) that a release
+// build does not have.  So each shape below is one process call to each binary.
+//
+// Three things are folded before the bytes are compared, each a property of where
+// a build sits rather than of what it implements:
+// - the executable's own path, which opens every error the launcher reports;
+// - the version banner, which this build identifies as its own -- it is asked
+//   from `--version` itself, so a banner that disappears or grows a line is
+//   still a difference;
+// - the directory part of the `no file '...'` entries in a module-not-found
+//   trace, which each build derives from its own location.  Only the directory
+//   is folded: the templates, the entry count and the file names still have to
+//   agree, which is what makes that shape worth running.  `l_missing_env` runs
+//   the same shape with the paths set by hand, so it needs no folding at all.
+//
+// Everything else is compared as it comes out, which is why the exit status of
+// `os.exit`, the order of `arg`, the `-W` warnings and the finalizers a closing
+// runs are all here: they are the parts a Lua-level suite cannot see.
+
+let ref_exe : String = "_build/luaref.exe"
+let our_exe : String = "_build/native/release/build/cmd/main/main.exe"
+
+/// The fixtures live here, so a case can name `tools/cli/fin.lua` and both
+/// binaries see the same relative path in the same working directory.
+let cli : String = "tools/cli"
+
+struct Case {
+  tag : String
+  args : Array[String]
+  /// Text fed on standard input.  Every run gets some stdin -- an empty string
+  /// when the case has none -- because whether the stream is closed or merely
+  /// empty is a difference between two ways of starting a process, and the
+  /// launcher's "no script and no terminal" branch depends on it.
+  stdin : String
+  /// Extra environment for the run, which is how the `LUA_*` shapes are set
+  /// without touching the harness's own environment.
+  env : Array[(String, String)]
+}
+
+fn case(
+  tag : String,
+  args : Array[String],
+  stdin~ : String = "",
+  env~ : Array[(String, String)] = [],
+) -> Case {
+  { tag, args, stdin, env }
+}
+
+fn cases() -> Array[Case] {
+  let e : Array[Case] = []
+  e.push(case("v", ["-v"]))
+  e.push(case("help", ["-h"]))
+  e.push(case("unknown", ["-x"]))
+  e.push(case("e1", ["-e", "print(1)"]))
+  e.push(case("e2", ["-e", "print(1)", "-e", "print(2)"]))
+  e.push(case("e_missing", ["-e"]))
+  e.push(case("e_dashopt", ["-e", "-v"]))
+  e.push(case("l_math", ["-l", "math", "-e", "print(type(math))"]))
+  e.push(case("l_eq", ["-e", "print(type(m))", "-l", "m=math"]))
+  e.push(case("dashdash", ["--", "-e"]))
+  e.push(case("script", [cli + "/args.lua", "a", "b", "c"]))
+  e.push(case("script_stdin", ["-"], stdin="print(1)\n"))
+  e.push(case("shebang", [cli + "/shebang.lua"]))
+  e.push(case("bom", [cli + "/bom.lua"]))
+  e.push(case("badfile", [cli + "/bad.lua"]))
+  e.push(case("exit3", [cli + "/exit3.lua"]))
+  e.push(case("errfile", [cli + "/err.lua"]))
+  e.push(case("nostdin", []))
+  e.push(case("E", ["-E", "-e", "print(type(package.path))"]))
+  e.push(case(
+    "W",
+    ["-W", "once", "-e", "warn(\"w1\")", "-e", "print(\"done\")"],
+  ))
+  e.push(case("twice", [cli + "/p1.lua", cli + "/p1.lua"]))
+  e.push(case("dashfile", [cli + "/p1.lua", "-", cli + "/exit3.lua"]))
+  e.push(case("version_const", ["-e", "print(_VERSION)"]))
+  e.push(case("prompt", ["-e", "print(_PROMPT, _PROMPT2)"]))
+  // The shapes the official `main.lua` would have covered with `T`.
+  e.push(case(
+    "arg_shape",
+    [
+      "-e",
+      "io.write(\"n=\", tostring(arg.n), \" m1=\", tostring(arg[-1])," +
+        " \" a0=\", tostring(arg[0]), \" a1=\", tostring(arg[1])," +
+        " \" a2=\", tostring(arg[2]), \"\\n\")",
+      cli + "/args.lua",
+      "one",
+      "two",
+    ],
+  ))
+  e.push(case(
+    "arg_no_script",
+    [
+      "-e",
+      "io.write(\"n=\", tostring(arg.n), \" m1=\", tostring(arg[-1])," +
+        " \" a1=\", tostring(arg[1]), \"\\n\")",
+    ],
+  ))
+  e.push(case("v_after_script", [cli + "/p1.lua", "-v"]))
+  e.push(case("l_missing", ["-l", "no_such_module_xyz"]))
+  e.push(case(
+    "l_missing_env",
+    ["-l", "no_such_module_xyz"],
+    env=[("LUA_PATH", "./?.lua;./?/init.lua"), ("LUA_CPATH", "./?.dll")],
+  ))
+  e.push(case(
+    "l_preload",
+    [
+      "-e",
+      "package.preload.zz = function() return 7 end",
+      "-l",
+      "zz",
+      "-e",
+      "print(type(package.loaded.zz), package.loaded.zz)",
+    ],
+  ))
+  e.push(case("script_then_e", ["-e", "print(1)", cli + "/p1.lua"]))
+  e.push(case("minus_twice", ["-", "-"]))
+  e.push(case("exit_empty", ["-e", "os.exit()"]))
+  e.push(case("exit_false", ["-e", "os.exit(false)"]))
+  e.push(case("exit_true", ["-e", "os.exit(true)"]))
+  e.push(case("exit_zero", ["-e", "os.exit(0)"]))
+  e.push(case("exit_neg", ["-e", "os.exit(-1)"]))
+  e.push(case("exit_bool_nil", ["-e", "os.exit(nil)"]))
+  e.push(case("exit_string", ["-e", "os.exit(\"bye\")"]))
+  e.push(case("exit_string_num", ["-e", "os.exit(\"4\")"]))
+  e.push(case("exit_too_big", ["-e", "os.exit(2^40)"]))
+  e.push(case("missing_file", ["no_such_file_xyz.lua"]))
+  e.push(case("dot_as_script", ["."]))
+  e.push(case("stop_long", ["--", cli + "/p1.lua"]))
+  e.push(case("long_opt", ["--version"]))
+  e.push(case(
+    "e_then_error",
+    ["-e", "print(1)", "-e", "error(\"x\")", "-e", "print(2)"],
+  ))
+  e.push(case("stdin_err", ["-"], stdin="local x =\n"))
+  e.push(case("stdin_error_exit", ["-"], stdin="error(\"boom\")\n"))
+  e.push(case("file_then_stdin", [cli + "/p1.lua", "-", cli + "/p1.lua"]))
+  // The launcher's closing, and what a finalizer may still say after it.
+  e.push(case("fin_normal", [cli + "/fin.lua"]))
+  e.push(case("fin_exit", [cli + "/fin_exit.lua"]))
+  e.push(case("fin_close", [cli + "/fin_close.lua"]))
+  e.push(case("fin_false_close", [cli + "/fin_false_close.lua"]))
+  e.push(case("fin_err", ["-W", cli + "/fin_err.lua"]))
+  e.push(case("fin_table", ["-W", cli + "/fin_table.lua"]))
+  e.push(case("fin_yield", ["-W", cli + "/fin_yield.lua"]))
+  e.push(case("fin_hook", ["-W", cli + "/fin_hook.lua"]))
+  // The environment the launcher reads before the libraries are opened.
+  for name in ["LUA_INIT", "LUA_INIT_5_4", "LUA_PATH", "LUA_CPATH"] {
+    e.push(case(
+      "env_" + name,
+      ["-e", "print(\"body\")"],
+      env=[(name, "print(\"env\")")],
+    ))
+  }
+  e
+}
+
+fn lines(s : String) -> Array[String] {
+  [for l in s.split("\n") => l.trim_end().to_owned()]
+}
+
+/// One past the last path separator, or 0 when there is none.
+fn last_sep(s : String) -> Int {
+  let chars = s.to_array()
+  let mut cut = 0
+  let mut i = 0
+  while i < chars.length() {
+    if chars[i] == '\\' || chars[i] == '/' {
+      cut = i + 1
+    }
+    i = i + 1
+  }
+  cut
+}
+
+/// A slice of characters back into a string.
+fn chars_to_string(cs : ArrayView[Char]) -> String {
+  let b = StringBuilder()
+  for c in cs {
+    b.write_char(c)
+  }
+  b.to_string()
+}
+
+/// Fold the directory of every `no file '...'` entry to `DIR`, which is the one
+/// part of a default search path that says where the build sits.
+fn fold_path_dirs(text : String) -> String {
+  let mark = "no file '"
+  let chars = text.to_array()
+  let mark_chars = mark.to_array()
+  let m = mark_chars.length()
+  let out = StringBuilder()
+  let n = chars.length()
+  let mut i = 0
+  while i < n {
+    let mut matches = i + m <= n
+    let mut k = 0
+    while k < m && matches {
+      if chars[i + k] != mark_chars[k] {
+        matches = false
+      }
+      k = k + 1
+    }
+    if matches {
+      out.write_string(mark)
+      let mut j = i + m
+      while j < n && chars[j] != '\'' {
+        j = j + 1
+      }
+      let entry = chars[(i + m):j]
+      let cut = last_sep(chars_to_string(entry))
+      if cut > 0 {
+        out.write_string("DIR")
+        out.write_string(chars_to_string(entry[cut:]))
+      } else {
+        out.write_string(chars_to_string(entry))
+      }
+      i = j
+    } else {
+      out.write_char(chars[i])
+      i = i + 1
+    }
+  }
+  out.to_string()
+}
+
+/// What one binary's output gets folded by: its own path, and the banner line it
+/// prints for `--version`.
+struct Fold {
+  exe : String
+  banner : String
+}
+
+fn normalize(text : String, fold : Fold, paths : Bool) -> String {
+  let mut t = text
+  if fold.banner != "" {
+    t = t.replace_all(old=fold.banner, new="BANNER")
+  }
+  t = t.replace_all(old=fold.exe, new="EXE")
+  if paths {
+    t = fold_path_dirs(t)
+  }
+  t
+}
+
+/// The first pair of lines that are not the same, as the two of them.
+fn first_difference(a : String, b : String) -> String {
+  let la = lines(a)
+  let lb = lines(b)
+  let n = if la.length() < lb.length() { la.length() } else { lb.length() }
+  let mut i = 0
+  while i < n {
+    if la[i] != lb[i] {
+      return "  | ref: \{la[i]}\n  | our: \{lb[i]}"
+    }
+    i = i + 1
+  }
+  if la.length() != lb.length() {
+    "  | ref has \{la.length()} lines, our has \{lb.length()}"
+  } else {
+    ""
+  }
+}
+
+async fn ask(exe : String, args : Array[String]) -> (Int, String, String) {
+  let cmd = @shell.Cmd(
+    exe,
+    args,
+    inherit_env=true,
+    stdin=@shell.Stdin::Text(""),
+    stderr=@shell.Capture,
+  )
+  try {
+    let out = cmd.output(timeout_ms=60000)
+    (out.exit_code(), out.stdout(), out.stderr())
+  } catch {
+    err => fail("cannot run \{exe}: \{err}")
+  }
+}
+
+/// The banner this binary identifies itself with, asked of the binary itself so
+/// that no version number is written into this file.
+async fn banner_of(exe : String) -> String {
+  let (_, out, _) = ask(exe, ["-v"])
+  let ls = lines(out)
+  if ls.length() > 0 { ls[0] } else { "" }
+}
+
+async fn run_one(c : Case, fold : Fold, paths : Bool) -> (
+  Int,
+  String,
+  String,
+) {
+  let m : Map[String, String] = Map([])
+  for (k, v) in c.env {
+    m[k] = v
+  }
+  let cmd = @shell.Cmd(
+    fold.exe,
+    c.args,
+    env=m,
+    inherit_env=true,
+    stdin=@shell.Stdin::Text(c.stdin),
+    stderr=@shell.Capture,
+  )
+  let (rc, out, err) = try {
+    let o = cmd.output(timeout_ms=60000)
+    (o.exit_code(), o.stdout(), o.stderr())
+  } catch {
+    e => fail("cannot run \{fold.exe} for \{c.tag}: \{e}")
+  }
+  (rc, normalize(out, fold, paths), normalize(err, fold, paths))
+}
+
+fn flag_of(arg : String, key : String) -> String? {
+  let parts = [for v in arg.split("=") => v.to_owned()]
+  if parts.length() > 1 && parts[0] == key {
+    Some(parts[1:].join("="))
+  } else {
+    None
+  }
+}
+
+async fn main {
+  let argv = @env.args()[1:]
+  let mut ref_path = ref_exe
+  let mut our_path = our_exe
+  let wanted : Array[String] = []
+  for a in argv {
+    match flag_of(a, "--ref") {
+      Some(v) => ref_path = v
+      None =>
+        match flag_of(a, "--our") {
+          Some(v) => our_path = v
+          None => wanted.push(a)
+        }
+    }
+  }
+  let ref_fold : Fold = { exe: ref_path, banner: banner_of(ref_path) }
+  let our_fold : Fold = { exe: our_path, banner: banner_of(our_path) }
+  let mut passed = 0
+  let failed : Array[String] = []
+  for c in cases() {
+    if wanted.length() == 0 || wanted.exists(x => x == c.tag) {
+      let paths = c.tag == "l_missing"
+      let (rc_ref, out_ref, err_ref) = run_one(c, ref_fold, paths)
+      let (rc_our, out_our, err_our) = run_one(c, our_fold, paths)
+      let same =
+        rc_ref == rc_our && out_ref == out_our && err_ref == err_our
+      if same {
+        passed = passed + 1
+      } else {
+        failed.push(c.tag)
+        println("DIFFERS  \{c.tag}")
+        if rc_ref != rc_our {
+          println("  | exit status: ref=\{rc_ref} our=\{rc_our}")
+        }
+        if out_ref != out_our {
+          println("  stdout differs:")
+          println(first_difference(out_ref, out_our))
+        }
+        if err_ref != err_our {
+          println("  stderr differs:")
+          println(first_difference(err_ref, err_our))
+        }
+      }
+    }
+  }
+  let total = passed + failed.length()
+  if failed.length() > 0 {
+    println("\{passed}/\{total} shapes agree; differs: \{failed.join(", ")}")
+    fail("the command line of this build does not agree with the reference")
+  } else {
+    println("\{passed}/\{total} command-line shapes agree with the reference")
+  }
+}

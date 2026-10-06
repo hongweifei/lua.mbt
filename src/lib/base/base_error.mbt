@@ -231,14 +231,6 @@ pub fn base_warn(
     }
     return @core.Nothing
   }
-  if state.warn_enabled {
-    @core.write_stderr(
-      @core.bytes_concat([
-        @core.bytes_of("Lua warning: "),
-        msg,
-        @core.bytes_of("\n"),
-      ]),
-    )
-  }
+  @core.warn_message(state, msg)
   @core.Nothing
 }

@@ -130,7 +130,7 @@ pub fn execute(
         }
         let reports = finished is None || resuming_result is Some(_)
         let mask = thread.hook_mask & @core.HOOK_RETURN
-        if reports && mask != 0 && !thread.hook_running {
+        if reports && mask != 0 && thread.allowhook {
           // A host function returns over its own arguments, which is where
           // the reference's return hook finds them.  The frame is finished
           // from the values themselves, not from these slots.
@@ -438,8 +438,7 @@ pub fn execute(
               // later resume finishes the call.  Its frame stays on the stack
               // while the thread is suspended, which is what makes it show up
               // as a level of `debug.getinfo` and `debug.traceback`.
-              if (thread.hook_mask & @core.HOOK_CALL) != 0 &&
-                !thread.hook_running {
+              if (thread.hook_mask & @core.HOOK_CALL) != 0 && thread.allowhook {
                 hook_call_event(st, thread, nargs, false)
               }
               fr.pc = pc
@@ -523,7 +522,7 @@ pub fn execute(
             fr = thread.frames[ci]
             pc = fr.pc
             base = fr.base
-            if (thread.hook_mask & @core.HOOK_CALL) != 0 && !thread.hook_running {
+            if (thread.hook_mask & @core.HOOK_CALL) != 0 && thread.allowhook {
               fr.pc = pc
               hook_call_event(st, thread, nargs, false)
               fr = thread.frames[ci]
@@ -553,8 +552,7 @@ pub fn execute(
               if thread.ny > 0 {
                 raise_yield_error(st, thread)
               }
-              if (thread.hook_mask & @core.HOOK_CALL) != 0 &&
-                !thread.hook_running {
+              if (thread.hook_mask & @core.HOOK_CALL) != 0 && thread.allowhook {
                 hook_call_event(st, thread, nargs, false)
               }
               fr.pc = pc
@@ -581,8 +579,7 @@ pub fn execute(
               fr = thread.frames[ci]
               pc = fr.pc
               base = fr.base
-              if (thread.hook_mask & @core.HOOK_CALL) != 0 &&
-                !thread.hook_running {
+              if (thread.hook_mask & @core.HOOK_CALL) != 0 && thread.allowhook {
                 fr.pc = pc
                 hook_call_event(st, thread, nargs, false)
                 fr = thread.frames[ci]
@@ -613,8 +610,7 @@ pub fn execute(
               fr = thread.frames[ci]
               pc = fr.pc
               base = fr.base
-              if (thread.hook_mask & @core.HOOK_CALL) != 0 &&
-                !thread.hook_running {
+              if (thread.hook_mask & @core.HOOK_CALL) != 0 && thread.allowhook {
                 fr.pc = pc
                 hook_call_event(st, thread, nargs, true)
                 fr = thread.frames[ci]
@@ -635,8 +631,7 @@ pub fn execute(
             // event for this very return: the reference closes first and only
             // then reaches `luaD_poscall`, which is what reports it.
             close_frame(st, thread, ci, @core.VNil, "close")
-            if (thread.hook_mask & @core.HOOK_RETURN) != 0 &&
-              !thread.hook_running {
+            if (thread.hook_mask & @core.HOOK_RETURN) != 0 && thread.allowhook {
               hook_return_event(st, thread, inst.a + 1, n)
             }
             // The results stay where the frame left them; they are copied into
@@ -761,7 +756,7 @@ pub fn execute(
             thread.stack[slot + 1] = s
             thread.stack[slot + 2] = ctl
             push_frame(st, thread, slot, 2, a + 4, want, @core.src_iterator, 0)
-            if (thread.hook_mask & @core.HOOK_CALL) != 0 && !thread.hook_running {
+            if (thread.hook_mask & @core.HOOK_CALL) != 0 && thread.allowhook {
               hook_call_event(st, thread, 2, false)
               fr = thread.frames[ci]
             }

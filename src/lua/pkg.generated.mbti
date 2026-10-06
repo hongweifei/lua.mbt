@@ -12,6 +12,8 @@ pub fn call_printed(@core.LuaState, @core.Value) -> Bytes?
 
 pub fn call_with_handler(@core.LuaState, @core.Value, Array[@core.Value]) -> (Array[@core.Value]?, Bytes)
 
+pub fn close(@core.LuaState) -> Unit
+
 pub fn create() -> @core.LuaState
 
 pub fn create_ignoring_env(Bool) -> @core.LuaState

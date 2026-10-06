@@ -467,6 +467,9 @@ fn main {
     ok = run_script(state, args[opts.script], args[opts.script + 1:].to_owned())
   }
   if !ok {
+    // The reference reaches `lua_close` whatever `pmain` returned, so the
+    // pending finalizers run before the status is handed to the process.
+    @lua.close(state)
     @core.host_exit(1)
   }
   if opts.interactive {
@@ -482,4 +485,7 @@ fn main {
       let _ = run_chunk(state, @core.read_stdin_all(), "=stdin", [])
     }
   }
+  // `main` closes the state after `pmain` returns: every object left with a
+  // `__gc` gets one, which is the last thing a script's finalizer can print.
+  @lua.close(state)
 }

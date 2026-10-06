@@ -33,6 +33,10 @@ pub(all) struct LuaState {
   /// being entered again there (`GCSTPGC`), and every `collectgarbage` option
   /// then answers false rather than doing anything.
   mut gc_finalizing : Bool
+  /// True once the state is being closed: the reference sets `GCSTPCLS` there,
+  /// and from that point on a new object with a `__gc` is not registered as a
+  /// finalizable one -- "no extra finalizers after here" (`lgc.c:1517`).
+  mut gc_closing : Bool
   mut gc_mode : String
   mut gc_pause : Int
   mut gc_stepmul : Int
@@ -163,6 +167,7 @@ pub fn lua_state_new() -> LuaState {
     in_error_handling: false,
     gc_running: true,
     gc_finalizing: false,
+    gc_closing: false,
     gc_mode: "generational",
     gc_pause: 200,
     gc_stepmul: 100,
@@ -325,6 +330,30 @@ pub fn[T] vm_error(st : LuaState, msg : String) -> T raise LuaRaised {
 
 ///|----------------------------------------------------------------
 /// Error reporting
+
+///|
+/// Emits a warning.  This is the one spelling of it: `warn` reaches it through
+/// the library, and so does a `__gc` that failed (`luaE_warnerror`), which is why
+/// both are silent unless the launcher turned warnings on with `-W`.  The
+/// reference hands the message to a function the *host* installs; the standalone
+/// interpreter installs its printer only when asked, and with none in place the
+/// message is dropped.
+pub fn warn_message(st : LuaState, msg : Bytes) -> Unit {
+  if st.warn_enabled {
+    write_stderr(bytes_concat([bytes_of("Lua warning: "), msg, bytes_of("\n")]))
+  }
+}
+
+///|
+/// `luaE_warnerror`'s reading of an error object: the object itself when it is a
+/// string, and one fixed sentence otherwise.  No `__tostring` is asked, and no
+/// position is prefixed -- a warning is not an error report.
+pub fn error_for_warning(v : Value) -> Bytes {
+  match v {
+    VStr(s) => s.data()
+    _ => bytes_of("error object is not a string")
+  }
+}
 
 ///|
 /// Raises a value as an error that has just been *created*, which is the only

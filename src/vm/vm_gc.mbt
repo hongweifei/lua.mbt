@@ -29,6 +29,67 @@ pub fn run_gc_finalizer(
 }
 
 ///|
+/// The reference's `GCTM`: the handler is called where nobody can receive an
+/// error -- the collector is the caller -- so a failure becomes the warning
+/// `error in __gc (<msg>)` and the run goes on.  The message is the error object
+/// when it is a string and `error object is not a string` otherwise; a handler
+/// that yields is refused by the same boundary every other host call enforces,
+/// and that refusal is what gets reported.
+///
+/// `luaD_pcall` is given an error function of 0, so the message handler that is
+/// installed where the collection happens -- the launcher's, or an enclosing
+/// `xpcall`'s -- is skipped: what reaches the warning is the error as it was
+/// raised, with its position but without the traceback a handler would have
+/// added.  Hooks are switched off for the duration (`L->allowhook = 0`), so a
+/// finalizer runs untraced: a line or count hook reports nothing of what the
+/// handler does, and its instructions do not run down a count either.
+fn finalizer_call(st : @core.LuaState, v : @core.Value) -> Unit {
+  let thread = st.current_thread
+  let saved_errfunc = thread.errfunc
+  let saved_allowhook = thread.allowhook
+  thread.errfunc = @core.VNil
+  thread.allowhook = false
+  let failed = try {
+    run_gc_finalizer(st, v)
+    None
+  } catch {
+    @core.LuaRaised(err) => Some(@core.error_for_warning(err))
+    @core.LuaYield(_) => Some(@core.bytes_of(yield_error(st, thread)))
+  }
+  thread.errfunc = saved_errfunc
+  thread.allowhook = saved_allowhook
+  match failed {
+    Some(msg) =>
+      @core.warn_message(
+        st,
+        @core.bytes_concat([
+          @core.bytes_of("error in __gc ("),
+          msg,
+          @core.bytes_of(")"),
+        ]),
+      )
+    None => ()
+  }
+}
+
+///|
+/// Closing the state, which is what `lua_close` does and what the reference's
+/// `pmain` reaches at the end of a run: every object with a `__gc` gets one, in
+/// the order a collection would finalize them, whether or not anything still
+/// holds it.  This is why a finalizer can print after the script is over -- and
+/// why `os.exit(code)` without the `close` flag does not print it: the reference
+/// calls `exit(status)` straight away there.
+///
+/// No new handler is registered from here on (the reference's `GCSTPCLS`), so one
+/// pass is enough: nothing a handler resurrects can join the list.
+pub fn close_state(st : @core.LuaState) -> Unit {
+  st.gc_closing = true
+  for v in @core.gc_all_finalizers(st) {
+    finalizer_call(st, v)
+  }
+}
+
+///|
 /// `setpause`: what a finished cycle leaves behind.  The debt is the distance to
 /// the next threshold, which is negative while the live set is below it -- a
 /// credit, and until it is paid off `collectgarbage("step")` does no work at all.
@@ -67,14 +128,14 @@ fn cycle_units(st : @core.LuaState) -> Int {
 ///   answers `true` there, while on a large one it answers `false`.
 /// `setstepmul` scales both figures, as it does there -- it is an `incstep`
 /// parameter, so in generational mode it changes nothing.
-pub fn gc_step(st : @core.LuaState, size : Int) -> Bool raise @core.LuaRaised {
+pub fn gc_step(st : @core.LuaState, size : Int) -> Bool {
   let finished = gc_step_work(st, size)
   finished && st.gc_mode != "generational"
 }
 
 ///|
 /// The accounting of one step, without the mode that asks for it.
-fn gc_step_work(st : @core.LuaState, size : Int) -> Bool raise @core.LuaRaised {
+fn gc_step_work(st : @core.LuaState, size : Int) -> Bool {
   // `lua_gc`: a basic step clears the debt and steps at once; a sized one adds
   // its kilobytes and lets `luaC_checkGC` decide whether that pays for a step.
   if size == 0 {
@@ -121,11 +182,13 @@ fn gc_step_work(st : @core.LuaState, size : Int) -> Bool raise @core.LuaRaised {
 
 ///|
 /// One full collection, finalizers included.  Shared by `collectgarbage` and by
-/// the automatic collection the interpreter asks for as memory grows.
-pub fn collect_all(st : @core.LuaState) -> Unit raise @core.LuaRaised {
+/// the automatic collection the interpreter asks for as memory grows.  A handler
+/// that fails here is reported as a warning and the collection goes on, as the
+/// reference's `GCTM` does, so nothing this calls raises out.
+pub fn collect_all(st : @core.LuaState) -> Unit {
   let pending = @core.gc_collect(st)
   for v in pending {
-    run_gc_finalizer(st, v)
+    finalizer_call(st, v)
   }
 }
 
@@ -146,7 +209,7 @@ pub const GC_MAX_THRESHOLD : Int = 0x7fff_ffff
 /// collector leaves the live size in `memory_units`, and the pause parameter
 /// says how far past it the next collection is due -- the reference's
 /// `GCthreshold`, set from `totalbytes` and `gcpause`.
-pub fn collect_and_retune(st : @core.LuaState) -> Unit raise @core.LuaRaised {
+pub fn collect_and_retune(st : @core.LuaState) -> Unit {
   // Nothing may collect while a collection is under way: a `__gc` handler runs
   // Lua, and its first instruction would find the old threshold still passed.
   st.gc_threshold = st.memory_units + @core.GC_STEP

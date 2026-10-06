@@ -278,7 +278,7 @@ pub fn LThread::new() -> LThread {
     hook_mask: 0,
     hook_count: 0,
     hook_base_count: 0,
-    hook_running: false,
+    allowhook: true,
     hook_old_pc: 0,
     mm_pending: "",
     errfunc: VNil,

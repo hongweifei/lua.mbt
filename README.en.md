@@ -420,6 +420,17 @@ What the interpreter does, in the areas the suite exercises hardest:
   rather than taking the process down, and a recursion through host callbacks is
   refused with "C stack overflow" when the host stack is nearly spent rather than
   running the real stack out (both are in the differences below).
+* **The command line and the closing.** What happens after the script agrees
+  too: `main` closes the state after `pmain` returns, so an object still in
+  scope gets its `__gc` before the process leaves (`os.exit(code)` without the
+  `close` flag calls `exit` straight away, and that line never prints); a failure
+  inside a handler reads `error in __gc (<the message>)` with no traceback,
+  because the reference's `GCTM` runs the handler under a protected call whose
+  error function is 0 -- the message handler is never asked -- and `warn` has
+  nowhere to print until `-W` installs a printer.  `os.exit(true)` and
+  `os.exit(false)` are read as booleans before anything reads them as numbers
+  (0 and 1).  This surface is measured byte for byte against the reference binary
+  by `tools/run_cli_matrix.mbtx`, described under `## Testing`.
 
 ## Differences from the reference implementation
 
@@ -468,6 +479,25 @@ What the interpreter does, in the areas the suite exercises hardest:
   `Lua 5.4  (MoonBit implementation)` where the reference prints its copyright
   line.  `_VERSION` is `"Lua 5.4"`, and a program that reads the banner text is
   the only thing that would see the difference.
+* **The directories in the default search paths are each build's own.**  The
+  rule is the same (`luaconf.h`'s templates, resolved against the executable),
+  the directory is not, so a failed `require` lists `no file '...'` entries that
+  differ byte for byte.  `tools/run_cli_matrix.mbtx` folds only the directory for
+  that shape -- the templates, the number of entries and the file names still have
+  to agree -- and runs the same shape again with `LUA_PATH`/`LUA_CPATH` set by
+  hand, where nothing is folded.
+* **The *number* of hook events is this implementation's own; the rule is not.**
+  `debug.sethook(f, "c", n)` fires every n **instructions**, and how many
+  instructions a loop compiles to is each implementation's business, so the same
+  program counts differently (measured: a loop summing to 30 reports 18 events on
+  the reference and 40 here).  The rules are aligned one by one, each with a
+  control: the hook function's own instructions do **not** run the count down
+  (padding the callback's body with a loop of 500 leaves the reference's 18
+  unmoved, and this build behaves the same), a collector's `__gc` handler is not
+  traced at all, and an instruction that reaches both the count and a new line
+  reports **both** events -- `luaG_traceexec` gives the count and then still runs
+  the line test, rather than one event per instruction.  The first two are pinned
+  in `tests/stdlib.lua` and `tools/cli/fin_hook.lua`.
 * **`package.loadlib` finds no `lua_CFunction` and cannot call one.**  The host
   loader really is asked (`dlopen`/`dlsym` on POSIX, `LoadLibraryExA`/
   `GetProcAddress` on Windows), so a file that will not open answers `"open"` and
@@ -633,6 +663,23 @@ moon test
 * The official Lua 5.4 test suite is the conformance judge.  It is not
   redistributed here — `tools/run_official_tests.mbtx` needs a copy in
   `lua-5.4.9-tests/`, and the current figures are under `## Status`.
+* The command line is measured by `tools/run_cli_matrix.mbtx`: the same shapes
+  (options and `--`, every way `-e`/`-l` can be malformed, the shape of `arg`,
+  scripts and standard input in either order, every kind of `os.exit` argument
+  and the `close` flag, finalizers and the closing, `-W` warnings, the `LUA_*`
+  environment) go through both binaries, and stdout, stderr and the exit status
+  are compared byte for byte -- 61 shapes agree today.  The fixtures are ordinary
+  Lua files under `tools/cli/`, runnable on the reference on their own.  Three
+  things are folded before comparing: each executable's own path, its version
+  banner (asked from `--version`, so no version number is written into the
+  harness and a banner missing a line is still a difference), and the directory
+  part of a `no file '...'` entry.  This is the only way to measure that surface:
+  the official `main.lua` needs `T`, the reference's C test library, which neither
+  binary here has.
+
+```
+moon run --target native tools/run_cli_matrix.mbtx [--ref=path] [--our=path] [tag ...]
+```
 * Performance is measured by `bench/` and `tools/run_bench.mbtx`: each case asserts its own checksum and prints one `bench <name> <seconds> <checksum>` line, and passing a second interpreter turns the output into ratios (`--repeat=N` sets how often each case runs, three by default, keeping the fastest).  Measure back to back before and after a change and compare the **ratios**, never a number from an earlier session.
 
 ```

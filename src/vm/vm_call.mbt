@@ -64,7 +64,7 @@ pub fn call_value(
     thread.frames[nf].mm_name = st.mm_name
     st.mm_name = ""
   }
-  if (thread.hook_mask & @core.HOOK_CALL) != 0 && !thread.hook_running {
+  if (thread.hook_mask & @core.HOOK_CALL) != 0 && thread.allowhook {
     let saved = st.current_thread
     st.current_thread = thread
     hook_call_event(st, thread, args.length(), false)

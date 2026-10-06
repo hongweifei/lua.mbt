@@ -288,6 +288,8 @@ pub fn dump_proto(LProto) -> Unit
 
 pub fn errno_message() -> Bytes
 
+pub fn error_for_warning(Value) -> Bytes
+
 pub fn find_set_reg(LProto, Int, Int) -> Int
 
 pub fn float_ceil_to_int64(Double) -> Int64?
@@ -317,6 +319,8 @@ pub fn format_with_int(Int, Bytes) -> Bytes
 pub fn format_with_int64(Int64, Bytes) -> Bytes
 
 pub fn format_with_uint64(UInt64, Bytes) -> Bytes
+
+pub fn gc_all_finalizers(LuaState) -> Array[Value]
 
 pub fn gc_collect(LuaState) -> Array[Value]
 
@@ -497,6 +501,8 @@ pub fn var_info(LuaState, Int) -> String
 pub fn[T] vm_error(LuaState, String) -> T raise LuaRaised
 
 pub fn vm_position(LuaState) -> String
+
+pub fn warn_message(LuaState, Bytes) -> Unit
 
 pub fn with_position(LuaState, Value, Int) -> Value
 
@@ -709,7 +715,7 @@ pub(all) struct LThread {
   mut hook_mask : Int
   mut hook_count : Int
   mut hook_base_count : Int
-  mut hook_running : Bool
+  mut allowhook : Bool
   mut hook_old_pc : Int
   mut mm_pending : String
   mut errfunc : Value
@@ -772,6 +778,7 @@ pub(all) struct LuaState {
   in_error_handling : Bool
   mut gc_running : Bool
   mut gc_finalizing : Bool
+  mut gc_closing : Bool
   mut gc_mode : String
   mut gc_pause : Int
   mut gc_stepmul : Int

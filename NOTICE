@@ -15,7 +15,12 @@ xoshiro256** 随机数发生器、字符串转数字、排序）。Lua 以 MIT �
 的设计。`os.time` 读字段、界检与把归一化结果写回调用者那张表，遵循 `loslib.c`
 （`getfield`、`getboolfield`、`setallfields`）的设计；`io.read`/`io.lines` 的数字
 扫描与结束、关闭、上限的答法，遵循 `liolib.c`（`read_number`、`io_readline`、
-`aux_lines`、`getiofile`、`tofile`）的设计。
+`aux_lines`、`getiofile`、`tofile`）的设计。脚本跑完之后的收尾——`main` 在 `pmain`
+之后关闭状态、`os.exit` 的第二个参数、终结器里那句 `error in __gc (...)` 不带回溯
+（保护调用的 `errfunc` 为 0）——遵循 `lua.c`（`pmain`、`l_pmain`、`os_exit`）与
+`lgc.c`（`GCTM`、`luaE_warnerror`）的设计；`debug` 钩子何时不触发、计数在钩子自己的
+指令上不走动，遵循 `lstate.h`（`allowhook`）、`ldo.c`（`luaD_hook`）与 `ldebug.c`
+（`luaG_traceexec`、`settraps`）的设计。
 
 ---
 

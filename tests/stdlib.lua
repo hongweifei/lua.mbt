@@ -380,6 +380,77 @@ do
   eq(seen[2], "return:4,2", "a return event names its results")
 end
 
+-- A count event does not end the trace of its instruction.  `luaG_traceexec`
+-- reports the count hook and then still runs the line test, so a hook watching
+-- both, with a count of one instruction, is told about the lines as well.
+do
+  local kinds = {}
+  local function hook (ev)
+    local k = tostring(ev)
+    kinds[k] = (kinds[k] or 0) + 1
+  end
+  local s = 0
+  debug.sethook(hook, "cl", 1)
+  for i = 1, 10 do s = s + i end
+  debug.sethook()
+  eq(s, 55, "the hooked loop still adds up")
+  assert(kinds.count and kinds.count > 0, "a count of one instruction fires")
+  assert(kinds.line and kinds.line > 0,
+    "and the line events of those instructions are reported too")
+end
+
+-- Nothing is traced while the hook itself runs, in the stronger sense that the
+-- countdown stands still with it: the same hooked work reports the same number
+-- of count events however much the callback does inside itself.  Several padding
+-- sizes are measured rather than one, because a single figure cannot tell this
+-- apart from a countdown that merely happens to land in the same place.
+do
+  local n, pad = 0, 0
+  local function events_with (inside)
+    n = 0
+    pad = 0
+    debug.sethook(function ()
+      n = n + 1
+      for i = 1, inside do pad = pad + i end
+    end, "c", 4)
+    local s = 0
+    for i = 1, 30 do s = s + i end
+    debug.sethook()
+    return n
+  end
+  local tiny = events_with(0)
+  assert(tiny > 0, "a count hook fires")
+  for _, inside in ipairs({ 1, 5, 50, 500 }) do
+    eq(events_with(inside), tiny,
+      "a hook looping " .. inside .. " times inside itself reports the same events")
+  end
+  assert(pad > 0, "and the padded hooks really did run their loops")
+end
+
+-- A collector's metamethod is not traced: `GCTM` clears `allowhook` around the
+-- handler, so a hook sees nothing of what it runs.
+do
+  local seen = {}
+  local marks = {}
+  local function hook (_, line)
+    seen[#seen + 1] = line
+  end
+  local holder = {}
+  holder[1] = setmetatable({}, { __gc = function ()
+    marks[1] = #seen
+    local s = 0
+    for i = 1, 20 do s = s + i end
+    marks[2] = #seen
+    return s
+  end })
+  holder[1] = nil
+  debug.sethook(hook, "l")
+  collectgarbage()
+  debug.sethook()
+  eq(#marks, 2, "the finalizer ran while the hook was on")
+  eq(marks[2], marks[1], "and not one of its lines was reported")
+end
+
 -- A chunk read from a file is named `@path`, which is what `debug.getinfo`
 -- reports as its source (standard input is `=stdin`).
 do

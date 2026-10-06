@@ -549,15 +549,33 @@ pub fn os_execute(
 ///|
 /// Terminates the process.  A second argument of true asks the host to release
 /// its resources first, which is what the reference implementation does.
+
+///|
+/// `os.exit`.  A *boolean* status is the reference's own first branch, before
+/// `luaL_optinteger` is asked at all: `true` is success and `false` failure,
+/// which is what makes `os.exit(false)` the idiom it is.  The second argument is
+/// the `close` flag -- `lua_close` before `exit` -- and it is the only way a
+/// pending `__gc` gets to run from here, since `exit` otherwise leaves the
+/// state as it stands.
 pub fn os_exit(
   state : @core.LuaState,
   upvals : Array[@core.Value],
   args : ArrayView[@core.Value],
 ) -> @core.BuiltinResult raise @core.LuaRaised {
   let _ = upvals
-  let code = @core.opt_int(state, args, 1, "exit", 0L)
-  let _ = args
-  @core.host_exit(code.to_int())
+  let code = if args.length() >= 1 && args[0] is @core.VBool(b) {
+    if b {
+      0
+    } else {
+      1
+    }
+  } else {
+    @core.opt_int(state, args, 1, "exit", 0L).to_int()
+  }
+  if args.length() >= 2 && args[1].is_truthy() {
+    @vm.close_state(state)
+  }
+  @core.host_exit(code)
   @core.Nothing
 }
 

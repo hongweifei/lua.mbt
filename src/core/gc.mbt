@@ -94,7 +94,7 @@ pub fn gc_register(st : LuaState, v : Value) -> Unit {
         VNil => false
         _ => true
       }
-      if has_gc {
+      if has_gc && !st.gc_closing {
         let mut known = false
         for k in st.finalizers {
           if k.raw_equal(v) {
@@ -107,6 +107,23 @@ pub fn gc_register(st : LuaState, v : Value) -> Unit {
       }
     }
   }
+}
+
+///|
+/// Every object still waiting for a `__gc`, newest first.  Closing the state
+/// takes the whole list -- `luaC_freeallobjects` calls `separatetobefnz(g, 1)`,
+/// which moves *all* finalizable objects, reachable or not -- while a collection
+/// takes only the unreachable ones.  The order is the one a collection finalizes
+/// in, so a program that relies on it sees the same sequence either way.
+pub fn gc_all_finalizers(st : LuaState) -> Array[Value] {
+  let due : Array[Value] = []
+  let mut i = st.finalizers.length()
+  while i > 0 {
+    i = i - 1
+    due.push(st.finalizers[i])
+  }
+  st.finalizers = []
+  due
 }
 
 ///|

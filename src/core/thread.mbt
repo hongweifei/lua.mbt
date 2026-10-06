@@ -180,9 +180,12 @@ pub(all) struct LThread {
   mut hook_mask : Int
   mut hook_count : Int
   mut hook_base_count : Int
-  /// True while the hook function itself is running, so that it does not
-  /// trigger itself again.
-  mut hook_running : Bool
+  /// The reference's `L->allowhook`: nothing is traced while it is false.
+  /// It is cleared while the hook function itself runs, so that a hook does not
+  /// trigger itself again, and for the duration of a collector's metamethod
+  /// (`GCTM`), which is not traced either.  The count of instructions until the
+  /// next event stands still with it, as the reference's own measure shows.
+  mut allowhook : Bool
   /// The pc of the last executed instruction (of the last active proto),
   /// used by the line hook to detect loops and new lines.
   mut hook_old_pc : Int

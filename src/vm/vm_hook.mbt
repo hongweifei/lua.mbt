@@ -2,8 +2,10 @@
 
 ///|
 /// Calls the hook function with the event name and, for line events, the
-/// current line.  The hook never triggers itself: while it runs
-/// `hook_running` is set and every other trigger point bails out.
+/// current line.  Nothing is reported while `allowhook` is false -- inside the
+/// hook function itself, and inside a collector's metamethod -- and the trace is
+/// silent there in the stronger sense: `hook_tick` skips those instructions
+/// entirely, so the count does not run down either.
 pub fn call_hook(
   st : @core.LuaState,
   thread : @core.LThread,
@@ -12,14 +14,14 @@ pub fn call_hook(
   ftransfer : Int,
   ntransfer : Int,
 ) -> Unit raise @core.LuaRaised {
-  if thread.hook_running {
+  if !thread.allowhook {
     return
   }
   let f = thread.hook_fn
   if f is @core.VNil {
     return
   }
-  thread.hook_running = true
+  thread.allowhook = false
   // The transfer information belongs to the frame the event is about, which is
   // the innermost one here: the returning frame for a return event and the new
   // frame for a call event.  The reference records it only when there is
@@ -51,19 +53,19 @@ pub fn call_hook(
   } catch {
     @core.LuaRaised(e) => {
       clear_transfer(hooked)
-      thread.hook_running = false
+      thread.allowhook = true
       st.current_thread = saved_current
       raise @core.LuaRaised(e)
     }
     @core.LuaYield(v) => {
       clear_transfer(hooked)
-      thread.hook_running = false
+      thread.allowhook = true
       st.current_thread = saved_current
       raise @core.LuaYield(v)
     }
   }
   clear_transfer(hooked)
-  thread.hook_running = false
+  thread.allowhook = true
   st.current_thread = saved_current
 }
 
@@ -167,7 +169,13 @@ pub fn hook_tick(
   fr : @core.Frame,
   pc : Int,
 ) -> Unit raise @core.LuaRaised {
-  if thread.hook_running || !fr.trap {
+  // A suppressed hook traces nothing at all, not even the countdown: the
+  // reference measures the same hooked work in 18 count events whether the hook
+  // function is a single assignment or loops five hundred times, so neither the
+  // callback nor the count advances inside it (`luaV_execute`'s `trap`, which
+  // `luaG_tracecall`/`luaG_traceexec` turn off for that whole region).  The same
+  // holds for a collector's metamethod, whose frames are therefore untraced too.
+  if !thread.allowhook || !fr.trap {
     return
   }
   let mask = thread.hook_mask
@@ -203,13 +211,18 @@ fn hook_events(
 ) -> Unit raise @core.LuaRaised {
   // Count event: fires every `hook_base_count` instructions, but only while
   // the count mask is on, as in the reference implementation.
+  let mut counted = false
   if (mask & @core.HOOK_COUNT) != 0 && thread.hook_base_count > 0 {
     thread.hook_count = thread.hook_count - 1
     if thread.hook_count <= 0 {
       thread.hook_count = thread.hook_base_count
-      call_hook(st, thread, "count", -1, 0, 0)
-      return
+      counted = true
     }
+  }
+  // The count event does not end the trace: `luaG_traceexec` reports it and
+  // then still runs the line test, so one instruction can produce both.
+  if counted {
+    call_hook(st, thread, "count", -1, 0, 0)
   }
   if (mask & @core.HOOK_LINE) != 0 {
     match fr.closure {

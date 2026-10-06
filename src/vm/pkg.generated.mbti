@@ -30,6 +30,8 @@ pub fn close_detached(@core.LuaState, @core.LThread, @core.Frame?, Array[@core.F
 
 pub fn close_frame(@core.LuaState, @core.LThread, Int, @core.Value, String) -> Unit raise @core.LuaRaised
 
+pub fn close_state(@core.LuaState) -> Unit
+
 pub fn close_to_level(@core.LuaState, @core.LThread, @core.Frame, Int, String) -> Unit raise @core.LuaRaised
 
 pub fn close_upvalues(@core.LThread, Int) -> Unit
@@ -38,9 +40,9 @@ pub fn close_value(@core.LuaState, @core.Value, @core.Value, String) -> Unit rai
 
 pub fn coerce_concat(@core.Value) -> Bytes?
 
-pub fn collect_all(@core.LuaState) -> Unit raise @core.LuaRaised
+pub fn collect_all(@core.LuaState) -> Unit
 
-pub fn collect_and_retune(@core.LuaState) -> Unit raise @core.LuaRaised
+pub fn collect_and_retune(@core.LuaState) -> Unit
 
 pub fn collect_results(@core.LThread, Int, Int) -> Array[@core.Value]
 
@@ -66,7 +68,7 @@ pub fn floor_double(Double) -> Double
 
 pub fn[T] for_error(@core.LuaState, String, @core.Value) -> T raise @core.LuaRaised
 
-pub fn gc_step(@core.LuaState, Int) -> Bool raise @core.LuaRaised
+pub fn gc_step(@core.LuaState, Int) -> Bool
 
 pub fn gettable(@core.LuaState, @core.Value, @core.Value, Int) -> @core.Value raise @core.LuaRaised
 

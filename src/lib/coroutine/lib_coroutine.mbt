@@ -64,7 +64,7 @@ pub fn resume_thread(
       )
       // The body is called like any other function, so its call event fires
       // before its first instruction runs.
-      if (co.hook_mask & @core.HOOK_CALL) != 0 && !co.hook_running {
+      if (co.hook_mask & @core.HOOK_CALL) != 0 && co.allowhook {
         @vm.hook_call_event(state, co, args.length(), false)
       }
       Ok(())
@@ -88,7 +88,7 @@ pub fn resume_thread(
     co.resume_vals = Some(args.to_owned())
     // That call is now finished, which reports its return event.
     let hr = try {
-      if (co.hook_mask & @core.HOOK_RETURN) != 0 && !co.hook_running {
+      if (co.hook_mask & @core.HOOK_RETURN) != 0 && co.allowhook {
         @vm.hook_return_event(state, co, 1, args.length())
       }
       Ok(())
